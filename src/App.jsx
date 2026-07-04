@@ -169,6 +169,7 @@ export default function TugasKu() {
       const { data, error } = await supabase
         .from("tasks")
         .select("*")
+        .eq("user_id", session.user.id)
         .order("created_at", { ascending: true });
 
       if (error) {
