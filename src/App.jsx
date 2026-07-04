@@ -357,6 +357,29 @@ export default function TugasKu() {
     await supabase.from("promises").delete().eq("id", id);
   };
 
+  const [suggestions, setSuggestions] = useState({}); // {worryId: text | "..."}
+
+  const suggestAI = async (w) => {
+    setSuggestions((s) => ({ ...s, [w.id]: "..." }));
+    try {
+      const r = await fetch("/api/suggest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: w.text }),
+      });
+      const data = await r.json();
+      setSuggestions((s) => ({
+        ...s,
+        [w.id]: data.suggestion || "Hmm, AI-nya lagi bengong. Coba lagi.",
+      }));
+    } catch {
+      setSuggestions((s) => ({
+        ...s,
+        [w.id]: "Gagal konek ke AI — cek env GEMINI_API_KEY di Vercel.",
+      }));
+    }
+  };
+
   // gak bisa dikontrol → lepasin
   const releaseWorry = async (id) => {
     setWorries((ws) => ws.filter((x) => x.id !== id));
@@ -828,8 +851,22 @@ export default function TugasKu() {
                           onSave={(v) => editWorry(w.id, v)}
                           style={{ fontSize: 14, lineHeight: 1.4 }}
                         />
+                        {suggestions[w.id] && (
+                          <div style={S.aiBubble}>
+                            {suggestions[w.id] === "..."
+                              ? "AI lagi mikir…"
+                              : suggestions[w.id]}
+                          </div>
+                        )}
                       </div>
                       <div style={S.cardBtns}>
+                        <button
+                          style={S.btnGhost}
+                          title="Minta saran AI"
+                          onClick={() => suggestAI(w)}
+                        >
+                          ✨
+                        </button>
                         <button style={S.btn} onClick={() => worryToTask(w)}>
                           Jadiin tugas
                         </button>
@@ -1557,6 +1594,16 @@ const S = {
     padding: "1px 8px",
     fontSize: 11,
     color: "var(--muted2)",
+  },
+  aiBubble: {
+    marginTop: 8,
+    padding: "8px 10px",
+    background: "var(--accent-bg)",
+    border: "1px solid var(--accent-border)",
+    borderRadius: 10,
+    fontSize: 13,
+    lineHeight: 1.5,
+    color: "var(--ink)",
   },
   footer: {
     marginTop: 32,
