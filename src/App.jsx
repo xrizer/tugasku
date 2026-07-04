@@ -128,6 +128,26 @@ export default function TugasKu() {
     document.body.style.margin = "0";
   }, [dark]);
 
+  const [showPassForm, setShowPassForm] = useState(false);
+  const [newPass, setNewPass] = useState("");
+  const [passMsg, setPassMsg] = useState("");
+
+  const changePassword = async () => {
+    if (newPass.length < 6) {
+      setPassMsg("Minimal 6 karakter.");
+      return;
+    }
+    const { error } = await supabase.auth.updateUser({ password: newPass });
+    if (error) {
+      setPassMsg("Gagal: " + error.message);
+    } else {
+      setPassMsg("");
+      setNewPass("");
+      setShowPassForm(false);
+      alert("Password berhasil diganti ✓");
+    }
+  };
+
   const themeVars = {
     ...(dark ? THEMES.dark : THEMES.light),
     colorScheme: dark ? "dark" : "light",
@@ -423,6 +443,13 @@ export default function TugasKu() {
             </button>
             <button
               style={{ ...S.themeBtn, fontSize: 13, color: "var(--muted)" }}
+              onClick={() => setShowPassForm((v) => !v)}
+              title="Ganti password"
+            >
+              🔑
+            </button>
+            <button
+              style={{ ...S.themeBtn, fontSize: 13, color: "var(--muted)" }}
               onClick={() => supabase.auth.signOut()}
               title="Keluar"
             >
@@ -430,6 +457,41 @@ export default function TugasKu() {
             </button>
           </div>
         </div>
+
+        {showPassForm && (
+          <div
+            style={{
+              ...S.promBox,
+              background: "var(--card)",
+              border: "1px solid var(--border)",
+            }}
+          >
+            <div style={{ ...S.dumpTitle, marginBottom: 8 }}>
+              Ganti password
+            </div>
+            <div style={{ display: "flex", gap: 6 }}>
+              <input
+                type="password"
+                style={{ ...S.input, flex: 1, minWidth: 0 }}
+                placeholder="Password baru (min. 6 karakter)"
+                value={newPass}
+                onChange={(e) => setNewPass(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && changePassword()}
+              />
+              <button
+                style={{ ...S.addBtn, width: 60 }}
+                onClick={changePassword}
+              >
+                OK
+              </button>
+            </div>
+            {passMsg && (
+              <div style={{ color: "var(--red)", fontSize: 13, marginTop: 6 }}>
+                {passMsg}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* focus card — one thing at a time */}
         {focus && (
