@@ -1226,6 +1226,10 @@ function Section({ title, count, children, collapsed, onToggle }) {
 }
 
 function Card({ t, children, active, done, onEdit, onTogglePublic }) {
+  const [more, setMore] = useState(false);
+  const kids = Array.isArray(children) ? children.filter(Boolean) : [children];
+  const primary = kids[0];
+  const rest = kids.slice(1);
   return (
     <div
       style={{
@@ -1276,7 +1280,7 @@ function Card({ t, children, active, done, onEdit, onTogglePublic }) {
         </div>
       </div>
       <div style={S.cardBtns}>
-        {onTogglePublic && (
+        {more && onTogglePublic && (
           <button
             style={{
               ...S.btnGhost,
@@ -1294,7 +1298,15 @@ function Card({ t, children, active, done, onEdit, onTogglePublic }) {
             {t.is_public ? "👁" : "🙈"}
           </button>
         )}
-        {children}
+        {more && rest}
+        {primary}
+        <button
+          style={{ ...S.btnGhost, padding: "7px 8px" }}
+          title="Aksi lainnya"
+          onClick={() => setMore((v) => !v)}
+        >
+          {more ? "›" : "⋯"}
+        </button>
       </div>
     </div>
   );
