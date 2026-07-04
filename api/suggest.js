@@ -25,7 +25,11 @@ Kasih respon SINGKAT (maksimal 2 kalimat): satu saran praktis kecil yang bisa la
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { maxOutputTokens: 500, temperature: 0.9 },
+          generationConfig: {
+            maxOutputTokens: 1000,
+            temperature: 0.9,
+            thinkingConfig: { thinkingBudget: 0 },
+          },
         }),
       },
     );
