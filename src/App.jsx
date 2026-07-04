@@ -305,6 +305,21 @@ export default function TugasKu() {
     await supabase.from("promises").update({ text }).eq("id", id);
   };
 
+  const gcalUrl = (p) => {
+    // all-day event on due date
+    const d = p.due_date.replace(/-/g, "");
+    const next = new Date(p.due_date + "T00:00:00");
+    next.setDate(next.getDate() + 1);
+    const d2 = next.toISOString().slice(0, 10).replace(/-/g, "");
+    const params = new URLSearchParams({
+      action: "TEMPLATE",
+      text: `Janji: ${p.text}${p.to_whom ? " (ke " + p.to_whom + ")" : ""}`,
+      dates: `${d}/${d2}`,
+      details: "Dari TugasKu — janji yang harus ditepati.",
+    });
+    return `https://calendar.google.com/calendar/render?${params}`;
+  };
+
   // ---------- janji ----------
   const addPromise = async () => {
     const text = promForm.text.trim();
@@ -701,6 +716,21 @@ export default function TugasKu() {
                       </div>
                     </div>
                     <div style={S.cardBtns}>
+                      {p.due_date && (
+                        <a
+                          href={gcalUrl(p)}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{
+                            ...S.btnGhost,
+                            textDecoration: "none",
+                            display: "inline-block",
+                          }}
+                          title="Tambah ke Google Calendar"
+                        >
+                          📅
+                        </a>
+                      )}
                       <button
                         style={{ ...S.btn, background: "var(--green-dark)" }}
                         onClick={() => keepPromise(p.id)}
