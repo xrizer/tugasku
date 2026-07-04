@@ -14,6 +14,9 @@ export default function TugasKu() {
   const [newTitle, setNewTitle] = useState("");
   const [newDaily, setNewDaily] = useState(false);
   const [newPriority, setNewPriority] = useState(1);
+  const [worries, setWorries] = useState([]);
+  const [worryText, setWorryText] = useState("");
+  const [released, setReleased] = useState(0);
 
   // ---------- load + daily reset ----------
   useEffect(() => {
@@ -30,7 +33,7 @@ export default function TugasKu() {
 
       // reset daily tasks that were completed on a previous day
       const stale = data.filter(
-        (t) => t.daily && t.status === "done" && t.done_date !== todayStr()
+        (t) => t.daily && t.status === "done" && t.done_date !== todayStr(),
       );
       if (stale.length > 0) {
         const ids = stale.map((t) => t.id);
@@ -46,6 +49,12 @@ export default function TugasKu() {
         });
       }
       setTasks(data);
+
+      const w = await supabase
+        .from("worries")
+        .select("*")
+        .order("created_at", { ascending: true });
+      if (!w.error) setWorries(w.data);
     })();
   }, []);
 
@@ -91,10 +100,53 @@ export default function TugasKu() {
     setTasks((ts) => [...ts, data]);
   };
 
+  // ---------- brain dump ----------
+  const addWorry = async () => {
+    const text = worryText.trim();
+    if (!text) return;
+    setWorryText("");
+    const { data, error } = await supabase
+      .from("worries")
+      .insert({ text })
+      .select()
+      .single();
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    setWorries((ws) => [...ws, data]);
+  };
+
+  // bisa dikontrol → jadi tiket
+  const worryToTask = async (w) => {
+    setWorries((ws) => ws.filter((x) => x.id !== w.id));
+    const { data, error } = await supabase
+      .from("tasks")
+      .insert({ title: w.text, priority: 1, daily: false, status: "todo" })
+      .select()
+      .single();
+    if (!error) setTasks((ts) => [...ts, data]);
+    await supabase.from("worries").delete().eq("id", w.id);
+  };
+
+  // gak bisa dikontrol → lepasin
+  const releaseWorry = async (id) => {
+    setWorries((ws) => ws.filter((x) => x.id !== id));
+    setReleased((n) => n + 1);
+    await supabase.from("worries").delete().eq("id", id);
+  };
+
   // ---------- render ----------
   if (error)
     return (
-      <div style={{ ...S.page, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div
+        style={{
+          ...S.page,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
         <div style={{ ...S.focusCard, maxWidth: 480 }}>
           <div style={{ ...S.focusLabel }}>Gagal terhubung ke database</div>
           <div style={{ fontSize: 14, lineHeight: 1.5 }}>
@@ -103,7 +155,8 @@ export default function TugasKu() {
             <br />
             Cek: (1) env <code>VITE_SUPABASE_URL</code> dan{" "}
             <code>VITE_SUPABASE_ANON_KEY</code> sudah diisi, (2) tabel{" "}
-            <code>tasks</code> sudah dibuat lewat <code>supabase-setup.sql</code>.
+            <code>tasks</code> sudah dibuat lewat{" "}
+            <code>supabase-setup.sql</code>.
           </div>
         </div>
       </div>
@@ -111,7 +164,14 @@ export default function TugasKu() {
 
   if (!tasks)
     return (
-      <div style={{ ...S.page, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div
+        style={{
+          ...S.page,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
         <span style={{ color: "#8A8578", fontSize: 14 }}>Memuat…</span>
       </div>
     );
@@ -147,7 +207,10 @@ export default function TugasKu() {
             <div style={S.focusLabel}>Fokus sekarang</div>
             <div style={S.focusTitle}>{focus.title}</div>
             {focus.status === "todo" ? (
-              <button style={S.focusBtn} onClick={() => move(focus.id, "inprogress")}>
+              <button
+                style={S.focusBtn}
+                onClick={() => move(focus.id, "inprogress")}
+              >
                 Terima & mulai →
               </button>
             ) : (
@@ -158,7 +221,13 @@ export default function TugasKu() {
           </div>
         )}
         {!focus && (
-          <div style={{ ...S.focusCard, background: "#EDF6EE", borderColor: "#BFDCC2" }}>
+          <div
+            style={{
+              ...S.focusCard,
+              background: "#EDF6EE",
+              borderColor: "#BFDCC2",
+            }}
+          >
             <div style={{ ...S.focusLabel, color: "#3E7A46" }}>Semua beres</div>
             <div style={{ ...S.focusTitle, color: "#2E5934" }}>
               Tidak ada tugas tersisa hari ini. 🎉
@@ -175,7 +244,9 @@ export default function TugasKu() {
             onChange={(e) => setNewTitle(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && addTask()}
           />
-          <button style={S.addBtn} onClick={addTask}>+</button>
+          <button style={S.addBtn} onClick={addTask}>
+            +
+          </button>
         </div>
         <div style={S.addOpts}>
           <label style={S.optLabel}>
@@ -196,6 +267,54 @@ export default function TugasKu() {
           </label>
         </div>
 
+        {/* brain dump — tumpahin dulu, sortir belakangan */}
+        <div style={S.dump}>
+          <div style={S.dumpHead}>
+            <span style={S.dumpTitle}>Lagi resah apa?</span>
+            {released > 0 && (
+              <span style={S.dumpReleased}>{released} dilepas hari ini</span>
+            )}
+          </div>
+          <div style={S.addRow}>
+            <input
+              style={{ ...S.input, background: "#FDFCFA" }}
+              placeholder="Tumpahin di sini, jangan disimpen di kepala…"
+              value={worryText}
+              onChange={(e) => setWorryText(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && addWorry()}
+            />
+            <button style={S.addBtn} onClick={addWorry}>
+              +
+            </button>
+          </div>
+          {worries.length > 0 && (
+            <div style={{ marginTop: 10 }}>
+              <div style={S.dumpHint}>
+                Sortir: bisa lu pengaruhi → jadiin tugas. Di luar kendali lu →
+                lepasin.
+              </div>
+              {worries.map((w) => (
+                <div key={w.id} style={S.worryCard}>
+                  <div style={{ flex: 1, fontSize: 14, lineHeight: 1.4 }}>
+                    {w.text}
+                  </div>
+                  <div style={S.cardBtns}>
+                    <button style={S.btn} onClick={() => worryToTask(w)}>
+                      Jadiin tugas
+                    </button>
+                    <button
+                      style={S.btnGhost}
+                      onClick={() => releaseWorry(w.id)}
+                    >
+                      Lepasin
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* sections */}
         <Section title="Todo" count={todo.length}>
           {todo.map((t) => (
@@ -203,7 +322,9 @@ export default function TugasKu() {
               <button style={S.btn} onClick={() => move(t.id, "inprogress")}>
                 Terima
               </button>
-              <button style={S.btnGhost} onClick={() => remove(t.id)}>✕</button>
+              <button style={S.btnGhost} onClick={() => remove(t.id)}>
+                ✕
+              </button>
             </Card>
           ))}
           {todo.length === 0 && <Empty text="Kosong — mantap." />}
@@ -212,10 +333,15 @@ export default function TugasKu() {
         <Section title="In Progress" count={doing.length}>
           {doing.map((t) => (
             <Card key={t.id} t={t} active>
-              <button style={{ ...S.btn, background: "#2E5934" }} onClick={() => move(t.id, "done")}>
+              <button
+                style={{ ...S.btn, background: "#2E5934" }}
+                onClick={() => move(t.id, "done")}
+              >
                 Selesai
               </button>
-              <button style={S.btnGhost} onClick={() => move(t.id, "todo")}>↩</button>
+              <button style={S.btnGhost} onClick={() => move(t.id, "todo")}>
+                ↩
+              </button>
             </Card>
           ))}
           {doing.length === 0 && <Empty text="Belum ada yang dikerjakan." />}
@@ -224,13 +350,19 @@ export default function TugasKu() {
         <Section title="Completed" count={done.length}>
           {done.map((t) => (
             <Card key={t.id} t={t} done>
-              <button style={S.btnGhost} onClick={() => move(t.id, "todo")}>↩</button>
+              <button style={S.btnGhost} onClick={() => move(t.id, "todo")}>
+                ↩
+              </button>
               {!t.daily && (
-                <button style={S.btnGhost} onClick={() => remove(t.id)}>✕</button>
+                <button style={S.btnGhost} onClick={() => remove(t.id)}>
+                  ✕
+                </button>
               )}
             </Card>
           ))}
-          {done.length === 0 && <Empty text="Belum ada yang selesai hari ini." />}
+          {done.length === 0 && (
+            <Empty text="Belum ada yang selesai hari ini." />
+          )}
         </Section>
 
         <div style={S.footer}>
@@ -274,7 +406,9 @@ function Card({ t, children, active, done }) {
         </div>
         <div style={S.tags}>
           {t.priority === 0 && (
-            <span style={{ ...S.tag, color: "#E4572E", borderColor: "#F0C4B4" }}>
+            <span
+              style={{ ...S.tag, color: "#E4572E", borderColor: "#F0C4B4" }}
+            >
               penting
             </span>
           )}
@@ -324,7 +458,12 @@ const S = {
     fontWeight: 700,
     marginBottom: 6,
   },
-  focusTitle: { fontSize: 18, fontWeight: 600, lineHeight: 1.35, marginBottom: 12 },
+  focusTitle: {
+    fontSize: 18,
+    fontWeight: 600,
+    lineHeight: 1.35,
+    marginBottom: 12,
+  },
   focusBtn: {
     background: "#E4572E",
     color: "#fff",
@@ -357,7 +496,13 @@ const S = {
     cursor: "pointer",
   },
   addOpts: { display: "flex", gap: 16, marginTop: 8 },
-  optLabel: { fontSize: 13, color: "#6E6A5E", display: "flex", alignItems: "center", gap: 4 },
+  optLabel: {
+    fontSize: 13,
+    color: "#6E6A5E",
+    display: "flex",
+    alignItems: "center",
+    gap: 4,
+  },
 
   sectionHead: {
     display: "flex",
@@ -419,6 +564,38 @@ const S = {
     fontSize: 13,
     color: "#A5A093",
     padding: "10px 2px",
+  },
+  dump: {
+    marginTop: 26,
+    background: "#EFEBE2",
+    border: "1px dashed #C9C2B2",
+    borderRadius: 14,
+    padding: "14px 16px",
+  },
+  dumpHead: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "baseline",
+    marginBottom: 10,
+  },
+  dumpTitle: {
+    fontSize: 13,
+    fontWeight: 700,
+    letterSpacing: "0.08em",
+    textTransform: "uppercase",
+    color: "#6E6A5E",
+  },
+  dumpReleased: { fontSize: 12, color: "#3E7A46", fontWeight: 600 },
+  dumpHint: { fontSize: 12, color: "#8A8578", marginBottom: 8 },
+  worryCard: {
+    background: "#FDFCFA",
+    border: "1px solid #E3DFD4",
+    borderRadius: 12,
+    padding: "10px 12px",
+    marginBottom: 8,
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
   },
   footer: {
     marginTop: 32,
