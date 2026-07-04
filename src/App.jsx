@@ -8,6 +8,84 @@ import { supabase } from "./lib/supabase";
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
+const COLLAPSE_KEY = "tugasku-collapsed";
+
+const THEMES = {
+  light: {
+    "--bg": "#F6F4EF",
+    "--ink": "#2B2822",
+    "--muted": "#8A8578",
+    "--muted2": "#6E6A5E",
+    "--faint": "#A5A093",
+    "--accent": "#E4572E",
+    "--accent-border": "#F0C4B4",
+    "--accent-bg": "#FFF4EC",
+    "--border": "#E3DFD4",
+    "--border2": "#D9D4C8",
+    "--badge": "#E8E4DA",
+    "--card": "#FFFFFF",
+    "--card2": "#FDFCFA",
+    "--green-bg": "#EDF6EE",
+    "--green-border": "#BFDCC2",
+    "--green": "#3E7A46",
+    "--green-dark": "#2E5934",
+    "--dump-bg": "#EFEBE2",
+    "--dump-border": "#C9C2B2",
+    "--janji-bg": "#FBF6E9",
+    "--janji-border": "#E6D9B8",
+    "--janji-ink": "#7A5C1E",
+    "--red": "#C0392B",
+    "--red-bg": "#FDF1EF",
+  },
+  dark: {
+    "--bg": "#16140F",
+    "--ink": "#EDEAE0",
+    "--muted": "#9C968A",
+    "--muted2": "#B3AC9E",
+    "--faint": "#6E6A5E",
+    "--accent": "#F26B3F",
+    "--accent-border": "#5C2E1E",
+    "--accent-bg": "#2A1B13",
+    "--border": "#34302A",
+    "--border2": "#3D3931",
+    "--badge": "#34302A",
+    "--card": "#211E18",
+    "--card2": "#26231C",
+    "--green-bg": "#17241A",
+    "--green-border": "#2C4A33",
+    "--green": "#8FCF9A",
+    "--green-dark": "#3E8A4C",
+    "--dump-bg": "#1D1B15",
+    "--dump-border": "#45402F",
+    "--janji-bg": "#231E10",
+    "--janji-border": "#4C4223",
+    "--janji-ink": "#D9B25C",
+    "--red": "#E0604F",
+    "--red-bg": "#2C1712",
+  },
+};
+
+const THEME_KEY = "tugasku-theme";
+
+function useCollapsed() {
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem(COLLAPSE_KEY)) || {};
+    } catch {
+      return {};
+    }
+  });
+  const toggle = (key) =>
+    setCollapsed((c) => {
+      const next = { ...c, [key]: !c[key] };
+      try {
+        localStorage.setItem(COLLAPSE_KEY, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  return [collapsed, toggle];
+}
+
 export default function TugasKu() {
   const [tasks, setTasks] = useState(null);
   const [error, setError] = useState(null);
@@ -24,6 +102,30 @@ export default function TugasKu() {
     due_date: "",
   });
   const [showPromForm, setShowPromForm] = useState(false);
+  const [collapsed, toggleCollapsed] = useCollapsed();
+  const [dark, setDark] = useState(() => {
+    try {
+      const s = localStorage.getItem(THEME_KEY);
+      if (s) return s === "dark";
+    } catch {}
+    return (
+      typeof window !== "undefined" &&
+      window.matchMedia &&
+      window.matchMedia("(prefers-color-scheme: dark)").matches
+    );
+  });
+  const toggleTheme = () =>
+    setDark((d) => {
+      const n = !d;
+      try {
+        localStorage.setItem(THEME_KEY, n ? "dark" : "light");
+      } catch {}
+      return n;
+    });
+  const themeVars = {
+    ...(dark ? THEMES.dark : THEMES.light),
+    colorScheme: dark ? "dark" : "light",
+  };
 
   // ---------- load + daily reset ----------
   useEffect(() => {
@@ -209,6 +311,7 @@ export default function TugasKu() {
       <div
         style={{
           ...S.page,
+          ...themeVars,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -234,12 +337,13 @@ export default function TugasKu() {
       <div
         style={{
           ...S.page,
+          ...themeVars,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
         }}
       >
-        <span style={{ color: "#8A8578", fontSize: 14 }}>Memuat…</span>
+        <span style={{ color: "var(--muted)", fontSize: 14 }}>Memuat…</span>
       </div>
     );
 
@@ -260,18 +364,50 @@ export default function TugasKu() {
   });
 
   return (
-    <div style={S.page}>
+    <div style={{ ...S.page, ...themeVars }}>
+      <style>{FIRE_CSS}</style>
       <div style={S.wrap}>
         {/* header */}
-        <div style={{ marginBottom: 20 }}>
-          <div style={S.eyebrow}>{dateLabel}</div>
-          <h1 style={S.h1}>TugasKu</h1>
+        <div
+          style={{
+            marginBottom: 20,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-end",
+          }}
+        >
+          <div>
+            <div style={S.eyebrow}>{dateLabel}</div>
+            <h1 style={S.h1}>TugasKu</h1>
+          </div>
+          <button
+            style={S.themeBtn}
+            onClick={toggleTheme}
+            title={dark ? "Mode terang" : "Mode gelap"}
+          >
+            {dark ? "☀️" : "🌙"}
+          </button>
         </div>
 
         {/* focus card — one thing at a time */}
         {focus && (
-          <div style={S.focusCard}>
-            <div style={S.focusLabel}>Fokus sekarang</div>
+          <div
+            style={{
+              ...S.focusCard,
+              ...(focus.status === "inprogress"
+                ? { animation: "emberGlow 1.8s ease-in-out infinite" }
+                : {}),
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              {focus.status === "inprogress" && <Flame />}
+              <div style={{ ...S.focusLabel, marginBottom: 0 }}>
+                {focus.status === "inprogress"
+                  ? "Lagi dikerjain — jangan pindah dulu"
+                  : "Fokus sekarang"}
+              </div>
+            </div>
+            <div style={{ height: 6 }} />
             <div style={S.focusTitle}>{focus.title}</div>
             {focus.status === "todo" ? (
               <button
@@ -291,12 +427,14 @@ export default function TugasKu() {
           <div
             style={{
               ...S.focusCard,
-              background: "#EDF6EE",
-              borderColor: "#BFDCC2",
+              background: "var(--green-bg)",
+              borderColor: "var(--green-border)",
             }}
           >
-            <div style={{ ...S.focusLabel, color: "#3E7A46" }}>Semua beres</div>
-            <div style={{ ...S.focusTitle, color: "#2E5934" }}>
+            <div style={{ ...S.focusLabel, color: "var(--green)" }}>
+              Semua beres
+            </div>
+            <div style={{ ...S.focusTitle, color: "var(--green-dark)" }}>
               Tidak ada tugas tersisa hari ini. 🎉
             </div>
           </div>
@@ -304,124 +442,155 @@ export default function TugasKu() {
 
         {/* janji — hal yang gak boleh kelupaan */}
         <div style={S.promBox}>
-          <div style={S.dumpHead}>
-            <span style={{ ...S.dumpTitle, color: "#7A5C1E" }}>
-              Janji yang harus ditepati
-            </span>
-            <button
-              style={S.promAddLink}
-              onClick={() => setShowPromForm((v) => !v)}
+          <div style={{ ...S.dumpHead, cursor: "pointer", userSelect: "none" }}>
+            <span
+              style={{ ...S.dumpTitle, color: "var(--janji-ink)" }}
+              onClick={() => toggleCollapsed("janji")}
             >
-              {showPromForm ? "batal" : "+ janji baru"}
-            </button>
-          </div>
-
-          {showPromForm && (
-            <div style={{ marginBottom: 10 }}>
-              <input
-                style={{
-                  ...S.input,
-                  width: "100%",
-                  boxSizing: "border-box",
-                  marginBottom: 6,
-                }}
-                placeholder="Janji apa? (misal: kirim laporan ke Rendy)"
-                value={promForm.text}
-                onChange={(e) =>
-                  setPromForm({ ...promForm, text: e.target.value })
-                }
-              />
-              <div style={{ display: "flex", gap: 6 }}>
-                <input
-                  style={{ ...S.input, flex: 1, minWidth: 0 }}
-                  placeholder="Ke siapa?"
-                  value={promForm.to_whom}
-                  onChange={(e) =>
-                    setPromForm({ ...promForm, to_whom: e.target.value })
-                  }
-                />
-                <input
-                  type="date"
-                  style={{ ...S.input, flex: 1, minWidth: 0 }}
-                  value={promForm.due_date}
-                  onChange={(e) =>
-                    setPromForm({ ...promForm, due_date: e.target.value })
-                  }
-                />
-                <button style={{ ...S.addBtn, width: 60 }} onClick={addPromise}>
-                  OK
-                </button>
-              </div>
-            </div>
-          )}
-
-          {promises.length === 0 && !showPromForm && (
-            <div style={S.dumpHint}>Gak ada janji tertunda. Aman.</div>
-          )}
-
-          {promises.map((p) => {
-            const overdue = p.due_date && p.due_date < todayStr();
-            const today = p.due_date === todayStr();
-            return (
-              <div
-                key={p.id}
-                style={{
-                  ...S.worryCard,
-                  ...(overdue
-                    ? { borderLeft: "3px solid #C0392B", background: "#FDF1EF" }
-                    : today
-                      ? {
-                          borderLeft: "3px solid #B8860B",
-                          background: "#FBF6E9",
-                        }
-                      : {}),
-                }}
+              <span style={S.chev}>{collapsed.janji ? "▸" : "▾"}</span> Janji
+              yang harus ditepati
+              {collapsed.janji && promises.length > 0 && (
+                <span style={S.miniCount}>{promises.length}</span>
+              )}
+            </span>
+            {!collapsed.janji && (
+              <button
+                style={S.promAddLink}
+                onClick={() => setShowPromForm((v) => !v)}
               >
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <EditableText
-                    value={p.text}
-                    onSave={(v) => editPromise(p.id, v)}
-                    style={{ fontSize: 14, fontWeight: 500, lineHeight: 1.4 }}
+                {showPromForm ? "batal" : "+ janji baru"}
+              </button>
+            )}
+          </div>
+          {!collapsed.janji && (
+            <>
+              {showPromForm && (
+                <div style={{ marginBottom: 10 }}>
+                  <input
+                    style={{
+                      ...S.input,
+                      width: "100%",
+                      boxSizing: "border-box",
+                      marginBottom: 6,
+                    }}
+                    placeholder="Janji apa? (misal: kirim laporan ke Rendy)"
+                    value={promForm.text}
+                    onChange={(e) =>
+                      setPromForm({ ...promForm, text: e.target.value })
+                    }
                   />
-                  <div style={{ ...S.dumpHint, marginBottom: 0, marginTop: 3 }}>
-                    {p.to_whom && (
-                      <>
-                        ke <b>{p.to_whom}</b> ·{" "}
-                      </>
-                    )}
-                    {overdue && (
-                      <span style={{ color: "#C0392B", fontWeight: 700 }}>
-                        TELAT — {p.due_date}
-                      </span>
-                    )}
-                    {today && (
-                      <span style={{ color: "#7A5C1E", fontWeight: 700 }}>
-                        HARI INI
-                      </span>
-                    )}
-                    {!overdue && !today && p.due_date && (
-                      <>sampai {p.due_date}</>
-                    )}
-                    {!p.due_date && <>tanpa deadline</>}
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <input
+                      style={{ ...S.input, flex: 1, minWidth: 0 }}
+                      placeholder="Ke siapa?"
+                      value={promForm.to_whom}
+                      onChange={(e) =>
+                        setPromForm({ ...promForm, to_whom: e.target.value })
+                      }
+                    />
+                    <input
+                      type="date"
+                      style={{ ...S.input, flex: 1, minWidth: 0 }}
+                      value={promForm.due_date}
+                      onChange={(e) =>
+                        setPromForm({ ...promForm, due_date: e.target.value })
+                      }
+                    />
+                    <button
+                      style={{ ...S.addBtn, width: 60 }}
+                      onClick={addPromise}
+                    >
+                      OK
+                    </button>
                   </div>
                 </div>
-                <div style={S.cardBtns}>
-                  <button
-                    style={{ ...S.btn, background: "#2E5934" }}
-                    onClick={() => keepPromise(p.id)}
+              )}
+
+              {promises.length === 0 && !showPromForm && (
+                <div style={S.dumpHint}>Gak ada janji tertunda. Aman.</div>
+              )}
+
+              {promises.map((p) => {
+                const overdue = p.due_date && p.due_date < todayStr();
+                const today = p.due_date === todayStr();
+                return (
+                  <div
+                    key={p.id}
+                    style={{
+                      ...S.worryCard,
+                      ...(overdue
+                        ? {
+                            borderLeft: "3px solid var(--red)",
+                            background: "var(--red-bg)",
+                          }
+                        : today
+                          ? {
+                              borderLeft: "3px solid #B8860B",
+                              background: "var(--janji-bg)",
+                            }
+                          : {}),
+                    }}
                   >
-                    Ditepati ✓
-                  </button>
-                  <button
-                    style={S.btnGhost}
-                    onClick={() => removePromise(p.id)}
-                  >
-                    ✕
-                  </button>
-                </div>
-              </div>
-            );
-          })}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <EditableText
+                        value={p.text}
+                        onSave={(v) => editPromise(p.id, v)}
+                        style={{
+                          fontSize: 14,
+                          fontWeight: 500,
+                          lineHeight: 1.4,
+                        }}
+                      />
+                      <div
+                        style={{ ...S.dumpHint, marginBottom: 0, marginTop: 3 }}
+                      >
+                        {p.to_whom && (
+                          <>
+                            ke <b>{p.to_whom}</b> ·{" "}
+                          </>
+                        )}
+                        {overdue && (
+                          <span
+                            style={{ color: "var(--red)", fontWeight: 700 }}
+                          >
+                            TELAT — {p.due_date}
+                          </span>
+                        )}
+                        {today && (
+                          <span
+                            style={{
+                              color: "var(--janji-ink)",
+                              fontWeight: 700,
+                            }}
+                          >
+                            HARI INI
+                          </span>
+                        )}
+                        {!overdue && !today && p.due_date && (
+                          <>sampai {p.due_date}</>
+                        )}
+                        {!p.due_date && <>tanpa deadline</>}
+                      </div>
+                    </div>
+                    <div style={S.cardBtns}>
+                      <button
+                        style={{ ...S.btn, background: "var(--green-dark)" }}
+                        onClick={() => keepPromise(p.id)}
+                      >
+                        Ditepati ✓
+                      </button>
+                      <button
+                        style={S.btnGhost}
+                        onClick={() => removePromise(p.id)}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </>
+          )}
         </div>
 
         {/* add */}
@@ -458,58 +627,76 @@ export default function TugasKu() {
 
         {/* brain dump — tumpahin dulu, sortir belakangan */}
         <div style={S.dump}>
-          <div style={S.dumpHead}>
-            <span style={S.dumpTitle}>Lagi resah apa?</span>
-            {released > 0 && (
+          <div
+            style={{ ...S.dumpHead, cursor: "pointer", userSelect: "none" }}
+            onClick={() => toggleCollapsed("dump")}
+          >
+            <span style={S.dumpTitle}>
+              <span style={S.chev}>{collapsed.dump ? "▸" : "▾"}</span> Lagi
+              resah apa?
+              {collapsed.dump && worries.length > 0 && (
+                <span style={S.miniCount}>{worries.length}</span>
+              )}
+            </span>
+            {released > 0 && !collapsed.dump && (
               <span style={S.dumpReleased}>{released} dilepas hari ini</span>
             )}
           </div>
-          <div style={S.addRow}>
-            <input
-              style={{ ...S.input, background: "#FDFCFA" }}
-              placeholder="Tumpahin di sini, jangan disimpen di kepala…"
-              value={worryText}
-              onChange={(e) => setWorryText(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && addWorry()}
-            />
-            <button style={S.addBtn} onClick={addWorry}>
-              +
-            </button>
-          </div>
-          {worries.length > 0 && (
-            <div style={{ marginTop: 10 }}>
-              <div style={S.dumpHint}>
-                Sortir: bisa lu pengaruhi → jadiin tugas. Di luar kendali lu →
-                lepasin.
+          {!collapsed.dump && (
+            <>
+              <div style={S.addRow}>
+                <input
+                  style={{ ...S.input, background: "var(--card2)" }}
+                  placeholder="Tumpahin di sini, jangan disimpen di kepala…"
+                  value={worryText}
+                  onChange={(e) => setWorryText(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && addWorry()}
+                />
+                <button style={S.addBtn} onClick={addWorry}>
+                  +
+                </button>
               </div>
-              {worries.map((w) => (
-                <div key={w.id} style={S.worryCard}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <EditableText
-                      value={w.text}
-                      onSave={(v) => editWorry(w.id, v)}
-                      style={{ fontSize: 14, lineHeight: 1.4 }}
-                    />
+              {worries.length > 0 && (
+                <div style={{ marginTop: 10 }}>
+                  <div style={S.dumpHint}>
+                    Sortir: bisa lu pengaruhi → jadiin tugas. Di luar kendali lu
+                    → lepasin.
                   </div>
-                  <div style={S.cardBtns}>
-                    <button style={S.btn} onClick={() => worryToTask(w)}>
-                      Jadiin tugas
-                    </button>
-                    <button
-                      style={S.btnGhost}
-                      onClick={() => releaseWorry(w.id)}
-                    >
-                      Lepasin
-                    </button>
-                  </div>
+                  {worries.map((w) => (
+                    <div key={w.id} style={S.worryCard}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <EditableText
+                          value={w.text}
+                          onSave={(v) => editWorry(w.id, v)}
+                          style={{ fontSize: 14, lineHeight: 1.4 }}
+                        />
+                      </div>
+                      <div style={S.cardBtns}>
+                        <button style={S.btn} onClick={() => worryToTask(w)}>
+                          Jadiin tugas
+                        </button>
+                        <button
+                          style={S.btnGhost}
+                          onClick={() => releaseWorry(w.id)}
+                        >
+                          Lepasin
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              )}
+            </>
           )}
         </div>
 
         {/* sections */}
-        <Section title="Todo" count={todo.length}>
+        <Section
+          title="Todo"
+          count={todo.length}
+          collapsed={!!collapsed.todo}
+          onToggle={() => toggleCollapsed("todo")}
+        >
           {todo.map((t) => (
             <Card key={t.id} t={t} onEdit={editTask}>
               <button style={S.btn} onClick={() => move(t.id, "inprogress")}>
@@ -523,11 +710,16 @@ export default function TugasKu() {
           {todo.length === 0 && <Empty text="Kosong — mantap." />}
         </Section>
 
-        <Section title="In Progress" count={doing.length}>
+        <Section
+          title="In Progress"
+          count={doing.length}
+          collapsed={!!collapsed.doing}
+          onToggle={() => toggleCollapsed("doing")}
+        >
           {doing.map((t) => (
             <Card key={t.id} t={t} active onEdit={editTask}>
               <button
-                style={{ ...S.btn, background: "#2E5934" }}
+                style={{ ...S.btn, background: "var(--green-dark)" }}
                 onClick={() => move(t.id, "done")}
               >
                 Selesai
@@ -540,7 +732,12 @@ export default function TugasKu() {
           {doing.length === 0 && <Empty text="Belum ada yang dikerjakan." />}
         </Section>
 
-        <Section title="Completed" count={done.length}>
+        <Section
+          title="Completed"
+          count={done.length}
+          collapsed={!!collapsed.done}
+          onToggle={() => toggleCollapsed("done")}
+        >
           {done.map((t) => (
             <Card key={t.id} t={t} done onEdit={editTask}>
               <button style={S.btnGhost} onClick={() => move(t.id, "todo")}>
@@ -563,6 +760,75 @@ export default function TugasKu() {
           cloud — buka dari HP atau laptop, tetap sync.
         </div>
       </div>
+    </div>
+  );
+}
+
+const FIRE_CSS = `
+@keyframes flickerOuter {
+  0%   { transform: rotate(45deg) scale(1)    translateY(0); }
+  25%  { transform: rotate(43deg) scale(1.08) translateY(-1px); }
+  50%  { transform: rotate(47deg) scale(0.94) translateY(0.5px); }
+  75%  { transform: rotate(44deg) scale(1.05) translateY(-0.5px); }
+  100% { transform: rotate(45deg) scale(1)    translateY(0); }
+}
+@keyframes flickerInner {
+  0%   { transform: rotate(45deg) scale(1); opacity: 0.95; }
+  30%  { transform: rotate(48deg) scale(0.85); opacity: 1; }
+  60%  { transform: rotate(42deg) scale(1.1); opacity: 0.85; }
+  100% { transform: rotate(45deg) scale(1); opacity: 0.95; }
+}
+@keyframes emberGlow {
+  0%   { box-shadow: 0 0 0 1px var(--accent-border), 0 2px 10px rgba(228,87,46,0.18); }
+  50%  { box-shadow: 0 0 0 1px var(--accent), 0 2px 18px rgba(228,87,46,0.42); }
+  100% { box-shadow: 0 0 0 1px var(--accent-border), 0 2px 10px rgba(228,87,46,0.18); }
+}
+@keyframes sparkRise {
+  0%   { transform: translateY(0)    scale(1);   opacity: 0.9; }
+  100% { transform: translateY(-14px) scale(0.3); opacity: 0; }
+}
+`;
+
+function Flame() {
+  const outer = {
+    position: "absolute",
+    bottom: 2,
+    left: 5,
+    width: 16,
+    height: 16,
+    background: "linear-gradient(135deg, #E4572E 0%, #F39C12 100%)",
+    borderRadius: "0 50% 50% 50%",
+    transformOrigin: "50% 80%",
+    animation: "flickerOuter 0.9s ease-in-out infinite",
+  };
+  const inner = {
+    position: "absolute",
+    bottom: 3,
+    left: 9,
+    width: 8,
+    height: 8,
+    background: "linear-gradient(135deg, #F9D423 0%, #FFF3B0 100%)",
+    borderRadius: "0 50% 50% 50%",
+    transformOrigin: "50% 80%",
+    animation: "flickerInner 0.7s ease-in-out infinite",
+  };
+  const spark = (delay, left) => ({
+    position: "absolute",
+    bottom: 16,
+    left,
+    width: 3,
+    height: 3,
+    borderRadius: "50%",
+    background: "#F39C12",
+    animation: `sparkRise 1.4s ease-out ${delay}s infinite`,
+  });
+  return (
+    <div style={{ position: "relative", width: 26, height: 26, flexShrink: 0 }}>
+      <div style={outer} />
+      <div style={inner} />
+      <div style={spark(0, 8)} />
+      <div style={spark(0.5, 14)} />
+      <div style={spark(0.9, 5)} />
     </div>
   );
 }
@@ -598,10 +864,10 @@ function EditableText({ value, onSave, style }) {
         ...style,
         width: "100%",
         boxSizing: "border-box",
-        border: "1px solid #E4572E",
+        border: "1px solid var(--accent)",
         borderRadius: 6,
         padding: "2px 6px",
-        background: "#fff",
+        background: "var(--card)",
         outline: "none",
         font: "inherit",
       }}
@@ -616,14 +882,19 @@ function EditableText({ value, onSave, style }) {
   );
 }
 
-function Section({ title, count, children }) {
+function Section({ title, count, children, collapsed, onToggle }) {
   return (
     <div style={{ marginTop: 26 }}>
-      <div style={S.sectionHead}>
-        <span>{title}</span>
+      <div
+        style={{ ...S.sectionHead, cursor: "pointer", userSelect: "none" }}
+        onClick={onToggle}
+      >
+        <span>
+          <span style={S.chev}>{collapsed ? "▸" : "▾"}</span> {title}
+        </span>
         <span style={S.count}>{count}</span>
       </div>
-      {children}
+      {!collapsed && children}
     </div>
   );
 }
@@ -633,10 +904,16 @@ function Card({ t, children, active, done, onEdit }) {
     <div
       style={{
         ...S.card,
-        ...(active ? { borderLeft: "3px solid #E4572E" } : {}),
+        ...(active
+          ? {
+              border: "1px solid transparent",
+              animation: "emberGlow 1.8s ease-in-out infinite",
+            }
+          : {}),
         ...(done ? { opacity: 0.55 } : {}),
       }}
     >
+      {active && <Flame />}
       <div style={{ flex: 1, minWidth: 0 }}>
         <EditableText
           value={t.title}
@@ -649,7 +926,11 @@ function Card({ t, children, active, done, onEdit }) {
         <div style={S.tags}>
           {t.priority === 0 && (
             <span
-              style={{ ...S.tag, color: "#E4572E", borderColor: "#F0C4B4" }}
+              style={{
+                ...S.tag,
+                color: "var(--accent)",
+                borderColor: "var(--accent-border)",
+              }}
             >
               penting
             </span>
@@ -669,10 +950,10 @@ function Empty({ text }) {
 const S = {
   page: {
     minHeight: "100vh",
-    background: "#F6F4EF",
+    background: "var(--bg)",
     fontFamily:
       "'Avenir Next', 'Segoe UI', system-ui, -apple-system, sans-serif",
-    color: "#2B2822",
+    color: "var(--ink)",
     padding: "24px 16px 60px",
   },
   wrap: { maxWidth: 560, margin: "0 auto" },
@@ -680,14 +961,14 @@ const S = {
     fontSize: 12,
     letterSpacing: "0.12em",
     textTransform: "uppercase",
-    color: "#8A8578",
+    color: "var(--muted)",
     marginBottom: 4,
   },
   h1: { fontSize: 30, fontWeight: 700, margin: 0, letterSpacing: "-0.02em" },
 
   focusCard: {
-    background: "#FFF4EC",
-    border: "1px solid #F0C4B4",
+    background: "var(--accent-bg)",
+    border: "1px solid var(--accent-border)",
     borderRadius: 14,
     padding: "16px 18px",
     marginBottom: 22,
@@ -696,7 +977,7 @@ const S = {
     fontSize: 11,
     letterSpacing: "0.12em",
     textTransform: "uppercase",
-    color: "#E4572E",
+    color: "var(--accent)",
     fontWeight: 700,
     marginBottom: 6,
   },
@@ -707,7 +988,7 @@ const S = {
     marginBottom: 12,
   },
   focusBtn: {
-    background: "#E4572E",
+    background: "var(--accent)",
     color: "#fff",
     border: "none",
     borderRadius: 10,
@@ -723,8 +1004,8 @@ const S = {
     flex: 1,
     padding: "11px 14px",
     borderRadius: 10,
-    border: "1px solid #D9D4C8",
-    background: "#fff",
+    border: "1px solid var(--border2)",
+    background: "var(--card)",
     fontSize: 15,
     outline: "none",
   },
@@ -732,15 +1013,15 @@ const S = {
     width: 46,
     borderRadius: 10,
     border: "none",
-    background: "#2B2822",
-    color: "#fff",
+    background: "var(--ink)",
+    color: "var(--bg)",
     fontSize: 20,
     cursor: "pointer",
   },
   addOpts: { display: "flex", gap: 16, marginTop: 8 },
   optLabel: {
     fontSize: 13,
-    color: "#6E6A5E",
+    color: "var(--muted2)",
     display: "flex",
     alignItems: "center",
     gap: 4,
@@ -754,18 +1035,18 @@ const S = {
     fontWeight: 700,
     letterSpacing: "0.08em",
     textTransform: "uppercase",
-    color: "#6E6A5E",
+    color: "var(--muted2)",
     marginBottom: 8,
   },
   count: {
-    background: "#E8E4DA",
+    background: "var(--badge)",
     borderRadius: 20,
     padding: "1px 9px",
     fontSize: 12,
   },
   card: {
-    background: "#fff",
-    border: "1px solid #E3DFD4",
+    background: "var(--card)",
+    border: "1px solid var(--border)",
     borderRadius: 12,
     padding: "12px 14px",
     marginBottom: 8,
@@ -777,14 +1058,14 @@ const S = {
   tags: { display: "flex", gap: 6, marginTop: 5 },
   tag: {
     fontSize: 11,
-    color: "#8A8578",
-    border: "1px solid #E3DFD4",
+    color: "var(--muted)",
+    border: "1px solid var(--border)",
     borderRadius: 20,
     padding: "1px 8px",
   },
   cardBtns: { display: "flex", gap: 6, flexShrink: 0 },
   btn: {
-    background: "#E4572E",
+    background: "var(--accent)",
     color: "#fff",
     border: "none",
     borderRadius: 8,
@@ -795,8 +1076,8 @@ const S = {
   },
   btnGhost: {
     background: "transparent",
-    color: "#8A8578",
-    border: "1px solid #E3DFD4",
+    color: "var(--muted)",
+    border: "1px solid var(--border)",
     borderRadius: 8,
     padding: "7px 10px",
     fontSize: 13,
@@ -804,13 +1085,13 @@ const S = {
   },
   empty: {
     fontSize: 13,
-    color: "#A5A093",
+    color: "var(--faint)",
     padding: "10px 2px",
   },
   dump: {
     marginTop: 26,
-    background: "#EFEBE2",
-    border: "1px dashed #C9C2B2",
+    background: "var(--dump-bg)",
+    border: "1px dashed var(--dump-border)",
     borderRadius: 14,
     padding: "14px 16px",
   },
@@ -825,13 +1106,13 @@ const S = {
     fontWeight: 700,
     letterSpacing: "0.08em",
     textTransform: "uppercase",
-    color: "#6E6A5E",
+    color: "var(--muted2)",
   },
-  dumpReleased: { fontSize: 12, color: "#3E7A46", fontWeight: 600 },
-  dumpHint: { fontSize: 12, color: "#8A8578", marginBottom: 8 },
+  dumpReleased: { fontSize: 12, color: "var(--green)", fontWeight: 600 },
+  dumpHint: { fontSize: 12, color: "var(--muted)", marginBottom: 8 },
   worryCard: {
-    background: "#FDFCFA",
-    border: "1px solid #E3DFD4",
+    background: "var(--card2)",
+    border: "1px solid var(--border)",
     borderRadius: 12,
     padding: "10px 12px",
     marginBottom: 8,
@@ -841,24 +1122,47 @@ const S = {
   },
   promBox: {
     marginBottom: 22,
-    background: "#FBF6E9",
-    border: "1px solid #E6D9B8",
+    background: "var(--janji-bg)",
+    border: "1px solid var(--janji-border)",
     borderRadius: 14,
     padding: "14px 16px",
   },
   promAddLink: {
     background: "transparent",
     border: "none",
-    color: "#7A5C1E",
+    color: "var(--janji-ink)",
     fontSize: 13,
     fontWeight: 700,
     cursor: "pointer",
     padding: 0,
   },
+  themeBtn: {
+    background: "var(--card)",
+    border: "1px solid var(--border)",
+    borderRadius: 10,
+    padding: "8px 12px",
+    fontSize: 16,
+    cursor: "pointer",
+    lineHeight: 1,
+  },
+  chev: {
+    display: "inline-block",
+    width: 14,
+    fontSize: 11,
+    color: "var(--faint)",
+  },
+  miniCount: {
+    marginLeft: 8,
+    background: "var(--badge)",
+    borderRadius: 20,
+    padding: "1px 8px",
+    fontSize: 11,
+    color: "var(--muted2)",
+  },
   footer: {
     marginTop: 32,
     fontSize: 12,
-    color: "#A5A093",
+    color: "var(--faint)",
     textAlign: "center",
   },
 };
