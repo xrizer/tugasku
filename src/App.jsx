@@ -17,6 +17,13 @@ export default function TugasKu() {
   const [worries, setWorries] = useState([]);
   const [worryText, setWorryText] = useState("");
   const [released, setReleased] = useState(0);
+  const [promises, setPromises] = useState([]);
+  const [promForm, setPromForm] = useState({
+    text: "",
+    to_whom: "",
+    due_date: "",
+  });
+  const [showPromForm, setShowPromForm] = useState(false);
 
   // ---------- load + daily reset ----------
   useEffect(() => {
@@ -55,6 +62,13 @@ export default function TugasKu() {
         .select("*")
         .order("created_at", { ascending: true });
       if (!w.error) setWorries(w.data);
+
+      const p = await supabase
+        .from("promises")
+        .select("*")
+        .eq("done", false)
+        .order("due_date", { ascending: true, nullsFirst: false });
+      if (!p.error) setPromises(p.data);
     })();
   }, []);
 
@@ -127,6 +141,43 @@ export default function TugasKu() {
       .single();
     if (!error) setTasks((ts) => [...ts, data]);
     await supabase.from("worries").delete().eq("id", w.id);
+  };
+
+  // ---------- janji ----------
+  const addPromise = async () => {
+    const text = promForm.text.trim();
+    if (!text) return;
+    const row = {
+      text,
+      to_whom: promForm.to_whom.trim() || null,
+      due_date: promForm.due_date || null,
+    };
+    setPromForm({ text: "", to_whom: "", due_date: "" });
+    setShowPromForm(false);
+    const { data, error } = await supabase
+      .from("promises")
+      .insert(row)
+      .select()
+      .single();
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    setPromises((ps) =>
+      [...ps, data].sort((a, b) =>
+        (a.due_date || "9999") < (b.due_date || "9999") ? -1 : 1,
+      ),
+    );
+  };
+
+  const keepPromise = async (id) => {
+    setPromises((ps) => ps.filter((p) => p.id !== id));
+    await supabase.from("promises").update({ done: true }).eq("id", id);
+  };
+
+  const removePromise = async (id) => {
+    setPromises((ps) => ps.filter((p) => p.id !== id));
+    await supabase.from("promises").delete().eq("id", id);
   };
 
   // gak bisa dikontrol → lepasin
@@ -234,6 +285,128 @@ export default function TugasKu() {
             </div>
           </div>
         )}
+
+        {/* janji — hal yang gak boleh kelupaan */}
+        <div style={S.promBox}>
+          <div style={S.dumpHead}>
+            <span style={{ ...S.dumpTitle, color: "#7A5C1E" }}>
+              Janji yang harus ditepati
+            </span>
+            <button
+              style={S.promAddLink}
+              onClick={() => setShowPromForm((v) => !v)}
+            >
+              {showPromForm ? "batal" : "+ janji baru"}
+            </button>
+          </div>
+
+          {showPromForm && (
+            <div style={{ marginBottom: 10 }}>
+              <input
+                style={{
+                  ...S.input,
+                  width: "100%",
+                  boxSizing: "border-box",
+                  marginBottom: 6,
+                }}
+                placeholder="Janji apa? (misal: kirim laporan ke Rendy)"
+                value={promForm.text}
+                onChange={(e) =>
+                  setPromForm({ ...promForm, text: e.target.value })
+                }
+              />
+              <div style={{ display: "flex", gap: 6 }}>
+                <input
+                  style={{ ...S.input, flex: 1, minWidth: 0 }}
+                  placeholder="Ke siapa?"
+                  value={promForm.to_whom}
+                  onChange={(e) =>
+                    setPromForm({ ...promForm, to_whom: e.target.value })
+                  }
+                />
+                <input
+                  type="date"
+                  style={{ ...S.input, flex: 1, minWidth: 0 }}
+                  value={promForm.due_date}
+                  onChange={(e) =>
+                    setPromForm({ ...promForm, due_date: e.target.value })
+                  }
+                />
+                <button style={{ ...S.addBtn, width: 60 }} onClick={addPromise}>
+                  OK
+                </button>
+              </div>
+            </div>
+          )}
+
+          {promises.length === 0 && !showPromForm && (
+            <div style={S.dumpHint}>Gak ada janji tertunda. Aman.</div>
+          )}
+
+          {promises.map((p) => {
+            const overdue = p.due_date && p.due_date < todayStr();
+            const today = p.due_date === todayStr();
+            return (
+              <div
+                key={p.id}
+                style={{
+                  ...S.worryCard,
+                  ...(overdue
+                    ? { borderLeft: "3px solid #C0392B", background: "#FDF1EF" }
+                    : today
+                      ? {
+                          borderLeft: "3px solid #B8860B",
+                          background: "#FBF6E9",
+                        }
+                      : {}),
+                }}
+              >
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    style={{ fontSize: 14, fontWeight: 500, lineHeight: 1.4 }}
+                  >
+                    {p.text}
+                  </div>
+                  <div style={{ ...S.dumpHint, marginBottom: 0, marginTop: 3 }}>
+                    {p.to_whom && (
+                      <>
+                        ke <b>{p.to_whom}</b> ·{" "}
+                      </>
+                    )}
+                    {overdue && (
+                      <span style={{ color: "#C0392B", fontWeight: 700 }}>
+                        TELAT — {p.due_date}
+                      </span>
+                    )}
+                    {today && (
+                      <span style={{ color: "#7A5C1E", fontWeight: 700 }}>
+                        HARI INI
+                      </span>
+                    )}
+                    {!overdue && !today && p.due_date && (
+                      <>sampai {p.due_date}</>
+                    )}
+                    {!p.due_date && <>tanpa deadline</>}
+                  </div>
+                </div>
+                <div style={S.cardBtns}>
+                  <button
+                    style={{ ...S.btn, background: "#2E5934" }}
+                    onClick={() => keepPromise(p.id)}
+                  >
+                    Ditepati ✓
+                  </button>
+                  <button
+                    style={S.btnGhost}
+                    onClick={() => removePromise(p.id)}
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
 
         {/* add */}
         <div style={S.addRow}>
@@ -596,6 +769,22 @@ const S = {
     display: "flex",
     alignItems: "center",
     gap: 10,
+  },
+  promBox: {
+    marginBottom: 22,
+    background: "#FBF6E9",
+    border: "1px solid #E6D9B8",
+    borderRadius: 14,
+    padding: "14px 16px",
+  },
+  promAddLink: {
+    background: "transparent",
+    border: "none",
+    color: "#7A5C1E",
+    fontSize: 13,
+    fontWeight: 700,
+    cursor: "pointer",
+    padding: 0,
   },
   footer: {
     marginTop: 32,
