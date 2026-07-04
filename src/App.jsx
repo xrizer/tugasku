@@ -87,6 +87,7 @@ function useCollapsed() {
 }
 
 export default function TugasKu() {
+  const [session, setSession] = useState(undefined); // undefined = checking
   const [tasks, setTasks] = useState(null);
   const [error, setError] = useState(null);
   const [newTitle, setNewTitle] = useState("");
@@ -122,13 +123,28 @@ export default function TugasKu() {
       } catch {}
       return n;
     });
+  useEffect(() => {
+    document.body.style.background = dark ? "#16140F" : "#F6F4EF";
+    document.body.style.margin = "0";
+  }, [dark]);
+
   const themeVars = {
     ...(dark ? THEMES.dark : THEMES.light),
     colorScheme: dark ? "dark" : "light",
   };
 
+  // ---------- auth ----------
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setSession(data.session));
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) =>
+      setSession(s),
+    );
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
   // ---------- load + daily reset ----------
   useEffect(() => {
+    if (!session) return;
     (async () => {
       const { data, error } = await supabase
         .from("tasks")
@@ -172,7 +188,7 @@ export default function TugasKu() {
         .order("due_date", { ascending: true, nullsFirst: false });
       if (!p.error) setPromises(p.data);
     })();
-  }, []);
+  }, [session]);
 
   // ---------- actions (optimistic: update UI first, then sync) ----------
   const move = async (id, status) => {
@@ -306,6 +322,23 @@ export default function TugasKu() {
   };
 
   // ---------- render ----------
+  if (session === undefined)
+    return (
+      <div
+        style={{
+          ...S.page,
+          ...themeVars,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <span style={{ color: "var(--muted)", fontSize: 14 }}>Memuat…</span>
+      </div>
+    );
+
+  if (!session) return <Login themeVars={themeVars} />;
+
   if (error)
     return (
       <div
@@ -380,13 +413,22 @@ export default function TugasKu() {
             <div style={S.eyebrow}>{dateLabel}</div>
             <h1 style={S.h1}>TugasKu</h1>
           </div>
-          <button
-            style={S.themeBtn}
-            onClick={toggleTheme}
-            title={dark ? "Mode terang" : "Mode gelap"}
-          >
-            {dark ? "☀️" : "🌙"}
-          </button>
+          <div style={{ display: "flex", gap: 6 }}>
+            <button
+              style={S.themeBtn}
+              onClick={toggleTheme}
+              title={dark ? "Mode terang" : "Mode gelap"}
+            >
+              {dark ? "☀️" : "🌙"}
+            </button>
+            <button
+              style={{ ...S.themeBtn, fontSize: 13, color: "var(--muted)" }}
+              onClick={() => supabase.auth.signOut()}
+              title="Keluar"
+            >
+              keluar
+            </button>
+          </div>
         </div>
 
         {/* focus card — one thing at a time */}
@@ -765,6 +807,8 @@ export default function TugasKu() {
 }
 
 const FIRE_CSS = `
+html, body, #root { margin: 0; padding: 0; }
+
 @keyframes flickerOuter {
   0%   { transform: rotate(45deg) scale(1)    translateY(0); }
   25%  { transform: rotate(43deg) scale(1.08) translateY(-1px); }
@@ -879,6 +923,80 @@ function EditableText({ value, onSave, style }) {
         if (e.key === "Escape") setEditing(false);
       }}
     />
+  );
+}
+
+function Login({ themeVars }) {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
+    const u = username.trim().toLowerCase();
+    if (!u || !password) return;
+    setBusy(true);
+    setErr("");
+    const { error } = await supabase.auth.signInWithPassword({
+      email: `${u}@tugasku.local`,
+      password,
+    });
+    setBusy(false);
+    if (error) setErr("Username atau password salah.");
+  };
+
+  return (
+    <div
+      style={{
+        ...S.page,
+        ...themeVars,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <div style={{ width: "100%", maxWidth: 340, padding: 16 }}>
+        <div style={S.eyebrow}>Masuk dulu</div>
+        <h1 style={{ ...S.h1, marginBottom: 18 }}>TugasKu</h1>
+        <input
+          style={{
+            ...S.input,
+            width: "100%",
+            boxSizing: "border-box",
+            marginBottom: 8,
+          }}
+          placeholder="Username"
+          autoCapitalize="none"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+        />
+        <input
+          type="password"
+          style={{
+            ...S.input,
+            width: "100%",
+            boxSizing: "border-box",
+            marginBottom: 12,
+          }}
+          placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && submit()}
+        />
+        {err && (
+          <div style={{ color: "var(--red)", fontSize: 13, marginBottom: 10 }}>
+            {err}
+          </div>
+        )}
+        <button
+          style={{ ...S.focusBtn, opacity: busy ? 0.6 : 1 }}
+          disabled={busy}
+          onClick={submit}
+        >
+          {busy ? "Sebentar…" : "Masuk →"}
+        </button>
+      </div>
+    </div>
   );
 }
 
