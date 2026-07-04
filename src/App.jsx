@@ -1,0 +1,429 @@
+import { useState, useEffect } from "react";
+import { supabase } from "./lib/supabase";
+
+// TugasKu — a dead-simple personal ticketing board, backed by Supabase.
+// Flow: Todo → (Terima/Accept) → In Progress → (Selesai) → Completed.
+// Daily tasks auto-reset to Todo every new day (via done_date check on load).
+// Data syncs across devices.
+
+const todayStr = () => new Date().toISOString().slice(0, 10);
+
+export default function TugasKu() {
+  const [tasks, setTasks] = useState(null);
+  const [error, setError] = useState(null);
+  const [newTitle, setNewTitle] = useState("");
+  const [newDaily, setNewDaily] = useState(false);
+  const [newPriority, setNewPriority] = useState(1);
+
+  // ---------- load + daily reset ----------
+  useEffect(() => {
+    (async () => {
+      const { data, error } = await supabase
+        .from("tasks")
+        .select("*")
+        .order("created_at", { ascending: true });
+
+      if (error) {
+        setError(error.message);
+        return;
+      }
+
+      // reset daily tasks that were completed on a previous day
+      const stale = data.filter(
+        (t) => t.daily && t.status === "done" && t.done_date !== todayStr()
+      );
+      if (stale.length > 0) {
+        const ids = stale.map((t) => t.id);
+        await supabase
+          .from("tasks")
+          .update({ status: "todo", done_date: null })
+          .in("id", ids);
+        data.forEach((t) => {
+          if (ids.includes(t.id)) {
+            t.status = "todo";
+            t.done_date = null;
+          }
+        });
+      }
+      setTasks(data);
+    })();
+  }, []);
+
+  // ---------- actions (optimistic: update UI first, then sync) ----------
+  const move = async (id, status) => {
+    const patch =
+      status === "done"
+        ? { status, done_date: todayStr() }
+        : { status, done_date: null };
+    setTasks((ts) => ts.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+    const { error } = await supabase.from("tasks").update(patch).eq("id", id);
+    if (error) setError(error.message);
+  };
+
+  const remove = async (id) => {
+    setTasks((ts) => ts.filter((t) => t.id !== id));
+    const { error } = await supabase.from("tasks").delete().eq("id", id);
+    if (error) setError(error.message);
+  };
+
+  const addTask = async () => {
+    const title = newTitle.trim();
+    if (!title) return;
+    const draft = {
+      title,
+      priority: newPriority,
+      daily: newDaily,
+      status: "todo",
+    };
+    setNewTitle("");
+    setNewDaily(false);
+    setNewPriority(1);
+
+    const { data, error } = await supabase
+      .from("tasks")
+      .insert(draft)
+      .select()
+      .single();
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    setTasks((ts) => [...ts, data]);
+  };
+
+  // ---------- render ----------
+  if (error)
+    return (
+      <div style={{ ...S.page, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ ...S.focusCard, maxWidth: 480 }}>
+          <div style={{ ...S.focusLabel }}>Gagal terhubung ke database</div>
+          <div style={{ fontSize: 14, lineHeight: 1.5 }}>
+            {error}
+            <br />
+            <br />
+            Cek: (1) env <code>VITE_SUPABASE_URL</code> dan{" "}
+            <code>VITE_SUPABASE_ANON_KEY</code> sudah diisi, (2) tabel{" "}
+            <code>tasks</code> sudah dibuat lewat <code>supabase-setup.sql</code>.
+          </div>
+        </div>
+      </div>
+    );
+
+  if (!tasks)
+    return (
+      <div style={{ ...S.page, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <span style={{ color: "#8A8578", fontSize: 14 }}>Memuat…</span>
+      </div>
+    );
+
+  const byStatus = (s) =>
+    tasks.filter((t) => t.status === s).sort((a, b) => a.priority - b.priority);
+
+  const todo = byStatus("todo");
+  const doing = byStatus("inprogress");
+  const done = byStatus("done");
+
+  // the single most important thing right now
+  const focus = doing[0] || todo[0] || null;
+
+  const dateLabel = new Date().toLocaleDateString("id-ID", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
+
+  return (
+    <div style={S.page}>
+      <div style={S.wrap}>
+        {/* header */}
+        <div style={{ marginBottom: 20 }}>
+          <div style={S.eyebrow}>{dateLabel}</div>
+          <h1 style={S.h1}>TugasKu</h1>
+        </div>
+
+        {/* focus card — one thing at a time */}
+        {focus && (
+          <div style={S.focusCard}>
+            <div style={S.focusLabel}>Fokus sekarang</div>
+            <div style={S.focusTitle}>{focus.title}</div>
+            {focus.status === "todo" ? (
+              <button style={S.focusBtn} onClick={() => move(focus.id, "inprogress")}>
+                Terima & mulai →
+              </button>
+            ) : (
+              <button style={S.focusBtn} onClick={() => move(focus.id, "done")}>
+                Tandai selesai ✓
+              </button>
+            )}
+          </div>
+        )}
+        {!focus && (
+          <div style={{ ...S.focusCard, background: "#EDF6EE", borderColor: "#BFDCC2" }}>
+            <div style={{ ...S.focusLabel, color: "#3E7A46" }}>Semua beres</div>
+            <div style={{ ...S.focusTitle, color: "#2E5934" }}>
+              Tidak ada tugas tersisa hari ini. 🎉
+            </div>
+          </div>
+        )}
+
+        {/* add */}
+        <div style={S.addRow}>
+          <input
+            style={S.input}
+            placeholder="Tambah tugas baru…"
+            value={newTitle}
+            onChange={(e) => setNewTitle(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && addTask()}
+          />
+          <button style={S.addBtn} onClick={addTask}>+</button>
+        </div>
+        <div style={S.addOpts}>
+          <label style={S.optLabel}>
+            <input
+              type="checkbox"
+              checked={newDaily}
+              onChange={(e) => setNewDaily(e.target.checked)}
+            />{" "}
+            Tugas harian (reset tiap hari)
+          </label>
+          <label style={S.optLabel}>
+            <input
+              type="checkbox"
+              checked={newPriority === 0}
+              onChange={(e) => setNewPriority(e.target.checked ? 0 : 1)}
+            />{" "}
+            Penting
+          </label>
+        </div>
+
+        {/* sections */}
+        <Section title="Todo" count={todo.length}>
+          {todo.map((t) => (
+            <Card key={t.id} t={t}>
+              <button style={S.btn} onClick={() => move(t.id, "inprogress")}>
+                Terima
+              </button>
+              <button style={S.btnGhost} onClick={() => remove(t.id)}>✕</button>
+            </Card>
+          ))}
+          {todo.length === 0 && <Empty text="Kosong — mantap." />}
+        </Section>
+
+        <Section title="In Progress" count={doing.length}>
+          {doing.map((t) => (
+            <Card key={t.id} t={t} active>
+              <button style={{ ...S.btn, background: "#2E5934" }} onClick={() => move(t.id, "done")}>
+                Selesai
+              </button>
+              <button style={S.btnGhost} onClick={() => move(t.id, "todo")}>↩</button>
+            </Card>
+          ))}
+          {doing.length === 0 && <Empty text="Belum ada yang dikerjakan." />}
+        </Section>
+
+        <Section title="Completed" count={done.length}>
+          {done.map((t) => (
+            <Card key={t.id} t={t} done>
+              <button style={S.btnGhost} onClick={() => move(t.id, "todo")}>↩</button>
+              {!t.daily && (
+                <button style={S.btnGhost} onClick={() => remove(t.id)}>✕</button>
+              )}
+            </Card>
+          ))}
+          {done.length === 0 && <Empty text="Belum ada yang selesai hari ini." />}
+        </Section>
+
+        <div style={S.footer}>
+          Tugas harian otomatis balik ke Todo setiap pagi. Data tersimpan di
+          cloud — buka dari HP atau laptop, tetap sync.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Section({ title, count, children }) {
+  return (
+    <div style={{ marginTop: 26 }}>
+      <div style={S.sectionHead}>
+        <span>{title}</span>
+        <span style={S.count}>{count}</span>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function Card({ t, children, active, done }) {
+  return (
+    <div
+      style={{
+        ...S.card,
+        ...(active ? { borderLeft: "3px solid #E4572E" } : {}),
+        ...(done ? { opacity: 0.55 } : {}),
+      }}
+    >
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          style={{
+            ...S.cardTitle,
+            ...(done ? { textDecoration: "line-through" } : {}),
+          }}
+        >
+          {t.title}
+        </div>
+        <div style={S.tags}>
+          {t.priority === 0 && (
+            <span style={{ ...S.tag, color: "#E4572E", borderColor: "#F0C4B4" }}>
+              penting
+            </span>
+          )}
+          {t.daily && <span style={S.tag}>harian</span>}
+        </div>
+      </div>
+      <div style={S.cardBtns}>{children}</div>
+    </div>
+  );
+}
+
+function Empty({ text }) {
+  return <div style={S.empty}>{text}</div>;
+}
+
+const S = {
+  page: {
+    minHeight: "100vh",
+    background: "#F6F4EF",
+    fontFamily:
+      "'Avenir Next', 'Segoe UI', system-ui, -apple-system, sans-serif",
+    color: "#2B2822",
+    padding: "24px 16px 60px",
+  },
+  wrap: { maxWidth: 560, margin: "0 auto" },
+  eyebrow: {
+    fontSize: 12,
+    letterSpacing: "0.12em",
+    textTransform: "uppercase",
+    color: "#8A8578",
+    marginBottom: 4,
+  },
+  h1: { fontSize: 30, fontWeight: 700, margin: 0, letterSpacing: "-0.02em" },
+
+  focusCard: {
+    background: "#FFF4EC",
+    border: "1px solid #F0C4B4",
+    borderRadius: 14,
+    padding: "16px 18px",
+    marginBottom: 22,
+  },
+  focusLabel: {
+    fontSize: 11,
+    letterSpacing: "0.12em",
+    textTransform: "uppercase",
+    color: "#E4572E",
+    fontWeight: 700,
+    marginBottom: 6,
+  },
+  focusTitle: { fontSize: 18, fontWeight: 600, lineHeight: 1.35, marginBottom: 12 },
+  focusBtn: {
+    background: "#E4572E",
+    color: "#fff",
+    border: "none",
+    borderRadius: 10,
+    padding: "10px 16px",
+    fontSize: 15,
+    fontWeight: 600,
+    cursor: "pointer",
+    width: "100%",
+  },
+
+  addRow: { display: "flex", gap: 8 },
+  input: {
+    flex: 1,
+    padding: "11px 14px",
+    borderRadius: 10,
+    border: "1px solid #D9D4C8",
+    background: "#fff",
+    fontSize: 15,
+    outline: "none",
+  },
+  addBtn: {
+    width: 46,
+    borderRadius: 10,
+    border: "none",
+    background: "#2B2822",
+    color: "#fff",
+    fontSize: 20,
+    cursor: "pointer",
+  },
+  addOpts: { display: "flex", gap: 16, marginTop: 8 },
+  optLabel: { fontSize: 13, color: "#6E6A5E", display: "flex", alignItems: "center", gap: 4 },
+
+  sectionHead: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    fontSize: 13,
+    fontWeight: 700,
+    letterSpacing: "0.08em",
+    textTransform: "uppercase",
+    color: "#6E6A5E",
+    marginBottom: 8,
+  },
+  count: {
+    background: "#E8E4DA",
+    borderRadius: 20,
+    padding: "1px 9px",
+    fontSize: 12,
+  },
+  card: {
+    background: "#fff",
+    border: "1px solid #E3DFD4",
+    borderRadius: 12,
+    padding: "12px 14px",
+    marginBottom: 8,
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+  },
+  cardTitle: { fontSize: 15, fontWeight: 500, lineHeight: 1.35 },
+  tags: { display: "flex", gap: 6, marginTop: 5 },
+  tag: {
+    fontSize: 11,
+    color: "#8A8578",
+    border: "1px solid #E3DFD4",
+    borderRadius: 20,
+    padding: "1px 8px",
+  },
+  cardBtns: { display: "flex", gap: 6, flexShrink: 0 },
+  btn: {
+    background: "#E4572E",
+    color: "#fff",
+    border: "none",
+    borderRadius: 8,
+    padding: "7px 12px",
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: "pointer",
+  },
+  btnGhost: {
+    background: "transparent",
+    color: "#8A8578",
+    border: "1px solid #E3DFD4",
+    borderRadius: 8,
+    padding: "7px 10px",
+    fontSize: 13,
+    cursor: "pointer",
+  },
+  empty: {
+    fontSize: 13,
+    color: "#A5A093",
+    padding: "10px 2px",
+  },
+  footer: {
+    marginTop: 32,
+    fontSize: 12,
+    color: "#A5A093",
+    textAlign: "center",
+  },
+};
