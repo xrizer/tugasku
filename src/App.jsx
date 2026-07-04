@@ -143,6 +143,22 @@ export default function TugasKu() {
     await supabase.from("worries").delete().eq("id", w.id);
   };
 
+  // ---------- edit ----------
+  const editTask = async (id, title) => {
+    setTasks((ts) => ts.map((t) => (t.id === id ? { ...t, title } : t)));
+    await supabase.from("tasks").update({ title }).eq("id", id);
+  };
+
+  const editWorry = async (id, text) => {
+    setWorries((ws) => ws.map((w) => (w.id === id ? { ...w, text } : w)));
+    await supabase.from("worries").update({ text }).eq("id", id);
+  };
+
+  const editPromise = async (id, text) => {
+    setPromises((ps) => ps.map((p) => (p.id === id ? { ...p, text } : p)));
+    await supabase.from("promises").update({ text }).eq("id", id);
+  };
+
   // ---------- janji ----------
   const addPromise = async () => {
     const text = promForm.text.trim();
@@ -362,11 +378,11 @@ export default function TugasKu() {
                 }}
               >
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div
+                  <EditableText
+                    value={p.text}
+                    onSave={(v) => editPromise(p.id, v)}
                     style={{ fontSize: 14, fontWeight: 500, lineHeight: 1.4 }}
-                  >
-                    {p.text}
-                  </div>
+                  />
                   <div style={{ ...S.dumpHint, marginBottom: 0, marginTop: 3 }}>
                     {p.to_whom && (
                       <>
@@ -468,8 +484,12 @@ export default function TugasKu() {
               </div>
               {worries.map((w) => (
                 <div key={w.id} style={S.worryCard}>
-                  <div style={{ flex: 1, fontSize: 14, lineHeight: 1.4 }}>
-                    {w.text}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <EditableText
+                      value={w.text}
+                      onSave={(v) => editWorry(w.id, v)}
+                      style={{ fontSize: 14, lineHeight: 1.4 }}
+                    />
                   </div>
                   <div style={S.cardBtns}>
                     <button style={S.btn} onClick={() => worryToTask(w)}>
@@ -491,7 +511,7 @@ export default function TugasKu() {
         {/* sections */}
         <Section title="Todo" count={todo.length}>
           {todo.map((t) => (
-            <Card key={t.id} t={t}>
+            <Card key={t.id} t={t} onEdit={editTask}>
               <button style={S.btn} onClick={() => move(t.id, "inprogress")}>
                 Terima
               </button>
@@ -505,7 +525,7 @@ export default function TugasKu() {
 
         <Section title="In Progress" count={doing.length}>
           {doing.map((t) => (
-            <Card key={t.id} t={t} active>
+            <Card key={t.id} t={t} active onEdit={editTask}>
               <button
                 style={{ ...S.btn, background: "#2E5934" }}
                 onClick={() => move(t.id, "done")}
@@ -522,7 +542,7 @@ export default function TugasKu() {
 
         <Section title="Completed" count={done.length}>
           {done.map((t) => (
-            <Card key={t.id} t={t} done>
+            <Card key={t.id} t={t} done onEdit={editTask}>
               <button style={S.btnGhost} onClick={() => move(t.id, "todo")}>
                 ↩
               </button>
@@ -547,6 +567,55 @@ export default function TugasKu() {
   );
 }
 
+function EditableText({ value, onSave, style }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+
+  if (!editing)
+    return (
+      <div
+        style={{ ...style, cursor: "text" }}
+        title="Tap untuk edit"
+        onClick={() => {
+          setDraft(value);
+          setEditing(true);
+        }}
+      >
+        {value}
+      </div>
+    );
+
+  const commit = () => {
+    setEditing(false);
+    const v = draft.trim();
+    if (v && v !== value) onSave(v);
+  };
+
+  return (
+    <input
+      autoFocus
+      style={{
+        ...style,
+        width: "100%",
+        boxSizing: "border-box",
+        border: "1px solid #E4572E",
+        borderRadius: 6,
+        padding: "2px 6px",
+        background: "#fff",
+        outline: "none",
+        font: "inherit",
+      }}
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") commit();
+        if (e.key === "Escape") setEditing(false);
+      }}
+    />
+  );
+}
+
 function Section({ title, count, children }) {
   return (
     <div style={{ marginTop: 26 }}>
@@ -559,7 +628,7 @@ function Section({ title, count, children }) {
   );
 }
 
-function Card({ t, children, active, done }) {
+function Card({ t, children, active, done, onEdit }) {
   return (
     <div
       style={{
@@ -569,14 +638,14 @@ function Card({ t, children, active, done }) {
       }}
     >
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div
+        <EditableText
+          value={t.title}
+          onSave={(v) => onEdit(t.id, v)}
           style={{
             ...S.cardTitle,
             ...(done ? { textDecoration: "line-through" } : {}),
           }}
-        >
-          {t.title}
-        </div>
+        />
         <div style={S.tags}>
           {t.priority === 0 && (
             <span
