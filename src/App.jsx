@@ -281,6 +281,14 @@ export default function TugasKu() {
     await supabase.from("worries").delete().eq("id", w.id);
   };
 
+  const togglePublic = async (t) => {
+    const v = !t.is_public;
+    setTasks((ts) =>
+      ts.map((x) => (x.id === t.id ? { ...x, is_public: v } : x)),
+    );
+    await supabase.from("tasks").update({ is_public: v }).eq("id", t.id);
+  };
+
   // ---------- edit ----------
   const editTask = async (id, title) => {
     setTasks((ts) => ts.map((t) => (t.id === id ? { ...t, title } : t)));
@@ -342,6 +350,9 @@ export default function TugasKu() {
   };
 
   // ---------- render ----------
+  const shareId = new URLSearchParams(window.location.search).get("share");
+  if (shareId) return <PublicView userId={shareId} themeVars={themeVars} />;
+
   if (session === undefined)
     return (
       <div
@@ -440,6 +451,19 @@ export default function TugasKu() {
               title={dark ? "Mode terang" : "Mode gelap"}
             >
               {dark ? "☀️" : "🌙"}
+            </button>
+            <button
+              style={{ ...S.themeBtn, fontSize: 13 }}
+              onClick={() => {
+                const url = `${window.location.origin}?share=${session.user.id}`;
+                navigator.clipboard
+                  .writeText(url)
+                  .then(() => alert("Link publik kecopy ✓\n" + url))
+                  .catch(() => prompt("Copy link ini:", url));
+              }}
+              title="Copy link papan publik"
+            >
+              🔗
             </button>
             <button
               style={{ ...S.themeBtn, fontSize: 13, color: "var(--muted)" }}
@@ -802,7 +826,12 @@ export default function TugasKu() {
           onToggle={() => toggleCollapsed("todo")}
         >
           {todo.map((t) => (
-            <Card key={t.id} t={t} onEdit={editTask}>
+            <Card
+              key={t.id}
+              t={t}
+              onEdit={editTask}
+              onTogglePublic={togglePublic}
+            >
               <button style={S.btn} onClick={() => move(t.id, "inprogress")}>
                 Terima
               </button>
@@ -821,7 +850,13 @@ export default function TugasKu() {
           onToggle={() => toggleCollapsed("doing")}
         >
           {doing.map((t) => (
-            <Card key={t.id} t={t} active onEdit={editTask}>
+            <Card
+              key={t.id}
+              t={t}
+              active
+              onEdit={editTask}
+              onTogglePublic={togglePublic}
+            >
               <button
                 style={{ ...S.btn, background: "var(--green-dark)" }}
                 onClick={() => move(t.id, "done")}
@@ -843,7 +878,13 @@ export default function TugasKu() {
           onToggle={() => toggleCollapsed("done")}
         >
           {done.map((t) => (
-            <Card key={t.id} t={t} done onEdit={editTask}>
+            <Card
+              key={t.id}
+              t={t}
+              done
+              onEdit={editTask}
+              onTogglePublic={togglePublic}
+            >
               <button style={S.btnGhost} onClick={() => move(t.id, "todo")}>
                 ↩
               </button>
@@ -988,6 +1029,111 @@ function EditableText({ value, onSave, style }) {
   );
 }
 
+function PublicView({ userId, themeVars }) {
+  const [tasks, setTasks] = useState(null);
+
+  useEffect(() => {
+    supabase
+      .from("tasks")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("is_public", true)
+      .then(({ data, error }) => setTasks(error ? [] : data));
+  }, [userId]);
+
+  const byStatus = (s) =>
+    (tasks || [])
+      .filter((t) => t.status === s)
+      .sort((a, b) => a.priority - b.priority);
+  const doing = byStatus("inprogress");
+  const todo = byStatus("todo");
+  const done = byStatus("done");
+
+  const dateLabel = new Date().toLocaleDateString("id-ID", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
+
+  return (
+    <div style={{ ...S.page, ...themeVars }}>
+      <style>{FIRE_CSS}</style>
+      <div style={S.wrap}>
+        <div style={{ marginBottom: 20 }}>
+          <div style={S.eyebrow}>{dateLabel} · Papan publik (read-only)</div>
+          <h1 style={S.h1}>TugasKu</h1>
+        </div>
+
+        {tasks === null && <div style={S.empty}>Memuat…</div>}
+
+        {tasks !== null && tasks.length === 0 && (
+          <div style={{ ...S.focusCard }}>
+            <div style={S.focusTitle}>Belum ada yang di-share di sini.</div>
+          </div>
+        )}
+
+        {doing.length > 0 && (
+          <div
+            style={{
+              ...S.focusCard,
+              animation: "emberGlow 1.8s ease-in-out infinite",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <Flame />
+              <div style={{ ...S.focusLabel, marginBottom: 0 }}>
+                Lagi dikerjain
+              </div>
+            </div>
+            {doing.map((t) => (
+              <div
+                key={t.id}
+                style={{ ...S.focusTitle, marginBottom: 4, marginTop: 8 }}
+              >
+                {t.title}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {todo.length > 0 && (
+          <div style={{ marginTop: 26 }}>
+            <div style={S.sectionHead}>
+              <span>Antrian</span>
+              <span style={S.count}>{todo.length}</span>
+            </div>
+            {todo.map((t) => (
+              <div key={t.id} style={S.card}>
+                <div style={S.cardTitle}>{t.title}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {done.length > 0 && (
+          <div style={{ marginTop: 26 }}>
+            <div style={S.sectionHead}>
+              <span>Kelar</span>
+              <span style={S.count}>{done.length}</span>
+            </div>
+            {done.map((t) => (
+              <div key={t.id} style={{ ...S.card, opacity: 0.55 }}>
+                <div style={{ ...S.cardTitle, textDecoration: "line-through" }}>
+                  {t.title}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div style={S.footer}>
+          Cuma yang ditandain publik yang keliatan di sini.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Login({ themeVars }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -1079,7 +1225,7 @@ function Section({ title, count, children, collapsed, onToggle }) {
   );
 }
 
-function Card({ t, children, active, done, onEdit }) {
+function Card({ t, children, active, done, onEdit, onTogglePublic }) {
   return (
     <div
       style={{
@@ -1116,9 +1262,40 @@ function Card({ t, children, active, done, onEdit }) {
             </span>
           )}
           {t.daily && <span style={S.tag}>harian</span>}
+          {t.is_public && (
+            <span
+              style={{
+                ...S.tag,
+                color: "var(--green)",
+                borderColor: "var(--green-border)",
+              }}
+            >
+              publik
+            </span>
+          )}
         </div>
       </div>
-      <div style={S.cardBtns}>{children}</div>
+      <div style={S.cardBtns}>
+        {onTogglePublic && (
+          <button
+            style={{
+              ...S.btnGhost,
+              ...(t.is_public
+                ? { borderColor: "var(--green)", color: "var(--green)" }
+                : {}),
+            }}
+            title={
+              t.is_public
+                ? "Keliatan di link publik — klik buat sembunyiin"
+                : "Privat — klik buat tampilin di link publik"
+            }
+            onClick={() => onTogglePublic(t)}
+          >
+            {t.is_public ? "👁" : "🙈"}
+          </button>
+        )}
+        {children}
+      </div>
     </div>
   );
 }
