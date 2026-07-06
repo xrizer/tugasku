@@ -104,6 +104,7 @@ export default function TugasKu() {
   });
   const [showPromForm, setShowPromForm] = useState(false);
   const [collapsed, toggleCollapsed] = useCollapsed();
+  const [page, setPage] = useState("tugas");
   const [dark, setDark] = useState(() => {
     try {
       const s = localStorage.getItem(THEME_KEY);
@@ -521,7 +522,21 @@ export default function TugasKu() {
           </div>
         </div>
 
-        {showPassForm && (
+        <div style={S.nav}>
+          {["tugas", "barang"].map((p) => (
+            <button
+              key={p}
+              style={{ ...S.navBtn, ...(page === p ? S.navBtnActive : {}) }}
+              onClick={() => setPage(p)}
+            >
+              {p === "tugas" ? "Tugas" : "Barang"}
+            </button>
+          ))}
+        </div>
+
+        {page === "barang" && <BarangPage session={session} />}
+
+        {page === "tugas" && showPassForm && (
           <div
             style={{
               ...S.promBox,
@@ -556,422 +571,454 @@ export default function TugasKu() {
           </div>
         )}
 
-        {/* focus card — one thing at a time */}
-        {focus && (
-          <div
-            style={{
-              ...S.focusCard,
-              ...(focus.status === "inprogress"
-                ? { animation: "emberGlow 1.8s ease-in-out infinite" }
-                : {}),
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              {focus.status === "inprogress" && <Flame />}
-              <div style={{ ...S.focusLabel, marginBottom: 0 }}>
-                {focus.status === "inprogress"
-                  ? "Lagi dikerjain — jangan pindah dulu"
-                  : "Fokus sekarang"}
-              </div>
-            </div>
-            <div style={{ height: 6 }} />
-            <div style={S.focusTitle}>{focus.title}</div>
-            {focus.status === "todo" ? (
-              <button
-                style={S.focusBtn}
-                onClick={() => move(focus.id, "inprogress")}
+        {page === "tugas" && (
+          <>
+            {/* focus card — one thing at a time */}
+            {focus && (
+              <div
+                style={{
+                  ...S.focusCard,
+                  ...(focus.status === "inprogress"
+                    ? { animation: "emberGlow 1.8s ease-in-out infinite" }
+                    : {}),
+                }}
               >
-                Terima & mulai →
-              </button>
-            ) : (
-              <button style={S.focusBtn} onClick={() => move(focus.id, "done")}>
-                Tandai selesai ✓
-              </button>
-            )}
-          </div>
-        )}
-        {!focus && (
-          <div
-            style={{
-              ...S.focusCard,
-              background: "var(--green-bg)",
-              borderColor: "var(--green-border)",
-            }}
-          >
-            <div style={{ ...S.focusLabel, color: "var(--green)" }}>
-              Semua beres
-            </div>
-            <div style={{ ...S.focusTitle, color: "var(--green-dark)" }}>
-              Tidak ada tugas tersisa hari ini. 🎉
-            </div>
-          </div>
-        )}
-
-        {/* janji — hal yang gak boleh kelupaan */}
-        <div style={S.promBox}>
-          <div style={{ ...S.dumpHead, cursor: "pointer", userSelect: "none" }}>
-            <span
-              style={{ ...S.dumpTitle, color: "var(--janji-ink)" }}
-              onClick={() => toggleCollapsed("janji")}
-            >
-              <span style={S.chev}>{collapsed.janji ? "▸" : "▾"}</span> Janji
-              yang harus ditepati
-              {collapsed.janji && promises.length > 0 && (
-                <span style={S.miniCount}>{promises.length}</span>
-              )}
-            </span>
-            {!collapsed.janji && (
-              <button
-                style={S.promAddLink}
-                onClick={() => setShowPromForm((v) => !v)}
-              >
-                {showPromForm ? "batal" : "+ janji baru"}
-              </button>
-            )}
-          </div>
-          {!collapsed.janji && (
-            <>
-              {showPromForm && (
-                <div style={{ marginBottom: 10 }}>
-                  <input
-                    style={{
-                      ...S.input,
-                      width: "100%",
-                      boxSizing: "border-box",
-                      marginBottom: 6,
-                    }}
-                    placeholder="Janji apa? (misal: kirim laporan ke Rendy)"
-                    value={promForm.text}
-                    onChange={(e) =>
-                      setPromForm({ ...promForm, text: e.target.value })
-                    }
-                  />
-                  <div style={{ display: "flex", gap: 6 }}>
-                    <input
-                      style={{ ...S.input, flex: 1, minWidth: 0 }}
-                      placeholder="Ke siapa?"
-                      value={promForm.to_whom}
-                      onChange={(e) =>
-                        setPromForm({ ...promForm, to_whom: e.target.value })
-                      }
-                    />
-                    <input
-                      type="date"
-                      style={{ ...S.input, flex: 1, minWidth: 0 }}
-                      value={promForm.due_date}
-                      onChange={(e) =>
-                        setPromForm({ ...promForm, due_date: e.target.value })
-                      }
-                    />
-                    <button
-                      style={{ ...S.addBtn, width: 60 }}
-                      onClick={addPromise}
-                    >
-                      OK
-                    </button>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  {focus.status === "inprogress" && <Flame />}
+                  <div style={{ ...S.focusLabel, marginBottom: 0 }}>
+                    {focus.status === "inprogress"
+                      ? "Lagi dikerjain — jangan pindah dulu"
+                      : "Fokus sekarang"}
                   </div>
                 </div>
-              )}
-
-              {promises.length === 0 && !showPromForm && (
-                <div style={S.dumpHint}>Gak ada janji tertunda. Aman.</div>
-              )}
-
-              {promises.map((p) => {
-                const overdue = p.due_date && p.due_date < todayStr();
-                const today = p.due_date === todayStr();
-                return (
-                  <div
-                    key={p.id}
-                    style={{
-                      ...S.worryCard,
-                      ...(overdue
-                        ? {
-                            borderLeft: "3px solid var(--red)",
-                            background: "var(--red-bg)",
-                          }
-                        : today
-                          ? {
-                              borderLeft: "3px solid #B8860B",
-                              background: "var(--janji-bg)",
-                            }
-                          : {}),
-                    }}
+                <div style={{ height: 6 }} />
+                <div style={S.focusTitle}>{focus.title}</div>
+                {focus.status === "todo" ? (
+                  <button
+                    style={S.focusBtn}
+                    onClick={() => move(focus.id, "inprogress")}
                   >
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <EditableText
-                        value={p.text}
-                        onSave={(v) => editPromise(p.id, v)}
+                    Terima & mulai →
+                  </button>
+                ) : (
+                  <button
+                    style={S.focusBtn}
+                    onClick={() => move(focus.id, "done")}
+                  >
+                    Tandai selesai ✓
+                  </button>
+                )}
+              </div>
+            )}
+            {!focus && (
+              <div
+                style={{
+                  ...S.focusCard,
+                  background: "var(--green-bg)",
+                  borderColor: "var(--green-border)",
+                }}
+              >
+                <div style={{ ...S.focusLabel, color: "var(--green)" }}>
+                  Semua beres
+                </div>
+                <div style={{ ...S.focusTitle, color: "var(--green-dark)" }}>
+                  Tidak ada tugas tersisa hari ini. 🎉
+                </div>
+              </div>
+            )}
+
+            {/* janji — hal yang gak boleh kelupaan */}
+            <div style={S.promBox}>
+              <div
+                style={{ ...S.dumpHead, cursor: "pointer", userSelect: "none" }}
+              >
+                <span
+                  style={{ ...S.dumpTitle, color: "var(--janji-ink)" }}
+                  onClick={() => toggleCollapsed("janji")}
+                >
+                  <span style={S.chev}>{collapsed.janji ? "▸" : "▾"}</span>{" "}
+                  Janji yang harus ditepati
+                  {collapsed.janji && promises.length > 0 && (
+                    <span style={S.miniCount}>{promises.length}</span>
+                  )}
+                </span>
+                {!collapsed.janji && (
+                  <button
+                    style={S.promAddLink}
+                    onClick={() => setShowPromForm((v) => !v)}
+                  >
+                    {showPromForm ? "batal" : "+ janji baru"}
+                  </button>
+                )}
+              </div>
+              {!collapsed.janji && (
+                <>
+                  {showPromForm && (
+                    <div style={{ marginBottom: 10 }}>
+                      <input
                         style={{
-                          fontSize: 14,
-                          fontWeight: 500,
-                          lineHeight: 1.4,
+                          ...S.input,
+                          width: "100%",
+                          boxSizing: "border-box",
+                          marginBottom: 6,
                         }}
+                        placeholder="Janji apa? (misal: kirim laporan ke Rendy)"
+                        value={promForm.text}
+                        onChange={(e) =>
+                          setPromForm({ ...promForm, text: e.target.value })
+                        }
                       />
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <input
+                          style={{ ...S.input, flex: 1, minWidth: 0 }}
+                          placeholder="Ke siapa?"
+                          value={promForm.to_whom}
+                          onChange={(e) =>
+                            setPromForm({
+                              ...promForm,
+                              to_whom: e.target.value,
+                            })
+                          }
+                        />
+                        <input
+                          type="date"
+                          style={{ ...S.input, flex: 1, minWidth: 0 }}
+                          value={promForm.due_date}
+                          onChange={(e) =>
+                            setPromForm({
+                              ...promForm,
+                              due_date: e.target.value,
+                            })
+                          }
+                        />
+                        <button
+                          style={{ ...S.addBtn, width: 60 }}
+                          onClick={addPromise}
+                        >
+                          OK
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {promises.length === 0 && !showPromForm && (
+                    <div style={S.dumpHint}>Gak ada janji tertunda. Aman.</div>
+                  )}
+
+                  {promises.map((p) => {
+                    const overdue = p.due_date && p.due_date < todayStr();
+                    const today = p.due_date === todayStr();
+                    return (
                       <div
-                        style={{ ...S.dumpHint, marginBottom: 0, marginTop: 3 }}
+                        key={p.id}
+                        style={{
+                          ...S.worryCard,
+                          ...(overdue
+                            ? {
+                                borderLeft: "3px solid var(--red)",
+                                background: "var(--red-bg)",
+                              }
+                            : today
+                              ? {
+                                  borderLeft: "3px solid #B8860B",
+                                  background: "var(--janji-bg)",
+                                }
+                              : {}),
+                        }}
                       >
-                        {p.to_whom && (
-                          <>
-                            ke <b>{p.to_whom}</b> ·{" "}
-                          </>
-                        )}
-                        {overdue && (
-                          <span
-                            style={{ color: "var(--red)", fontWeight: 700 }}
-                          >
-                            TELAT — {p.due_date}
-                          </span>
-                        )}
-                        {today && (
-                          <span
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <EditableText
+                            value={p.text}
+                            onSave={(v) => editPromise(p.id, v)}
                             style={{
-                              color: "var(--janji-ink)",
-                              fontWeight: 700,
+                              fontSize: 14,
+                              fontWeight: 500,
+                              lineHeight: 1.4,
+                            }}
+                          />
+                          <div
+                            style={{
+                              ...S.dumpHint,
+                              marginBottom: 0,
+                              marginTop: 3,
                             }}
                           >
-                            HARI INI
-                          </span>
-                        )}
-                        {!overdue && !today && p.due_date && (
-                          <>sampai {p.due_date}</>
-                        )}
-                        {!p.due_date && <>tanpa deadline</>}
-                      </div>
-                    </div>
-                    <div style={S.cardBtns}>
-                      {p.due_date && (
-                        <a
-                          href={gcalUrl(p)}
-                          target="_blank"
-                          rel="noreferrer"
-                          style={{
-                            ...S.btnGhost,
-                            textDecoration: "none",
-                            display: "inline-block",
-                          }}
-                          title="Tambah ke Google Calendar"
-                        >
-                          📅
-                        </a>
-                      )}
-                      <button
-                        style={{ ...S.btn, background: "var(--green-dark)" }}
-                        onClick={() => keepPromise(p.id)}
-                      >
-                        Ditepati ✓
-                      </button>
-                      <button
-                        style={S.btnGhost}
-                        onClick={() => removePromise(p.id)}
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </>
-          )}
-        </div>
-
-        {/* add */}
-        <div style={S.addRow}>
-          <input
-            style={S.input}
-            placeholder="Tambah tugas baru…"
-            value={newTitle}
-            onChange={(e) => setNewTitle(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && addTask()}
-          />
-          <button style={S.addBtn} onClick={addTask}>
-            +
-          </button>
-        </div>
-        <div style={S.addOpts}>
-          <label style={S.optLabel}>
-            <input
-              type="checkbox"
-              checked={newDaily}
-              onChange={(e) => setNewDaily(e.target.checked)}
-            />{" "}
-            Tugas harian (reset tiap hari)
-          </label>
-          <label style={S.optLabel}>
-            <input
-              type="checkbox"
-              checked={newPriority === 0}
-              onChange={(e) => setNewPriority(e.target.checked ? 0 : 1)}
-            />{" "}
-            Penting
-          </label>
-        </div>
-
-        {/* brain dump — tumpahin dulu, sortir belakangan */}
-        <div style={S.dump}>
-          <div
-            style={{ ...S.dumpHead, cursor: "pointer", userSelect: "none" }}
-            onClick={() => toggleCollapsed("dump")}
-          >
-            <span style={S.dumpTitle}>
-              <span style={S.chev}>{collapsed.dump ? "▸" : "▾"}</span> Lagi
-              resah apa?
-              {collapsed.dump && worries.length > 0 && (
-                <span style={S.miniCount}>{worries.length}</span>
-              )}
-            </span>
-            {released > 0 && !collapsed.dump && (
-              <span style={S.dumpReleased}>{released} dilepas hari ini</span>
-            )}
-          </div>
-          {!collapsed.dump && (
-            <>
-              <div style={S.addRow}>
-                <input
-                  style={{ ...S.input, background: "var(--card2)" }}
-                  placeholder="Tumpahin di sini, jangan disimpen di kepala…"
-                  value={worryText}
-                  onChange={(e) => setWorryText(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && addWorry()}
-                />
-                <button style={S.addBtn} onClick={addWorry}>
-                  +
-                </button>
-              </div>
-              {worries.length > 0 && (
-                <div style={{ marginTop: 10 }}>
-                  <div style={S.dumpHint}>
-                    Sortir: bisa lu pengaruhi → jadiin tugas. Di luar kendali lu
-                    → lepasin.
-                  </div>
-                  {worries.map((w) => (
-                    <div key={w.id} style={S.worryCard}>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <EditableText
-                          value={w.text}
-                          onSave={(v) => editWorry(w.id, v)}
-                          style={{ fontSize: 14, lineHeight: 1.4 }}
-                        />
-                        {suggestions[w.id] && (
-                          <div style={S.aiBubble}>
-                            {suggestions[w.id] === "..."
-                              ? "AI lagi mikir…"
-                              : suggestions[w.id]}
+                            {p.to_whom && (
+                              <>
+                                ke <b>{p.to_whom}</b> ·{" "}
+                              </>
+                            )}
+                            {overdue && (
+                              <span
+                                style={{ color: "var(--red)", fontWeight: 700 }}
+                              >
+                                TELAT — {p.due_date}
+                              </span>
+                            )}
+                            {today && (
+                              <span
+                                style={{
+                                  color: "var(--janji-ink)",
+                                  fontWeight: 700,
+                                }}
+                              >
+                                HARI INI
+                              </span>
+                            )}
+                            {!overdue && !today && p.due_date && (
+                              <>sampai {p.due_date}</>
+                            )}
+                            {!p.due_date && <>tanpa deadline</>}
                           </div>
-                        )}
+                        </div>
+                        <div style={S.cardBtns}>
+                          {p.due_date && (
+                            <a
+                              href={gcalUrl(p)}
+                              target="_blank"
+                              rel="noreferrer"
+                              style={{
+                                ...S.btnGhost,
+                                textDecoration: "none",
+                                display: "inline-block",
+                              }}
+                              title="Tambah ke Google Calendar"
+                            >
+                              📅
+                            </a>
+                          )}
+                          <button
+                            style={{
+                              ...S.btn,
+                              background: "var(--green-dark)",
+                            }}
+                            onClick={() => keepPromise(p.id)}
+                          >
+                            Ditepati ✓
+                          </button>
+                          <button
+                            style={S.btnGhost}
+                            onClick={() => removePromise(p.id)}
+                          >
+                            ✕
+                          </button>
+                        </div>
                       </div>
-                      <div style={S.cardBtns}>
-                        <button
-                          style={S.btnGhost}
-                          title="Minta saran AI"
-                          onClick={() => suggestAI(w)}
-                        >
-                          ✨
-                        </button>
-                        <button style={S.btn} onClick={() => worryToTask(w)}>
-                          Jadiin tugas
-                        </button>
-                        <button
-                          style={S.btnGhost}
-                          onClick={() => releaseWorry(w.id)}
-                        >
-                          Lepasin
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    );
+                  })}
+                </>
               )}
-            </>
-          )}
-        </div>
+            </div>
 
-        {/* sections */}
-        <Section
-          title="Todo"
-          count={todo.length}
-          collapsed={!!collapsed.todo}
-          onToggle={() => toggleCollapsed("todo")}
-        >
-          {todo.map((t) => (
-            <Card
-              key={t.id}
-              t={t}
-              onEdit={editTask}
-              onTogglePublic={togglePublic}
-            >
-              <button style={S.btn} onClick={() => move(t.id, "inprogress")}>
-                Terima
+            {/* add */}
+            <div style={S.addRow}>
+              <input
+                style={S.input}
+                placeholder="Tambah tugas baru…"
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && addTask()}
+              />
+              <button style={S.addBtn} onClick={addTask}>
+                +
               </button>
-              <button style={S.btnGhost} onClick={() => remove(t.id)}>
-                ✕
-              </button>
-            </Card>
-          ))}
-          {todo.length === 0 && <Empty text="Kosong — mantap." />}
-        </Section>
+            </div>
+            <div style={S.addOpts}>
+              <label style={S.optLabel}>
+                <input
+                  type="checkbox"
+                  checked={newDaily}
+                  onChange={(e) => setNewDaily(e.target.checked)}
+                />{" "}
+                Tugas harian (reset tiap hari)
+              </label>
+              <label style={S.optLabel}>
+                <input
+                  type="checkbox"
+                  checked={newPriority === 0}
+                  onChange={(e) => setNewPriority(e.target.checked ? 0 : 1)}
+                />{" "}
+                Penting
+              </label>
+            </div>
 
-        <Section
-          title="In Progress"
-          count={doing.length}
-          collapsed={!!collapsed.doing}
-          onToggle={() => toggleCollapsed("doing")}
-        >
-          {doing.map((t) => (
-            <Card
-              key={t.id}
-              t={t}
-              active
-              onEdit={editTask}
-              onTogglePublic={togglePublic}
-            >
-              <button
-                style={{ ...S.btn, background: "var(--green-dark)" }}
-                onClick={() => move(t.id, "done")}
+            {/* brain dump — tumpahin dulu, sortir belakangan */}
+            <div style={S.dump}>
+              <div
+                style={{ ...S.dumpHead, cursor: "pointer", userSelect: "none" }}
+                onClick={() => toggleCollapsed("dump")}
               >
-                Selesai
-              </button>
-              <button style={S.btnGhost} onClick={() => move(t.id, "todo")}>
-                ↩
-              </button>
-            </Card>
-          ))}
-          {doing.length === 0 && <Empty text="Belum ada yang dikerjakan." />}
-        </Section>
-
-        <Section
-          title="Completed"
-          count={done.length}
-          collapsed={!!collapsed.done}
-          onToggle={() => toggleCollapsed("done")}
-        >
-          {done.map((t) => (
-            <Card
-              key={t.id}
-              t={t}
-              done
-              onEdit={editTask}
-              onTogglePublic={togglePublic}
-            >
-              <button style={S.btnGhost} onClick={() => move(t.id, "todo")}>
-                ↩
-              </button>
-              {!t.daily && (
-                <button style={S.btnGhost} onClick={() => remove(t.id)}>
-                  ✕
-                </button>
+                <span style={S.dumpTitle}>
+                  <span style={S.chev}>{collapsed.dump ? "▸" : "▾"}</span> Lagi
+                  resah apa?
+                  {collapsed.dump && worries.length > 0 && (
+                    <span style={S.miniCount}>{worries.length}</span>
+                  )}
+                </span>
+                {released > 0 && !collapsed.dump && (
+                  <span style={S.dumpReleased}>
+                    {released} dilepas hari ini
+                  </span>
+                )}
+              </div>
+              {!collapsed.dump && (
+                <>
+                  <div style={S.addRow}>
+                    <input
+                      style={{ ...S.input, background: "var(--card2)" }}
+                      placeholder="Tumpahin di sini, jangan disimpen di kepala…"
+                      value={worryText}
+                      onChange={(e) => setWorryText(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && addWorry()}
+                    />
+                    <button style={S.addBtn} onClick={addWorry}>
+                      +
+                    </button>
+                  </div>
+                  {worries.length > 0 && (
+                    <div style={{ marginTop: 10 }}>
+                      <div style={S.dumpHint}>
+                        Sortir: bisa lu pengaruhi → jadiin tugas. Di luar
+                        kendali lu → lepasin.
+                      </div>
+                      {worries.map((w) => (
+                        <div key={w.id} style={S.worryCard}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <EditableText
+                              value={w.text}
+                              onSave={(v) => editWorry(w.id, v)}
+                              style={{ fontSize: 14, lineHeight: 1.4 }}
+                            />
+                            {suggestions[w.id] && (
+                              <div style={S.aiBubble}>
+                                {suggestions[w.id] === "..."
+                                  ? "AI lagi mikir…"
+                                  : suggestions[w.id]}
+                              </div>
+                            )}
+                          </div>
+                          <div style={S.cardBtns}>
+                            <button
+                              style={S.btnGhost}
+                              title="Minta saran AI"
+                              onClick={() => suggestAI(w)}
+                            >
+                              ✨
+                            </button>
+                            <button
+                              style={S.btn}
+                              onClick={() => worryToTask(w)}
+                            >
+                              Jadiin tugas
+                            </button>
+                            <button
+                              style={S.btnGhost}
+                              onClick={() => releaseWorry(w.id)}
+                            >
+                              Lepasin
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
               )}
-            </Card>
-          ))}
-          {done.length === 0 && (
-            <Empty text="Belum ada yang selesai hari ini." />
-          )}
-        </Section>
+            </div>
 
-        <div style={S.footer}>
-          Tugas harian otomatis balik ke Todo setiap pagi. Data tersimpan di
-          cloud — buka dari HP atau laptop, tetap sync.
-        </div>
+            {/* sections */}
+            <Section
+              title="Todo"
+              count={todo.length}
+              collapsed={!!collapsed.todo}
+              onToggle={() => toggleCollapsed("todo")}
+            >
+              {todo.map((t) => (
+                <Card
+                  key={t.id}
+                  t={t}
+                  onEdit={editTask}
+                  onTogglePublic={togglePublic}
+                >
+                  <button
+                    style={S.btn}
+                    onClick={() => move(t.id, "inprogress")}
+                  >
+                    Terima
+                  </button>
+                  <button style={S.btnGhost} onClick={() => remove(t.id)}>
+                    ✕
+                  </button>
+                </Card>
+              ))}
+              {todo.length === 0 && <Empty text="Kosong — mantap." />}
+            </Section>
+
+            <Section
+              title="In Progress"
+              count={doing.length}
+              collapsed={!!collapsed.doing}
+              onToggle={() => toggleCollapsed("doing")}
+            >
+              {doing.map((t) => (
+                <Card
+                  key={t.id}
+                  t={t}
+                  active
+                  onEdit={editTask}
+                  onTogglePublic={togglePublic}
+                >
+                  <button
+                    style={{ ...S.btn, background: "var(--green-dark)" }}
+                    onClick={() => move(t.id, "done")}
+                  >
+                    Selesai
+                  </button>
+                  <button style={S.btnGhost} onClick={() => move(t.id, "todo")}>
+                    ↩
+                  </button>
+                </Card>
+              ))}
+              {doing.length === 0 && (
+                <Empty text="Belum ada yang dikerjakan." />
+              )}
+            </Section>
+
+            <Section
+              title="Completed"
+              count={done.length}
+              collapsed={!!collapsed.done}
+              onToggle={() => toggleCollapsed("done")}
+            >
+              {done.map((t) => (
+                <Card
+                  key={t.id}
+                  t={t}
+                  done
+                  onEdit={editTask}
+                  onTogglePublic={togglePublic}
+                >
+                  <button style={S.btnGhost} onClick={() => move(t.id, "todo")}>
+                    ↩
+                  </button>
+                  {!t.daily && (
+                    <button style={S.btnGhost} onClick={() => remove(t.id)}>
+                      ✕
+                    </button>
+                  )}
+                </Card>
+              ))}
+              {done.length === 0 && (
+                <Empty text="Belum ada yang selesai hari ini." />
+              )}
+            </Section>
+
+            <div style={S.footer}>
+              Tugas harian otomatis balik ke Todo setiap pagi. Data tersimpan di
+              cloud — buka dari HP atau laptop, tetap sync.
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
@@ -1094,6 +1141,219 @@ function EditableText({ value, onSave, style }) {
         if (e.key === "Escape") setEditing(false);
       }}
     />
+  );
+}
+
+const STATUS_ORDER = ["ada", "dipinjem", "ilang"];
+const STATUS_META = {
+  ada: { label: "✓ ada", color: "var(--green)", border: "var(--green-border)" },
+  dipinjem: {
+    label: "🤝 dipinjem",
+    color: "var(--janji-ink)",
+    border: "var(--janji-border)",
+  },
+  ilang: { label: "? ilang", color: "var(--red)", border: "var(--red)" },
+};
+
+const rupiah = (n) => (n == null ? "" : "Rp" + n.toLocaleString("id-ID"));
+
+function BarangPage({ session }) {
+  const [items, setItems] = useState(null);
+  const [q, setQ] = useState("");
+  const [form, setForm] = useState({ name: "", location: "", price: "" });
+  const [showForm, setShowForm] = useState(false);
+
+  useEffect(() => {
+    supabase
+      .from("items")
+      .select("*")
+      .eq("user_id", session.user.id)
+      .order("created_at", { ascending: false })
+      .then(({ data, error }) => setItems(error ? [] : data));
+  }, [session]);
+
+  const addItem = async () => {
+    const name = form.name.trim();
+    if (!name) return;
+    const row = {
+      name,
+      location: form.location.trim() || null,
+      price: form.price
+        ? parseInt(form.price.replace(/\D/g, ""), 10) || null
+        : null,
+    };
+    setForm({ name: "", location: "", price: "" });
+    setShowForm(false);
+    const { data, error } = await supabase
+      .from("items")
+      .insert(row)
+      .select()
+      .single();
+    if (!error) setItems((xs) => [data, ...xs]);
+  };
+
+  const patchItem = async (id, patch) => {
+    setItems((xs) => xs.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+    await supabase.from("items").update(patch).eq("id", id);
+  };
+
+  const removeItem = async (id) => {
+    setItems((xs) => xs.filter((x) => x.id !== id));
+    await supabase.from("items").delete().eq("id", id);
+  };
+
+  const cycleStatus = (it) => {
+    const next =
+      STATUS_ORDER[(STATUS_ORDER.indexOf(it.status) + 1) % STATUS_ORDER.length];
+    patchItem(it.id, { status: next });
+  };
+
+  if (items === null) return <div style={S.empty}>Memuat…</div>;
+
+  const ql = q.trim().toLowerCase();
+  const shown = ql
+    ? items.filter(
+        (x) =>
+          x.name.toLowerCase().includes(ql) ||
+          (x.location || "").toLowerCase().includes(ql),
+      )
+    : items;
+
+  const total = items.reduce((s, x) => s + (x.price || 0), 0);
+
+  return (
+    <>
+      {/* search-first: pertanyaannya selalu "barang gue di mana?" */}
+      <input
+        style={{
+          ...S.input,
+          width: "100%",
+          boxSizing: "border-box",
+          fontSize: 17,
+          padding: "14px 16px",
+        }}
+        placeholder="Cari barang… (nama atau lokasi)"
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+      />
+
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginTop: 12,
+        }}
+      >
+        <span style={S.dumpHint}>
+          {items.length} barang · total {rupiah(total)}
+        </span>
+        <button style={S.promAddLink} onClick={() => setShowForm((v) => !v)}>
+          {showForm ? "batal" : "+ barang baru"}
+        </button>
+      </div>
+
+      {showForm && (
+        <div style={{ marginTop: 8 }}>
+          <input
+            style={{
+              ...S.input,
+              width: "100%",
+              boxSizing: "border-box",
+              marginBottom: 6,
+            }}
+            placeholder="Nama barang (misal: e-money mandiri)"
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+          />
+          <div style={{ display: "flex", gap: 6 }}>
+            <input
+              style={{ ...S.input, flex: 2, minWidth: 0 }}
+              placeholder="Di mana? (misal: dompet abu)"
+              value={form.location}
+              onChange={(e) => setForm({ ...form, location: e.target.value })}
+            />
+            <input
+              style={{ ...S.input, flex: 1, minWidth: 0 }}
+              placeholder="Harga"
+              inputMode="numeric"
+              value={form.price}
+              onChange={(e) => setForm({ ...form, price: e.target.value })}
+            />
+            <button style={{ ...S.addBtn, width: 60 }} onClick={addItem}>
+              OK
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div style={{ marginTop: 14 }}>
+        {shown.length === 0 && (
+          <div style={S.empty}>
+            {ql
+              ? `Gak nemu "${q}" — belum dicatet atau beneran ilang 😅`
+              : "Belum ada barang. Mulai dari yang sering lu cari."}
+          </div>
+        )}
+        {shown.map((it) => {
+          const m = STATUS_META[it.status] || STATUS_META.ada;
+          return (
+            <div key={it.id} style={S.card}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <EditableText
+                  value={it.name}
+                  onSave={(v) => patchItem(it.id, { name: v })}
+                  style={S.cardTitle}
+                />
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 8,
+                    alignItems: "baseline",
+                    marginTop: 4,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <span style={{ fontSize: 13, color: "var(--muted2)" }}>
+                    📍
+                  </span>
+                  <EditableText
+                    value={it.location || "belum dicatet"}
+                    onSave={(v) => patchItem(it.id, { location: v })}
+                    style={{ fontSize: 13, color: "var(--muted2)" }}
+                  />
+                  {it.price != null && (
+                    <span style={S.tag}>{rupiah(it.price)}</span>
+                  )}
+                </div>
+              </div>
+              <div style={S.cardBtns}>
+                <button
+                  style={{
+                    ...S.btnGhost,
+                    color: m.color,
+                    borderColor: m.border,
+                    whiteSpace: "nowrap",
+                  }}
+                  title="Klik buat ganti status"
+                  onClick={() => cycleStatus(it)}
+                >
+                  {m.label}
+                </button>
+                <button style={S.btnGhost} onClick={() => removeItem(it.id)}>
+                  ✕
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div style={S.footer}>
+        Pindahin barang? Tap lokasinya, edit. Status: klik buat muter ada →
+        dipinjem → ilang.
+      </div>
+    </>
   );
 }
 
@@ -1605,6 +1865,30 @@ const S = {
     fontSize: 13,
     lineHeight: 1.5,
     color: "var(--ink)",
+  },
+  nav: {
+    display: "flex",
+    gap: 6,
+    marginBottom: 20,
+    background: "var(--badge)",
+    borderRadius: 12,
+    padding: 4,
+  },
+  navBtn: {
+    flex: 1,
+    padding: "9px 0",
+    border: "none",
+    borderRadius: 9,
+    background: "transparent",
+    color: "var(--muted2)",
+    fontSize: 14,
+    fontWeight: 700,
+    cursor: "pointer",
+  },
+  navBtnActive: {
+    background: "var(--card)",
+    color: "var(--ink)",
+    boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
   },
   footer: {
     marginTop: 32,
