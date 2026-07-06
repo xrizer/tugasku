@@ -1644,6 +1644,9 @@ function DuitPage({ session }) {
   const isOut = (r) => (r.kind || "out") === "out";
   const todayRows = rows.filter((r) => r.spent_date === today);
   const todayTotal = todayRows.filter(isOut).reduce((s, r) => s + r.amount, 0);
+  const todayIn = todayRows
+    .filter((r) => !isOut(r))
+    .reduce((s, r) => s + r.amount, 0);
 
   // konteks 7 hari — biar satu hari gak diliat sendirian
   const week = new Date();
@@ -1674,7 +1677,7 @@ function DuitPage({ session }) {
     <>
       <div style={{ ...S.nav, marginBottom: 14, padding: 3 }}>
         {[
-          ["keluar", "Pengeluaran"],
+          ["keluar", "Catet"],
           ["aset", "Aset"],
         ].map(([k, label]) => (
           <button
@@ -1803,7 +1806,7 @@ function DuitPage({ session }) {
 
           {/* angka hari ini — default disembunyiin, buka kalau siap liat */}
           <div style={{ marginTop: 22, textAlign: "center" }}>
-            <div style={S.eyebrow}>Hari ini</div>
+            <div style={S.eyebrow}>Keluar hari ini</div>
             <div
               style={{
                 fontSize: 32,
@@ -1826,6 +1829,17 @@ function DuitPage({ session }) {
             </div>
             {showTotal && (
               <>
+                {todayIn > 0 && (
+                  <div
+                    style={{
+                      ...S.dumpHint,
+                      marginTop: 4,
+                      color: "var(--green)",
+                    }}
+                  >
+                    masuk hari ini +{rupiah(todayIn)}
+                  </div>
+                )}
                 <div style={{ ...S.dumpHint, marginTop: 4 }}>
                   rata-rata 7 hari terakhir: {rupiah(avg)}/hari
                 </div>
