@@ -1376,6 +1376,174 @@ const localToday = () => {
 
 const DEFAULT_SOURCES = ["cash", "bca", "danamon"];
 
+function AsetView({ session }) {
+  const [assets, setAssets] = useState(null);
+  const [form, setForm] = useState({ name: "", value: "" });
+  const [showForm, setShowForm] = useState(false);
+  const [show, setShow] = useState(() => {
+    try {
+      return localStorage.getItem("tugasku-show-assets") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const toggleShow = () =>
+    setShow((v) => {
+      try {
+        localStorage.setItem("tugasku-show-assets", v ? "0" : "1");
+      } catch {}
+      return !v;
+    });
+
+  useEffect(() => {
+    supabase
+      .from("assets")
+      .select("*")
+      .eq("user_id", session.user.id)
+      .order("value", { ascending: false })
+      .then(({ data, error }) => setAssets(error ? [] : data));
+  }, [session]);
+
+  const addAsset = async () => {
+    const name = form.name.trim();
+    const value = parseInt(form.value.replace(/\D/g, ""), 10);
+    if (!name || isNaN(value)) return;
+    setForm({ name: "", value: "" });
+    setShowForm(false);
+    const { data, error } = await supabase
+      .from("assets")
+      .insert({ name, value })
+      .select()
+      .single();
+    if (!error)
+      setAssets((xs) => [...xs, data].sort((a, b) => b.value - a.value));
+  };
+
+  const patchAsset = async (id, patch) => {
+    const withTime = { ...patch, updated_at: new Date().toISOString() };
+    setAssets((xs) => xs.map((x) => (x.id === id ? { ...x, ...withTime } : x)));
+    await supabase.from("assets").update(withTime).eq("id", id);
+  };
+
+  const removeAsset = async (id) => {
+    setAssets((xs) => xs.filter((x) => x.id !== id));
+    await supabase.from("assets").delete().eq("id", id);
+  };
+
+  const ago = (ts) => {
+    const days = Math.floor((Date.now() - new Date(ts)) / 86400000);
+    if (days === 0) return "hari ini";
+    if (days === 1) return "kemarin";
+    return `${days} hari lalu`;
+  };
+
+  if (assets === null) return <div style={S.empty}>Memuat…</div>;
+
+  const total = assets.reduce((s, x) => s + x.value, 0);
+
+  return (
+    <>
+      <div style={{ marginTop: 6, textAlign: "center" }}>
+        <div style={S.eyebrow}>Total aset</div>
+        <div
+          style={{
+            fontSize: 32,
+            fontWeight: 700,
+            letterSpacing: show ? "-0.02em" : "0.15em",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 10,
+          }}
+        >
+          <span>{show ? rupiah(total) : "Rp ••••••"}</span>
+          <button
+            style={{ ...S.btnGhost, fontSize: 14, padding: "5px 9px" }}
+            onClick={toggleShow}
+          >
+            {show ? "🙈" : "👁"}
+          </button>
+        </div>
+      </div>
+
+      <div
+        style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}
+      >
+        <button style={S.promAddLink} onClick={() => setShowForm((v) => !v)}>
+          {showForm ? "batal" : "+ aset baru"}
+        </button>
+      </div>
+
+      {showForm && (
+        <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+          <input
+            style={{ ...S.input, flex: 2, minWidth: 0 }}
+            placeholder="Nama (misal: BCA, emas, WBSA)"
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+          />
+          <input
+            style={{ ...S.input, flex: 1, minWidth: 0 }}
+            placeholder="Nilai"
+            inputMode="numeric"
+            value={form.value}
+            onChange={(e) => setForm({ ...form, value: e.target.value })}
+            onKeyDown={(e) => e.key === "Enter" && addAsset()}
+          />
+          <button style={{ ...S.addBtn, width: 60 }} onClick={addAsset}>
+            OK
+          </button>
+        </div>
+      )}
+
+      <div style={{ marginTop: 10 }}>
+        {assets.length === 0 && (
+          <div style={{ ...S.empty, textAlign: "center" }}>
+            Belum ada. Mulai dari yang gede: rekening, cash, investasi.
+          </div>
+        )}
+        {assets.map((a) => (
+          <div key={a.id} style={S.card}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <EditableText
+                value={a.name}
+                onSave={(v) => patchAsset(a.id, { name: v })}
+                style={S.cardTitle}
+              />
+              <div style={{ ...S.dumpHint, marginBottom: 0, marginTop: 3 }}>
+                update {ago(a.updated_at)}
+              </div>
+            </div>
+            <div style={S.cardBtns}>
+              <EditableText
+                value={show ? rupiah(a.value) : "••••"}
+                onSave={(v) => {
+                  const n = parseInt(v.replace(/\D/g, ""), 10);
+                  if (!isNaN(n)) patchAsset(a.id, { value: n });
+                }}
+                style={{
+                  fontSize: 15,
+                  fontWeight: 700,
+                  textAlign: "right",
+                  minWidth: 90,
+                }}
+              />
+              <button style={S.btnGhost} onClick={() => removeAsset(a.id)}>
+                ✕
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div style={S.footer}>
+        Update pas nilainya berubah aja — gak usah tiap hari. Tap angkanya buat
+        edit.
+      </div>
+    </>
+  );
+}
+
 function DuitPage({ session }) {
   const [rows, setRows] = useState(null);
   const [amount, setAmount] = useState("");
@@ -1384,6 +1552,7 @@ function DuitPage({ session }) {
   const [note, setNote] = useState("");
   const [editSrc, setEditSrc] = useState(false);
   const [srcDraft, setSrcDraft] = useState("");
+  const [sub, setSub] = useState("keluar");
   const [showTotal, setShowTotal] = useState(() => {
     try {
       return localStorage.getItem("tugasku-show-total") === "1";
@@ -1494,166 +1663,178 @@ function DuitPage({ session }) {
     .filter((r) => r.spent_date >= firstStr)
     .reduce((s, r) => s + r.amount, 0);
 
-  const perSource = sources
-    .map((s) => ({
-      s,
-      total: todayRows
-        .filter((r) => r.source === s)
-        .reduce((a, r) => a + r.amount, 0),
-    }))
-    .filter((x) => x.total > 0);
-
   return (
     <>
-      {/* input dulu, angka belakangan — biar nyatetnya gak mikir */}
-      <div style={{ display: "flex", gap: 6 }}>
-        <input
-          style={{ ...S.input, flex: 1, minWidth: 0, fontSize: 17 }}
-          placeholder="Berapa? (misal 25000)"
-          inputMode="numeric"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && add()}
-        />
-        <button style={{ ...S.addBtn, width: 60 }} onClick={add}>
-          OK
-        </button>
-      </div>
-      {!editSrc ? (
-        <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-          {sources.map((s) => (
-            <button
-              key={s}
-              style={{
-                ...S.btnGhost,
-                flex: 1,
-                minWidth: 0,
-                textTransform: "uppercase",
-                fontSize: 12,
-                fontWeight: 700,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-                ...(source === s
-                  ? { borderColor: "var(--accent)", color: "var(--accent)" }
-                  : {}),
-              }}
-              onClick={() => setSource(s)}
-            >
-              {s}
-            </button>
-          ))}
+      <div style={{ ...S.nav, marginBottom: 14, padding: 3 }}>
+        {[
+          ["keluar", "Pengeluaran"],
+          ["aset", "Aset"],
+        ].map(([k, label]) => (
           <button
-            style={{ ...S.btnGhost, padding: "7px 10px" }}
-            title="Edit daftar sumber"
-            onClick={() => {
-              setSrcDraft(sources.join(", "));
-              setEditSrc(true);
+            key={k}
+            style={{
+              ...S.navBtn,
+              padding: "7px 0",
+              fontSize: 13,
+              ...(sub === k ? S.navBtnActive : {}),
             }}
+            onClick={() => setSub(k)}
           >
-            ✎
+            {label}
           </button>
-        </div>
-      ) : (
-        <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-          <input
-            style={{ ...S.input, flex: 1, minWidth: 0, fontSize: 13 }}
-            placeholder="Pisahin pakai koma, misal: cash, bca, danamon, gopay"
-            value={srcDraft}
-            autoFocus
-            onChange={(e) => setSrcDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") saveSources();
-              if (e.key === "Escape") setEditSrc(false);
-            }}
-          />
-          <button style={{ ...S.addBtn, width: 60 }} onClick={saveSources}>
-            OK
-          </button>
-        </div>
-      )}
-      <input
-        style={{
-          ...S.input,
-          width: "100%",
-          boxSizing: "border-box",
-          marginTop: 8,
-          fontSize: 13,
-        }}
-        placeholder="Catatan (opsional — kosongin juga gapapa)"
-        value={note}
-        onChange={(e) => setNote(e.target.value)}
-        onKeyDown={(e) => e.key === "Enter" && add()}
-      />
-
-      {/* angka hari ini — default disembunyiin, buka kalau siap liat */}
-      <div style={{ marginTop: 22, textAlign: "center" }}>
-        <div style={S.eyebrow}>Hari ini</div>
-        <div
-          style={{
-            fontSize: 32,
-            fontWeight: 700,
-            letterSpacing: showTotal ? "-0.02em" : "0.15em",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 10,
-          }}
-        >
-          <span>{showTotal ? rupiah(todayTotal) : "Rp ••••••"}</span>
-          <button
-            style={{ ...S.btnGhost, fontSize: 14, padding: "5px 9px" }}
-            title={showTotal ? "Sembunyiin total" : "Liat total"}
-            onClick={toggleTotal}
-          >
-            {showTotal ? "🙈" : "👁"}
-          </button>
-        </div>
-        {showTotal && (
-          <>
-            <div style={{ ...S.dumpHint, marginTop: 4 }}>
-              rata-rata 7 hari terakhir: {rupiah(avg)}/hari
-            </div>
-            <div style={{ ...S.dumpHint, marginTop: 2 }}>
-              minggu ini {rupiah(thisWeek)} · bulan ini {rupiah(thisMonth)}
-            </div>
-            {perSource.length > 0 && (
-              <div style={{ ...S.dumpHint, marginTop: 2 }}>
-                {perSource.map((x) => `${x.s} ${rupiah(x.total)}`).join(" · ")}
-              </div>
-            )}
-          </>
-        )}
-      </div>
-
-      <div style={{ marginTop: 18 }}>
-        {todayRows.length === 0 && (
-          <div style={{ ...S.empty, textAlign: "center" }}>
-            Belum ada catatan hari ini.
-          </div>
-        )}
-        {todayRows.map((r) => (
-          <div key={r.id} style={{ ...S.card, padding: "10px 14px" }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <span style={{ fontSize: 15, fontWeight: 600 }}>
-                {rupiah(r.amount)}
-              </span>
-              <span style={{ ...S.dumpHint, marginLeft: 8 }}>
-                {r.source}
-                {r.note ? ` · ${r.note}` : ""}
-              </span>
-            </div>
-            <button style={S.btnGhost} onClick={() => remove(r.id)}>
-              ✕
-            </button>
-          </div>
         ))}
       </div>
 
-      <div style={S.footer}>
-        Dicatet doang, gak dinilai. Angka gede sehari itu normal — liatnya per
-        minggu.
-      </div>
+      {sub === "aset" && <AsetView session={session} />}
+
+      {sub === "keluar" && (
+        <>
+          {/* input dulu, angka belakangan — biar nyatetnya gak mikir */}
+          <div style={{ display: "flex", gap: 6 }}>
+            <input
+              style={{ ...S.input, flex: 1, minWidth: 0, fontSize: 17 }}
+              placeholder="Berapa? (misal 25000)"
+              inputMode="numeric"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && add()}
+            />
+            <button style={{ ...S.addBtn, width: 60 }} onClick={add}>
+              OK
+            </button>
+          </div>
+          {!editSrc ? (
+            <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+              {sources.map((s) => (
+                <button
+                  key={s}
+                  style={{
+                    ...S.btnGhost,
+                    flex: 1,
+                    minWidth: 0,
+                    textTransform: "uppercase",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    ...(source === s
+                      ? { borderColor: "var(--accent)", color: "var(--accent)" }
+                      : {}),
+                  }}
+                  onClick={() => setSource(s)}
+                >
+                  {s}
+                </button>
+              ))}
+              <button
+                style={{ ...S.btnGhost, padding: "7px 10px" }}
+                title="Edit daftar sumber"
+                onClick={() => {
+                  setSrcDraft(sources.join(", "));
+                  setEditSrc(true);
+                }}
+              >
+                ✎
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+              <input
+                style={{ ...S.input, flex: 1, minWidth: 0, fontSize: 13 }}
+                placeholder="Pisahin pakai koma, misal: cash, bca, danamon, gopay"
+                value={srcDraft}
+                autoFocus
+                onChange={(e) => setSrcDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") saveSources();
+                  if (e.key === "Escape") setEditSrc(false);
+                }}
+              />
+              <button style={{ ...S.addBtn, width: 60 }} onClick={saveSources}>
+                OK
+              </button>
+            </div>
+          )}
+          <input
+            style={{
+              ...S.input,
+              width: "100%",
+              boxSizing: "border-box",
+              marginTop: 8,
+              fontSize: 13,
+            }}
+            placeholder="Catatan (opsional — kosongin juga gapapa)"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && add()}
+          />
+
+          {/* angka hari ini — default disembunyiin, buka kalau siap liat */}
+          <div style={{ marginTop: 22, textAlign: "center" }}>
+            <div style={S.eyebrow}>Hari ini</div>
+            <div
+              style={{
+                fontSize: 32,
+                fontWeight: 700,
+                letterSpacing: showTotal ? "-0.02em" : "0.15em",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 10,
+              }}
+            >
+              <span>{showTotal ? rupiah(todayTotal) : "Rp ••••••"}</span>
+              <button
+                style={{ ...S.btnGhost, fontSize: 14, padding: "5px 9px" }}
+                title={showTotal ? "Sembunyiin total" : "Liat total"}
+                onClick={toggleTotal}
+              >
+                {showTotal ? "🙈" : "👁"}
+              </button>
+            </div>
+            {showTotal && (
+              <>
+                <div style={{ ...S.dumpHint, marginTop: 4 }}>
+                  rata-rata 7 hari terakhir: {rupiah(avg)}/hari
+                </div>
+                <div style={{ ...S.dumpHint, marginTop: 2 }}>
+                  minggu ini {rupiah(thisWeek)} · bulan ini {rupiah(thisMonth)}
+                </div>
+              </>
+            )}
+          </div>
+
+          <div style={{ marginTop: 18 }}>
+            {todayRows.length === 0 && (
+              <div style={{ ...S.empty, textAlign: "center" }}>
+                Belum ada catatan hari ini.
+              </div>
+            )}
+            {todayRows.map((r) => (
+              <div key={r.id} style={{ ...S.card, padding: "10px 14px" }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ fontSize: 15, fontWeight: 600 }}>
+                    {rupiah(r.amount)}
+                  </span>
+                  <span style={{ ...S.dumpHint, marginLeft: 8 }}>
+                    {r.source}
+                    {r.note ? ` · ${r.note}` : ""}
+                  </span>
+                </div>
+                <button style={S.btnGhost} onClick={() => remove(r.id)}>
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <div style={S.footer}>
+            Dicatet doang, gak dinilai. Angka gede sehari itu normal — liatnya
+            per minggu.
+          </div>
+        </>
+      )}
     </>
   );
 }
