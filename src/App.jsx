@@ -1547,6 +1547,7 @@ function AsetView({ session }) {
 function DuitPage({ session }) {
   const [rows, setRows] = useState(null);
   const [amount, setAmount] = useState("");
+  const [kind, setKind] = useState("out");
   const [sources, setSources] = useState(DEFAULT_SOURCES);
   const [source, setSource] = useState(DEFAULT_SOURCES[0]);
   const [note, setNote] = useState("");
@@ -1616,12 +1617,14 @@ function DuitPage({ session }) {
     if (!amt) return;
     const row = {
       amount: amt,
+      kind,
       source,
       note: note.trim() || null,
       spent_date: localToday(),
     };
     setAmount("");
     setNote("");
+    setKind("out");
     const { data, error } = await supabase
       .from("expenses")
       .insert(row)
@@ -1638,14 +1641,15 @@ function DuitPage({ session }) {
   if (rows === null) return <div style={S.empty}>Memuat…</div>;
 
   const today = localToday();
+  const isOut = (r) => (r.kind || "out") === "out";
   const todayRows = rows.filter((r) => r.spent_date === today);
-  const todayTotal = todayRows.reduce((s, r) => s + r.amount, 0);
+  const todayTotal = todayRows.filter(isOut).reduce((s, r) => s + r.amount, 0);
 
   // konteks 7 hari — biar satu hari gak diliat sendirian
   const week = new Date();
   week.setDate(week.getDate() - 6);
   const weekStr = `${week.getFullYear()}-${String(week.getMonth() + 1).padStart(2, "0")}-${String(week.getDate()).padStart(2, "0")}`;
-  const weekRows = rows.filter((r) => r.spent_date >= weekStr);
+  const weekRows = rows.filter((r) => r.spent_date >= weekStr && isOut(r));
   const weekTotal = weekRows.reduce((s, r) => s + r.amount, 0);
   const avg = Math.round(weekTotal / 7);
 
@@ -1657,10 +1661,13 @@ function DuitPage({ session }) {
   const mondayStr = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, "0")}-${String(monday.getDate()).padStart(2, "0")}`;
   const firstStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
   const thisWeek = rows
-    .filter((r) => r.spent_date >= mondayStr)
+    .filter((r) => r.spent_date >= mondayStr && isOut(r))
     .reduce((s, r) => s + r.amount, 0);
   const thisMonth = rows
-    .filter((r) => r.spent_date >= firstStr)
+    .filter((r) => r.spent_date >= firstStr && isOut(r))
+    .reduce((s, r) => s + r.amount, 0);
+  const monthIn = rows
+    .filter((r) => r.spent_date >= firstStr && !isOut(r))
     .reduce((s, r) => s + r.amount, 0);
 
   return (
@@ -1690,6 +1697,30 @@ function DuitPage({ session }) {
       {sub === "keluar" && (
         <>
           {/* input dulu, angka belakangan — biar nyatetnya gak mikir */}
+          <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+            {[
+              ["out", "− Keluar"],
+              ["in", "+ Masuk"],
+            ].map(([k, label]) => (
+              <button
+                key={k}
+                style={{
+                  ...S.btnGhost,
+                  flex: 1,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  ...(kind === k
+                    ? k === "in"
+                      ? { borderColor: "var(--green)", color: "var(--green)" }
+                      : { borderColor: "var(--accent)", color: "var(--accent)" }
+                    : {}),
+                }}
+                onClick={() => setKind(k)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           <div style={{ display: "flex", gap: 6 }}>
             <input
               style={{ ...S.input, flex: 1, minWidth: 0, fontSize: 17 }}
@@ -1801,6 +1832,17 @@ function DuitPage({ session }) {
                 <div style={{ ...S.dumpHint, marginTop: 2 }}>
                   minggu ini {rupiah(thisWeek)} · bulan ini {rupiah(thisMonth)}
                 </div>
+                {monthIn > 0 && (
+                  <div
+                    style={{
+                      ...S.dumpHint,
+                      marginTop: 2,
+                      color: "var(--green)",
+                    }}
+                  >
+                    masuk bulan ini +{rupiah(monthIn)}
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -1814,7 +1856,16 @@ function DuitPage({ session }) {
             {todayRows.map((r) => (
               <div key={r.id} style={{ ...S.card, padding: "10px 14px" }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <span style={{ fontSize: 15, fontWeight: 600 }}>
+                  <span
+                    style={{
+                      fontSize: 15,
+                      fontWeight: 600,
+                      ...((r.kind || "out") === "in"
+                        ? { color: "var(--green)" }
+                        : {}),
+                    }}
+                  >
+                    {(r.kind || "out") === "in" ? "+" : ""}
                     {rupiah(r.amount)}
                   </span>
                   <span style={{ ...S.dumpHint, marginLeft: 8 }}>
