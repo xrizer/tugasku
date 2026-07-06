@@ -1715,7 +1715,11 @@ function DuitPage({ session }) {
                   ...(kind === k
                     ? k === "in"
                       ? { borderColor: "var(--green)", color: "var(--green)" }
-                      : { borderColor: "var(--accent)", color: "var(--accent)" }
+                      : {
+                          borderColor: "var(--muted2)",
+                          color: "var(--ink)",
+                          background: "var(--card)",
+                        }
                     : {}),
                 }}
                 onClick={() => setKind(k)}
