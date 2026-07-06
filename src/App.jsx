@@ -1561,6 +1561,29 @@ function DuitPage({ session }) {
       return false;
     }
   });
+  const [analysis, setAnalysis] = useState(null); // null | "..." | text
+
+  const analyzeAI = async () => {
+    setAnalysis("...");
+    try {
+      const payload = rows.slice(0, 200).map((r) => ({
+        amount: r.amount,
+        source: r.source,
+        note: r.note,
+        spent_date: r.spent_date,
+        kind: r.kind || "out",
+      }));
+      const res = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rows: payload }),
+      });
+      const data = await res.json();
+      setAnalysis(data.analysis || "AI-nya lagi bengong, coba lagi.");
+    } catch {
+      setAnalysis("Gagal konek ke AI.");
+    }
+  };
   const toggleTotal = () =>
     setShowTotal((v) => {
       try {
@@ -1864,6 +1887,26 @@ function DuitPage({ session }) {
               </>
             )}
           </div>
+
+          <div style={{ textAlign: "center", marginTop: 14 }}>
+            <button
+              style={{ ...S.btnGhost, fontSize: 13 }}
+              onClick={analyzeAI}
+              disabled={analysis === "..."}
+            >
+              ✨{" "}
+              {analysis === "..."
+                ? "AI lagi baca catatan lu…"
+                : "Duit gue kemana aja?"}
+            </button>
+          </div>
+          {analysis && analysis !== "..." && (
+            <div
+              style={{ ...S.aiBubble, marginTop: 10, whiteSpace: "pre-wrap" }}
+            >
+              {analysis}
+            </div>
+          )}
 
           <div style={{ marginTop: 18 }}>
             {todayRows.length === 0 && (
