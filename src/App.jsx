@@ -1429,9 +1429,9 @@ function DuitPage({ session }) {
   };
 
   useEffect(() => {
-    // ambil 30 hari terakhir, cukup buat konteks
+    // ambil 40 hari terakhir — cukup buat cover bulan berjalan penuh
     const since = new Date();
-    since.setDate(since.getDate() - 30);
+    since.setDate(since.getDate() - 40);
     const sinceStr = since.toISOString().slice(0, 10);
     supabase
       .from("expenses")
@@ -1479,6 +1479,20 @@ function DuitPage({ session }) {
   const weekRows = rows.filter((r) => r.spent_date >= weekStr);
   const weekTotal = weekRows.reduce((s, r) => s + r.amount, 0);
   const avg = Math.round(weekTotal / 7);
+
+  // minggu ini (mulai Senin) & bulan ini
+  const now = new Date();
+  const dow = (now.getDay() + 6) % 7; // Senin = 0
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - dow);
+  const mondayStr = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, "0")}-${String(monday.getDate()).padStart(2, "0")}`;
+  const firstStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+  const thisWeek = rows
+    .filter((r) => r.spent_date >= mondayStr)
+    .reduce((s, r) => s + r.amount, 0);
+  const thisMonth = rows
+    .filter((r) => r.spent_date >= firstStr)
+    .reduce((s, r) => s + r.amount, 0);
 
   const perSource = sources
     .map((s) => ({
@@ -1599,6 +1613,9 @@ function DuitPage({ session }) {
           <>
             <div style={{ ...S.dumpHint, marginTop: 4 }}>
               rata-rata 7 hari terakhir: {rupiah(avg)}/hari
+            </div>
+            <div style={{ ...S.dumpHint, marginTop: 2 }}>
+              minggu ini {rupiah(thisWeek)} · bulan ini {rupiah(thisMonth)}
             </div>
             {perSource.length > 0 && (
               <div style={{ ...S.dumpHint, marginTop: 2 }}>
