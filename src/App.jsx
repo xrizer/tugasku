@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "./lib/supabase";
 
-// TugasKu — a dead-simple personal ticketing board, backed by Supabase.
+// LifeHack by afifi — a dead-simple personal ticketing board, backed by Supabase.
 // Flow: Todo → (Terima/Accept) → In Progress → (Selesai) → Completed.
 // Daily tasks auto-reset to Todo every new day (via done_date check on load).
 // Data syncs across devices.
@@ -86,7 +86,7 @@ function useCollapsed() {
   return [collapsed, toggle];
 }
 
-export default function TugasKu() {
+export default function LifeHack() {
   const [session, setSession] = useState(undefined); // undefined = checking
   const [tasks, setTasks] = useState(null);
   const [error, setError] = useState(null);
@@ -317,7 +317,7 @@ export default function TugasKu() {
       action: "TEMPLATE",
       text: `Janji: ${p.text}${p.to_whom ? " (ke " + p.to_whom + ")" : ""}`,
       dates: `${d}/${d2}`,
-      details: "Dari TugasKu — janji yang harus ditepati.",
+      details: "Dari LifeHack by afifi — janji yang harus ditepati.",
     });
     return `https://calendar.google.com/calendar/render?${params}`;
   };
@@ -482,7 +482,10 @@ export default function TugasKu() {
         >
           <div>
             <div style={S.eyebrow}>{dateLabel}</div>
-            <h1 style={S.h1}>TugasKu</h1>
+            <h1 style={S.h1}>LifeHack</h1>
+            <div style={{ fontSize: 12, color: "var(--faint)", marginTop: 2 }}>
+              by afifi
+            </div>
           </div>
           <div style={{ display: "flex", gap: 6 }}>
             <button
@@ -1983,7 +1986,7 @@ function PublicView({ userId, themeVars }) {
       <div style={S.wrap}>
         <div style={{ marginBottom: 20 }}>
           <div style={S.eyebrow}>{dateLabel} · Papan publik (read-only)</div>
-          <h1 style={S.h1}>TugasKu</h1>
+          <h1 style={S.h1}>LifeHack</h1>
         </div>
 
         {tasks === null && <div style={S.empty}>Memuat…</div>}
@@ -2087,7 +2090,10 @@ function Login({ themeVars }) {
     >
       <div style={{ width: "100%", maxWidth: 340, padding: 16 }}>
         <div style={S.eyebrow}>Masuk dulu</div>
-        <h1 style={{ ...S.h1, marginBottom: 18 }}>TugasKu</h1>
+        <h1 style={{ ...S.h1, marginBottom: 4 }}>LifeHack</h1>
+        <div style={{ fontSize: 12, color: "var(--faint)", marginBottom: 18 }}>
+          by afifi
+        </div>
         <input
           style={{
             ...S.input,
