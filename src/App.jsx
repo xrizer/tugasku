@@ -1374,13 +1374,59 @@ const localToday = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 
-const SOURCES = ["cash", "bca", "danamon"];
+const DEFAULT_SOURCES = ["cash", "bca", "danamon"];
 
 function DuitPage({ session }) {
   const [rows, setRows] = useState(null);
   const [amount, setAmount] = useState("");
-  const [source, setSource] = useState("cash");
+  const [sources, setSources] = useState(DEFAULT_SOURCES);
+  const [source, setSource] = useState(DEFAULT_SOURCES[0]);
   const [note, setNote] = useState("");
+  const [editSrc, setEditSrc] = useState(false);
+  const [srcDraft, setSrcDraft] = useState("");
+  const [showTotal, setShowTotal] = useState(() => {
+    try {
+      return localStorage.getItem("tugasku-show-total") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const toggleTotal = () =>
+    setShowTotal((v) => {
+      try {
+        localStorage.setItem("tugasku-show-total", v ? "0" : "1");
+      } catch {}
+      return !v;
+    });
+
+  useEffect(() => {
+    supabase
+      .from("user_prefs")
+      .select("sources")
+      .eq("user_id", session.user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.sources?.length) {
+          setSources(data.sources);
+          setSource(data.sources[0]);
+        }
+      });
+  }, [session]);
+
+  const saveSources = async () => {
+    const list = srcDraft
+      .split(",")
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean)
+      .slice(0, 6);
+    if (list.length === 0) return;
+    setSources(list);
+    setSource(list[0]);
+    setEditSrc(false);
+    await supabase
+      .from("user_prefs")
+      .upsert({ user_id: session.user.id, sources: list });
+  };
 
   useEffect(() => {
     // ambil 30 hari terakhir, cukup buat konteks
@@ -1434,12 +1480,14 @@ function DuitPage({ session }) {
   const weekTotal = weekRows.reduce((s, r) => s + r.amount, 0);
   const avg = Math.round(weekTotal / 7);
 
-  const perSource = SOURCES.map((s) => ({
-    s,
-    total: todayRows
-      .filter((r) => r.source === s)
-      .reduce((a, r) => a + r.amount, 0),
-  })).filter((x) => x.total > 0);
+  const perSource = sources
+    .map((s) => ({
+      s,
+      total: todayRows
+        .filter((r) => r.source === s)
+        .reduce((a, r) => a + r.amount, 0),
+    }))
+    .filter((x) => x.total > 0);
 
   return (
     <>
@@ -1457,26 +1505,59 @@ function DuitPage({ session }) {
           OK
         </button>
       </div>
-      <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-        {SOURCES.map((s) => (
+      {!editSrc ? (
+        <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+          {sources.map((s) => (
+            <button
+              key={s}
+              style={{
+                ...S.btnGhost,
+                flex: 1,
+                minWidth: 0,
+                textTransform: "uppercase",
+                fontSize: 12,
+                fontWeight: 700,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                ...(source === s
+                  ? { borderColor: "var(--accent)", color: "var(--accent)" }
+                  : {}),
+              }}
+              onClick={() => setSource(s)}
+            >
+              {s}
+            </button>
+          ))}
           <button
-            key={s}
-            style={{
-              ...S.btnGhost,
-              flex: 1,
-              textTransform: "uppercase",
-              fontSize: 12,
-              fontWeight: 700,
-              ...(source === s
-                ? { borderColor: "var(--accent)", color: "var(--accent)" }
-                : {}),
+            style={{ ...S.btnGhost, padding: "7px 10px" }}
+            title="Edit daftar sumber"
+            onClick={() => {
+              setSrcDraft(sources.join(", "));
+              setEditSrc(true);
             }}
-            onClick={() => setSource(s)}
           >
-            {s}
+            ✎
           </button>
-        ))}
-      </div>
+        </div>
+      ) : (
+        <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+          <input
+            style={{ ...S.input, flex: 1, minWidth: 0, fontSize: 13 }}
+            placeholder="Pisahin pakai koma, misal: cash, bca, danamon, gopay"
+            value={srcDraft}
+            autoFocus
+            onChange={(e) => setSrcDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") saveSources();
+              if (e.key === "Escape") setEditSrc(false);
+            }}
+          />
+          <button style={{ ...S.addBtn, width: 60 }} onClick={saveSources}>
+            OK
+          </button>
+        </div>
+      )}
       <input
         style={{
           ...S.input,
@@ -1491,21 +1572,40 @@ function DuitPage({ session }) {
         onKeyDown={(e) => e.key === "Enter" && add()}
       />
 
-      {/* angka hari ini — netral, tanpa penilaian */}
+      {/* angka hari ini — default disembunyiin, buka kalau siap liat */}
       <div style={{ marginTop: 22, textAlign: "center" }}>
         <div style={S.eyebrow}>Hari ini</div>
         <div
-          style={{ fontSize: 32, fontWeight: 700, letterSpacing: "-0.02em" }}
+          style={{
+            fontSize: 32,
+            fontWeight: 700,
+            letterSpacing: showTotal ? "-0.02em" : "0.15em",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 10,
+          }}
         >
-          {rupiah(todayTotal)}
+          <span>{showTotal ? rupiah(todayTotal) : "Rp ••••••"}</span>
+          <button
+            style={{ ...S.btnGhost, fontSize: 14, padding: "5px 9px" }}
+            title={showTotal ? "Sembunyiin total" : "Liat total"}
+            onClick={toggleTotal}
+          >
+            {showTotal ? "🙈" : "👁"}
+          </button>
         </div>
-        <div style={{ ...S.dumpHint, marginTop: 4 }}>
-          rata-rata 7 hari terakhir: {rupiah(avg)}/hari
-        </div>
-        {perSource.length > 0 && (
-          <div style={{ ...S.dumpHint, marginTop: 2 }}>
-            {perSource.map((x) => `${x.s} ${rupiah(x.total)}`).join(" · ")}
-          </div>
+        {showTotal && (
+          <>
+            <div style={{ ...S.dumpHint, marginTop: 4 }}>
+              rata-rata 7 hari terakhir: {rupiah(avg)}/hari
+            </div>
+            {perSource.length > 0 && (
+              <div style={{ ...S.dumpHint, marginTop: 2 }}>
+                {perSource.map((x) => `${x.s} ${rupiah(x.total)}`).join(" · ")}
+              </div>
+            )}
+          </>
         )}
       </div>
 
