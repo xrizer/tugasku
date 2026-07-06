@@ -1805,7 +1805,7 @@ function DuitPage({ session }) {
           ) : (
             <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
               <input
-                style={{ ...S.input, flex: 1, minWidth: 0, fontSize: 13 }}
+                style={{ ...S.input, flex: 1, minWidth: 0, fontSize: 16 }}
                 placeholder="Pisahin pakai koma, misal: cash, bca, danamon, gopay"
                 value={srcDraft}
                 autoFocus
@@ -1826,7 +1826,7 @@ function DuitPage({ session }) {
               width: "100%",
               boxSizing: "border-box",
               marginTop: 8,
-              fontSize: 13,
+              fontSize: 16,
             }}
             placeholder="Catatan (opsional — kosongin juga gapapa)"
             value={note}
@@ -2303,7 +2303,7 @@ const S = {
     borderRadius: 10,
     border: "1px solid var(--border2)",
     background: "var(--card)",
-    fontSize: 15,
+    fontSize: 16, // >=16 biar iOS gak auto-zoom pas ngetik
     outline: "none",
   },
   addBtn: {
