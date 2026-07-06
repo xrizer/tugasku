@@ -1144,11 +1144,21 @@ function EditableText({ value, onSave, style }) {
   );
 }
 
-const STATUS_ORDER = ["ada", "dipinjem", "ilang"];
+const STATUS_ORDER = ["ada", "dipinjem", "rusak", "servis", "ilang"];
 const STATUS_META = {
   ada: { label: "✓ ada", color: "var(--green)", border: "var(--green-border)" },
   dipinjem: {
     label: "🤝 dipinjem",
+    color: "var(--janji-ink)",
+    border: "var(--janji-border)",
+  },
+  rusak: {
+    label: "⚠ rusak",
+    color: "var(--accent)",
+    border: "var(--accent-border)",
+  },
+  servis: {
+    label: "🔧 diservis",
     color: "var(--janji-ink)",
     border: "var(--janji-border)",
   },
@@ -1351,7 +1361,7 @@ function BarangPage({ session }) {
 
       <div style={S.footer}>
         Pindahin barang? Tap lokasinya, edit. Status: klik buat muter ada →
-        dipinjem → ilang.
+        dipinjem → rusak → diservis → ilang.
       </div>
     </>
   );
