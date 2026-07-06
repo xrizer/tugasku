@@ -523,18 +523,19 @@ export default function TugasKu() {
         </div>
 
         <div style={S.nav}>
-          {["tugas", "barang"].map((p) => (
+          {["tugas", "barang", "duit"].map((p) => (
             <button
               key={p}
               style={{ ...S.navBtn, ...(page === p ? S.navBtnActive : {}) }}
               onClick={() => setPage(p)}
             >
-              {p === "tugas" ? "Tugas" : "Barang"}
+              {p === "tugas" ? "Tugas" : p === "barang" ? "Barang" : "Duit"}
             </button>
           ))}
         </div>
 
         {page === "barang" && <BarangPage session={session} />}
+        {page === "duit" && <DuitPage session={session} />}
 
         {page === "tugas" && showPassForm && (
           <div
@@ -1362,6 +1363,179 @@ function BarangPage({ session }) {
       <div style={S.footer}>
         Pindahin barang? Tap lokasinya, edit. Status: klik buat muter ada →
         dipinjem → rusak → diservis → ilang.
+      </div>
+    </>
+  );
+}
+
+// tanggal lokal (bukan UTC) biar jam 6 pagi WIB gak kecatet "kemarin"
+const localToday = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
+const SOURCES = ["cash", "bca", "danamon"];
+
+function DuitPage({ session }) {
+  const [rows, setRows] = useState(null);
+  const [amount, setAmount] = useState("");
+  const [source, setSource] = useState("cash");
+  const [note, setNote] = useState("");
+
+  useEffect(() => {
+    // ambil 30 hari terakhir, cukup buat konteks
+    const since = new Date();
+    since.setDate(since.getDate() - 30);
+    const sinceStr = since.toISOString().slice(0, 10);
+    supabase
+      .from("expenses")
+      .select("*")
+      .eq("user_id", session.user.id)
+      .gte("spent_date", sinceStr)
+      .order("created_at", { ascending: false })
+      .then(({ data, error }) => setRows(error ? [] : data));
+  }, [session]);
+
+  const add = async () => {
+    const amt = parseInt(amount.replace(/\D/g, ""), 10);
+    if (!amt) return;
+    const row = {
+      amount: amt,
+      source,
+      note: note.trim() || null,
+      spent_date: localToday(),
+    };
+    setAmount("");
+    setNote("");
+    const { data, error } = await supabase
+      .from("expenses")
+      .insert(row)
+      .select()
+      .single();
+    if (!error) setRows((xs) => [data, ...xs]);
+  };
+
+  const remove = async (id) => {
+    setRows((xs) => xs.filter((x) => x.id !== id));
+    await supabase.from("expenses").delete().eq("id", id);
+  };
+
+  if (rows === null) return <div style={S.empty}>Memuat…</div>;
+
+  const today = localToday();
+  const todayRows = rows.filter((r) => r.spent_date === today);
+  const todayTotal = todayRows.reduce((s, r) => s + r.amount, 0);
+
+  // konteks 7 hari — biar satu hari gak diliat sendirian
+  const week = new Date();
+  week.setDate(week.getDate() - 6);
+  const weekStr = `${week.getFullYear()}-${String(week.getMonth() + 1).padStart(2, "0")}-${String(week.getDate()).padStart(2, "0")}`;
+  const weekRows = rows.filter((r) => r.spent_date >= weekStr);
+  const weekTotal = weekRows.reduce((s, r) => s + r.amount, 0);
+  const avg = Math.round(weekTotal / 7);
+
+  const perSource = SOURCES.map((s) => ({
+    s,
+    total: todayRows
+      .filter((r) => r.source === s)
+      .reduce((a, r) => a + r.amount, 0),
+  })).filter((x) => x.total > 0);
+
+  return (
+    <>
+      {/* input dulu, angka belakangan — biar nyatetnya gak mikir */}
+      <div style={{ display: "flex", gap: 6 }}>
+        <input
+          style={{ ...S.input, flex: 1, minWidth: 0, fontSize: 17 }}
+          placeholder="Berapa? (misal 25000)"
+          inputMode="numeric"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && add()}
+        />
+        <button style={{ ...S.addBtn, width: 60 }} onClick={add}>
+          OK
+        </button>
+      </div>
+      <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+        {SOURCES.map((s) => (
+          <button
+            key={s}
+            style={{
+              ...S.btnGhost,
+              flex: 1,
+              textTransform: "uppercase",
+              fontSize: 12,
+              fontWeight: 700,
+              ...(source === s
+                ? { borderColor: "var(--accent)", color: "var(--accent)" }
+                : {}),
+            }}
+            onClick={() => setSource(s)}
+          >
+            {s}
+          </button>
+        ))}
+      </div>
+      <input
+        style={{
+          ...S.input,
+          width: "100%",
+          boxSizing: "border-box",
+          marginTop: 8,
+          fontSize: 13,
+        }}
+        placeholder="Catatan (opsional — kosongin juga gapapa)"
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && add()}
+      />
+
+      {/* angka hari ini — netral, tanpa penilaian */}
+      <div style={{ marginTop: 22, textAlign: "center" }}>
+        <div style={S.eyebrow}>Hari ini</div>
+        <div
+          style={{ fontSize: 32, fontWeight: 700, letterSpacing: "-0.02em" }}
+        >
+          {rupiah(todayTotal)}
+        </div>
+        <div style={{ ...S.dumpHint, marginTop: 4 }}>
+          rata-rata 7 hari terakhir: {rupiah(avg)}/hari
+        </div>
+        {perSource.length > 0 && (
+          <div style={{ ...S.dumpHint, marginTop: 2 }}>
+            {perSource.map((x) => `${x.s} ${rupiah(x.total)}`).join(" · ")}
+          </div>
+        )}
+      </div>
+
+      <div style={{ marginTop: 18 }}>
+        {todayRows.length === 0 && (
+          <div style={{ ...S.empty, textAlign: "center" }}>
+            Belum ada catatan hari ini.
+          </div>
+        )}
+        {todayRows.map((r) => (
+          <div key={r.id} style={{ ...S.card, padding: "10px 14px" }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ fontSize: 15, fontWeight: 600 }}>
+                {rupiah(r.amount)}
+              </span>
+              <span style={{ ...S.dumpHint, marginLeft: 8 }}>
+                {r.source}
+                {r.note ? ` · ${r.note}` : ""}
+              </span>
+            </div>
+            <button style={S.btnGhost} onClick={() => remove(r.id)}>
+              ✕
+            </button>
+          </div>
+        ))}
+      </div>
+
+      <div style={S.footer}>
+        Dicatet doang, gak dinilai. Angka gede sehari itu normal — liatnya per
+        minggu.
       </div>
     </>
   );
