@@ -2417,13 +2417,17 @@ function DuitPage({ session }) {
                     style={{
                       fontSize: 15,
                       fontWeight: 600,
-                      ...((r.kind || "out") === "in"
+                      ...((r.kind || "out") === "in" && showTotal
                         ? { color: "var(--green)" }
+                        : {}),
+                      ...(!showTotal
+                        ? { color: "var(--faint)", letterSpacing: "0.1em" }
                         : {}),
                     }}
                   >
-                    {(r.kind || "out") === "in" ? "+" : ""}
-                    {rupiah(r.amount)}
+                    {showTotal
+                      ? `${(r.kind || "out") === "in" ? "+" : ""}${rupiah(r.amount)}`
+                      : "Rp ••••"}
                   </span>
                   <span style={{ ...S.dumpHint, marginLeft: 8 }}>
                     {r.source}
