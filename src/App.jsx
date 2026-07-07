@@ -1379,6 +1379,457 @@ const localToday = () => {
 
 const DEFAULT_SOURCES = ["cash", "bca", "danamon"];
 
+const thisMonthStr = () => localToday().slice(0, 7); // 'YYYY-MM'
+
+function RutinView({ session, sources, onLogExpense }) {
+  const [items, setItems] = useState(null);
+  const [form, setForm] = useState({ name: "", amount: "", due_day: "" });
+  const [showForm, setShowForm] = useState(false);
+  const [incomes, setIncomes] = useState([]);
+  const [inForm, setInForm] = useState({ name: "", amount: "" });
+  const [showInForm, setShowInForm] = useState(false);
+
+  useEffect(() => {
+    supabase
+      .from("fixed_costs")
+      .select("*")
+      .eq("user_id", session.user.id)
+      .order("due_day", { ascending: true, nullsFirst: false })
+      .then(({ data, error }) => setItems(error ? [] : data));
+    supabase
+      .from("fixed_income")
+      .select("*")
+      .eq("user_id", session.user.id)
+      .order("amount", { ascending: false })
+      .then(({ data, error }) => setIncomes(error ? [] : data));
+  }, [session]);
+
+  const addIncome = async () => {
+    const name = inForm.name.trim();
+    const amount = parseInt(inForm.amount.replace(/\D/g, ""), 10);
+    if (!name || isNaN(amount)) return;
+    setInForm({ name: "", amount: "" });
+    setShowInForm(false);
+    const { data, error } = await supabase
+      .from("fixed_income")
+      .insert({ name, amount, source: sources[0] || null })
+      .select()
+      .single();
+    if (!error) setIncomes((xs) => [...xs, data]);
+  };
+
+  const patchIncome = async (id, patch) => {
+    setIncomes((xs) => xs.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+    await supabase.from("fixed_income").update(patch).eq("id", id);
+  };
+
+  const removeIncome = async (id) => {
+    setIncomes((xs) => xs.filter((x) => x.id !== id));
+    await supabase.from("fixed_income").delete().eq("id", id);
+  };
+
+  const markReceived = async (it) => {
+    patchIncome(it.id, { last_received: thisMonthStr() });
+    onLogExpense({
+      amount: Number(it.amount),
+      kind: "in",
+      source: it.source || sources[0] || "cash",
+      note: it.name,
+      spent_date: localToday(),
+    });
+  };
+
+  const addItem = async () => {
+    const name = form.name.trim();
+    const amount = parseInt(form.amount.replace(/\D/g, ""), 10);
+    if (!name || isNaN(amount)) return;
+    const due = parseInt(form.due_day, 10);
+    const row = {
+      name,
+      amount,
+      due_day: due >= 1 && due <= 31 ? due : null,
+      source: sources[0] || null,
+    };
+    setForm({ name: "", amount: "", due_day: "" });
+    setShowForm(false);
+    const { data, error } = await supabase
+      .from("fixed_costs")
+      .insert(row)
+      .select()
+      .single();
+    if (!error) setItems((xs) => [...xs, data]);
+  };
+
+  const patchItem = async (id, patch) => {
+    setItems((xs) => xs.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+    await supabase.from("fixed_costs").update(patch).eq("id", id);
+  };
+
+  const removeItem = async (id) => {
+    setItems((xs) => xs.filter((x) => x.id !== id));
+    await supabase.from("fixed_costs").delete().eq("id", id);
+  };
+
+  const markPaid = async (it) => {
+    const month = thisMonthStr();
+    patchItem(it.id, { last_paid: month });
+    // sekalian kecatet ke pengeluaran — gak perlu nyatet dua kali
+    onLogExpense({
+      amount: Number(it.amount),
+      kind: "out",
+      source: it.source || sources[0] || "cash",
+      note: it.name,
+      spent_date: localToday(),
+    });
+  };
+
+  if (items === null) return <div style={S.empty}>Memuat…</div>;
+
+  const month = thisMonthStr();
+  const total = items.reduce((s, x) => s + Number(x.amount), 0);
+  const unpaid = items.filter((x) => x.last_paid !== month);
+
+  return (
+    <>
+      <div style={{ marginTop: 6, textAlign: "center" }}>
+        <div style={S.eyebrow}>Total rutin per bulan</div>
+        <div style={{ fontSize: 26, fontWeight: 700 }}>{rupiah(total)}</div>
+        <div style={{ ...S.dumpHint, marginTop: 2 }}>
+          {unpaid.length === 0
+            ? "semua udah kebayar bulan ini ✓"
+            : `${unpaid.length} belum dibayar bulan ini`}
+        </div>
+      </div>
+
+      <div
+        style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}
+      >
+        <button style={S.promAddLink} onClick={() => setShowForm((v) => !v)}>
+          {showForm ? "batal" : "+ biaya rutin"}
+        </button>
+      </div>
+
+      {showForm && (
+        <div style={{ marginTop: 6 }}>
+          <input
+            style={{
+              ...S.input,
+              width: "100%",
+              boxSizing: "border-box",
+              marginBottom: 6,
+            }}
+            placeholder="Nama (misal: kosan, Claude Pro)"
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+          />
+          <div style={{ display: "flex", gap: 6 }}>
+            <input
+              style={{ ...S.input, flex: 2, minWidth: 0 }}
+              placeholder="Nominal"
+              inputMode="numeric"
+              value={form.amount}
+              onChange={(e) => setForm({ ...form, amount: e.target.value })}
+            />
+            <input
+              style={{ ...S.input, flex: 1, minWidth: 0 }}
+              placeholder="Tgl (1-31)"
+              inputMode="numeric"
+              value={form.due_day}
+              onChange={(e) => setForm({ ...form, due_day: e.target.value })}
+              onKeyDown={(e) => e.key === "Enter" && addItem()}
+            />
+            <button style={{ ...S.addBtn, width: 60 }} onClick={addItem}>
+              OK
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div style={{ marginTop: 12 }}>
+        {items.length === 0 && (
+          <div style={{ ...S.empty, textAlign: "center" }}>
+            Belum ada. Mulai dari yang gede: kosan, langganan bulanan.
+          </div>
+        )}
+        {items.map((it) => {
+          const paid = it.last_paid === month;
+          return (
+            <div
+              key={it.id}
+              style={{ ...S.card, ...(paid ? { opacity: 0.55 } : {}) }}
+            >
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <EditableText
+                  value={it.name}
+                  onSave={(v) => patchItem(it.id, { name: v })}
+                  style={S.cardTitle}
+                />
+                <div style={{ ...S.dumpHint, marginBottom: 0, marginTop: 3 }}>
+                  <EditableText
+                    value={rupiah(it.amount)}
+                    onSave={(v) => {
+                      const n = parseInt(v.replace(/\D/g, ""), 10);
+                      if (!isNaN(n)) patchItem(it.id, { amount: n });
+                    }}
+                    style={{ display: "inline-block", fontSize: 13 }}
+                  />
+                  {it.due_day ? ` · tiap tgl ${it.due_day}` : ""}
+                  {` · dari ${it.source || sources[0] || "cash"}`}
+                </div>
+              </div>
+              <div style={S.cardBtns}>
+                {paid ? (
+                  <span
+                    style={{
+                      ...S.tag,
+                      color: "var(--green)",
+                      borderColor: "var(--green-border)",
+                    }}
+                  >
+                    ✓ bulan ini
+                  </span>
+                ) : (
+                  <button
+                    style={{ ...S.btn, background: "var(--green-dark)" }}
+                    onClick={() => markPaid(it)}
+                  >
+                    Bayar ✓
+                  </button>
+                )}
+                <button style={S.btnGhost} onClick={() => removeItem(it.id)}>
+                  ✕
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ===== pemasukan rutin ===== */}
+      <div style={{ marginTop: 26, textAlign: "center" }}>
+        <div style={S.eyebrow}>Pemasukan rutin per bulan</div>
+        <div style={{ fontSize: 26, fontWeight: 700, color: "var(--green)" }}>
+          {rupiah(incomes.reduce((s, x) => s + Number(x.amount), 0))}
+        </div>
+      </div>
+
+      <div
+        style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}
+      >
+        <button style={S.promAddLink} onClick={() => setShowInForm((v) => !v)}>
+          {showInForm ? "batal" : "+ pemasukan rutin"}
+        </button>
+      </div>
+
+      {showInForm && (
+        <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+          <input
+            style={{ ...S.input, flex: 2, minWidth: 0 }}
+            placeholder="Nama (misal: gaji, mentoring)"
+            value={inForm.name}
+            onChange={(e) => setInForm({ ...inForm, name: e.target.value })}
+          />
+          <input
+            style={{ ...S.input, flex: 1, minWidth: 0 }}
+            placeholder="Nominal"
+            inputMode="numeric"
+            value={inForm.amount}
+            onChange={(e) => setInForm({ ...inForm, amount: e.target.value })}
+            onKeyDown={(e) => e.key === "Enter" && addIncome()}
+          />
+          <button style={{ ...S.addBtn, width: 60 }} onClick={addIncome}>
+            OK
+          </button>
+        </div>
+      )}
+
+      <div style={{ marginTop: 10 }}>
+        {incomes.map((it) => {
+          const received = it.last_received === thisMonthStr();
+          return (
+            <div
+              key={it.id}
+              style={{ ...S.card, ...(received ? { opacity: 0.55 } : {}) }}
+            >
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <EditableText
+                  value={it.name}
+                  onSave={(v) => patchIncome(it.id, { name: v })}
+                  style={S.cardTitle}
+                />
+                <div style={{ ...S.dumpHint, marginBottom: 0, marginTop: 3 }}>
+                  <EditableText
+                    value={rupiah(it.amount)}
+                    onSave={(v) => {
+                      const n = parseInt(v.replace(/\D/g, ""), 10);
+                      if (!isNaN(n)) patchIncome(it.id, { amount: n });
+                    }}
+                    style={{ display: "inline-block", fontSize: 13 }}
+                  />
+                </div>
+              </div>
+              <div style={S.cardBtns}>
+                {received ? (
+                  <span
+                    style={{
+                      ...S.tag,
+                      color: "var(--green)",
+                      borderColor: "var(--green-border)",
+                    }}
+                  >
+                    ✓ bulan ini
+                  </span>
+                ) : (
+                  <button
+                    style={{ ...S.btn, background: "var(--green-dark)" }}
+                    onClick={() => markReceived(it)}
+                  >
+                    Terima ✓
+                  </button>
+                )}
+                <button style={S.btnGhost} onClick={() => removeIncome(it.id)}>
+                  ✕
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div style={S.footer}>
+        "Bayar ✓" / "Terima ✓" otomatis nyatet ke Catet — sekali tap, dua urusan
+        kelar.
+      </div>
+    </>
+  );
+}
+
+function MikirView({ session }) {
+  const [fixedOut, setFixedOut] = useState(0);
+  const [fixedIn, setFixedIn] = useState(0);
+  const [price, setPrice] = useState("");
+  const [months, setMonths] = useState("");
+
+  useEffect(() => {
+    supabase
+      .from("fixed_costs")
+      .select("amount")
+      .eq("user_id", session.user.id)
+      .then(({ data }) =>
+        setFixedOut((data || []).reduce((s, x) => s + Number(x.amount), 0)),
+      );
+    supabase
+      .from("fixed_income")
+      .select("amount")
+      .eq("user_id", session.user.id)
+      .then(({ data }) =>
+        setFixedIn((data || []).reduce((s, x) => s + Number(x.amount), 0)),
+      );
+  }, [session]);
+
+  const sisa = fixedIn - fixedOut;
+  const p = parseInt(price.replace(/\D/g, ""), 10) || 0;
+  const m = parseInt(months, 10) || 0;
+  const pct = (a, b) => (b > 0 ? Math.round((a / b) * 100) : 0);
+
+  const Row = ({ label, value, strong, color }) => (
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        fontSize: 14,
+        lineHeight: 1.9,
+      }}
+    >
+      <span style={{ color: "var(--muted2)" }}>{label}</span>
+      <span
+        style={{ fontWeight: strong ? 700 : 500, ...(color ? { color } : {}) }}
+      >
+        {value}
+      </span>
+    </div>
+  );
+
+  return (
+    <>
+      <div style={{ ...S.dump, marginTop: 6 }}>
+        <Row label="Pemasukan rutin" value={rupiah(fixedIn)} />
+        <Row
+          label="Beban rutin"
+          value={`${rupiah(fixedOut)} (${pct(fixedOut, fixedIn)}% dari income)`}
+        />
+        <Row label="Sisa bebas per bulan" value={rupiah(sisa)} strong />
+        {(fixedIn === 0 || fixedOut === 0) && (
+          <div style={{ ...S.dumpHint, marginTop: 6 }}>
+            Isi dulu pemasukan & biaya rutin di tab Rutin biar hitungannya
+            bener.
+          </div>
+        )}
+      </div>
+
+      <div style={{ marginTop: 16 }}>
+        <div style={S.eyebrow}>Mau beli sesuatu yang gede?</div>
+        <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+          <input
+            style={{ ...S.input, flex: 2, minWidth: 0 }}
+            placeholder="Harganya berapa?"
+            inputMode="numeric"
+            value={price}
+            onChange={(e) => setPrice(e.target.value)}
+          />
+          <input
+            style={{ ...S.input, flex: 1, minWidth: 0 }}
+            placeholder="Cicil? (bln)"
+            inputMode="numeric"
+            value={months}
+            onChange={(e) => setMonths(e.target.value)}
+          />
+        </div>
+      </div>
+
+      {p > 0 && (
+        <div style={{ ...S.dump, marginTop: 12 }}>
+          {m > 1 ? (
+            <>
+              <Row
+                label={`Cicilan (${m} bulan)`}
+                value={`${rupiah(Math.ceil(p / m))}/bulan`}
+                strong
+              />
+              <Row
+                label="Beban rutin baru"
+                value={`${rupiah(fixedOut + Math.ceil(p / m))} (${pct(fixedOut + Math.ceil(p / m), fixedIn)}% dari income)`}
+              />
+              <Row
+                label="Sisa bebas jadi"
+                value={rupiah(sisa - Math.ceil(p / m))}
+                strong
+                color={sisa - Math.ceil(p / m) < 0 ? "var(--red)" : undefined}
+              />
+            </>
+          ) : (
+            <>
+              <Row label="Harga" value={rupiah(p)} strong />
+              <Row
+                label="Setara sisa bebas"
+                value={sisa > 0 ? `${(p / sisa).toFixed(1)} bulan` : "—"}
+              />
+              <Row
+                label="Persen dari income sebulan"
+                value={`${pct(p, fixedIn)}%`}
+              />
+            </>
+          )}
+          <div style={{ ...S.dumpHint, marginTop: 8 }}>
+            Angkanya gitu — keputusannya tetep di lu. Gak ada yang nge-judge di
+            sini.
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 function AsetView({ session }) {
   const [assets, setAssets] = useState(null);
   const [form, setForm] = useState({ name: "", value: "" });
@@ -1671,6 +2122,15 @@ function DuitPage({ session }) {
     await supabase.from("expenses").delete().eq("id", id);
   };
 
+  const logExpense = async (row) => {
+    const { data, error } = await supabase
+      .from("expenses")
+      .insert(row)
+      .select()
+      .single();
+    if (!error) setRows((xs) => [data, ...xs]);
+  };
+
   if (rows === null) return <div style={S.empty}>Memuat…</div>;
 
   const today = localToday();
@@ -1711,6 +2171,8 @@ function DuitPage({ session }) {
       <div style={{ ...S.nav, marginBottom: 14, padding: 3 }}>
         {[
           ["keluar", "Catet"],
+          ["rutin", "Rutin"],
+          ["mikir", "Mikir"],
           ["aset", "Aset"],
         ].map(([k, label]) => (
           <button
@@ -1729,6 +2191,14 @@ function DuitPage({ session }) {
       </div>
 
       {sub === "aset" && <AsetView session={session} />}
+      {sub === "rutin" && (
+        <RutinView
+          session={session}
+          sources={sources}
+          onLogExpense={logExpense}
+        />
+      )}
+      {sub === "mikir" && <MikirView session={session} />}
 
       {sub === "keluar" && (
         <>
