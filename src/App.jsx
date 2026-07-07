@@ -2172,7 +2172,7 @@ function DuitPage({ session }) {
         {[
           ["keluar", "Catet"],
           ["rutin", "Rutin"],
-          ["mikir", "Mikir"],
+          ["mikir", "Rencana"],
           ["aset", "Aset"],
         ].map(([k, label]) => (
           <button
