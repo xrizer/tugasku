@@ -1551,6 +1551,8 @@ function DuitPage({ session }) {
   const [rows, setRows] = useState(null);
   const [amount, setAmount] = useState("");
   const [kind, setKind] = useState("out");
+  const [spentDate, setSpentDate] = useState(localToday());
+  const [addedMsg, setAddedMsg] = useState("");
   const [sources, setSources] = useState(DEFAULT_SOURCES);
   const [source, setSource] = useState(DEFAULT_SOURCES[0]);
   const [note, setNote] = useState("");
@@ -1646,11 +1648,16 @@ function DuitPage({ session }) {
       kind,
       source,
       note: note.trim() || null,
-      spent_date: localToday(),
+      spent_date: spentDate || localToday(),
     };
     setAmount("");
     setNote("");
     setKind("out");
+    if (row.spent_date !== localToday()) {
+      setAddedMsg(`Kecatet ke tanggal ${row.spent_date} ✓`);
+      setTimeout(() => setAddedMsg(""), 4000);
+    }
+    setSpentDate(localToday());
     const { data, error } = await supabase
       .from("expenses")
       .insert(row)
@@ -1820,19 +1827,35 @@ function DuitPage({ session }) {
               </button>
             </div>
           )}
-          <input
-            style={{
-              ...S.input,
-              width: "100%",
-              boxSizing: "border-box",
-              marginTop: 8,
-              fontSize: 16,
-            }}
-            placeholder="Catatan (opsional — kosongin juga gapapa)"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && add()}
-          />
+          <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+            <input
+              style={{ ...S.input, flex: 2, minWidth: 0, fontSize: 16 }}
+              placeholder="Catatan (opsional)"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && add()}
+            />
+            <input
+              type="date"
+              max={localToday()}
+              style={{ ...S.input, flex: 1, minWidth: 0, fontSize: 14 }}
+              title="Tanggal — ganti kalau mau catet pengeluaran kemarin"
+              value={spentDate}
+              onChange={(e) => setSpentDate(e.target.value)}
+            />
+          </div>
+          {addedMsg && (
+            <div
+              style={{
+                fontSize: 13,
+                color: "var(--green)",
+                marginTop: 6,
+                textAlign: "center",
+              }}
+            >
+              {addedMsg}
+            </div>
+          )}
 
           {/* angka hari ini — default disembunyiin, buka kalau siap liat */}
           <div style={{ marginTop: 22, textAlign: "center" }}>
