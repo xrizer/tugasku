@@ -2245,19 +2245,22 @@ function DuitPage({ session }) {
             </button>
           </div>
           {!editSrc ? (
-            <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 6,
+                marginTop: 8,
+              }}
+            >
               {sources.map((s) => (
                 <button
                   key={s}
                   style={{
                     ...S.btnGhost,
-                    flex: 1,
-                    minWidth: 0,
                     textTransform: "uppercase",
                     fontSize: 12,
                     fontWeight: 700,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
                     whiteSpace: "nowrap",
                     ...(source === s
                       ? { borderColor: "var(--accent)", color: "var(--accent)" }
