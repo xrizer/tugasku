@@ -526,19 +526,26 @@ export default function LifeHack() {
         </div>
 
         <div style={S.nav}>
-          {["tugas", "barang", "duit"].map((p) => (
+          {["tugas", "barang", "duit", "diri"].map((p) => (
             <button
               key={p}
               style={{ ...S.navBtn, ...(page === p ? S.navBtnActive : {}) }}
               onClick={() => setPage(p)}
             >
-              {p === "tugas" ? "Tugas" : p === "barang" ? "Barang" : "Duit"}
+              {p === "tugas"
+                ? "Tugas"
+                : p === "barang"
+                  ? "Barang"
+                  : p === "duit"
+                    ? "Duit"
+                    : "Diri"}
             </button>
           ))}
         </div>
 
         {page === "barang" && <BarangPage session={session} />}
         {page === "duit" && <DuitPage session={session} />}
+        {page === "diri" && <DiriPage session={session} />}
 
         {page === "tugas" && showPassForm && (
           <div
@@ -2656,6 +2663,500 @@ function DuitPage({ session }) {
           </div>
         </>
       )}
+    </>
+  );
+}
+
+const MOODS = [
+  ["lelah", "😴"],
+  ["sedih", "😢"],
+  ["frustasi", "😤"],
+  ["cemas", "😰"],
+  ["biasa", "😐"],
+  ["oke", "🙂"],
+];
+const moodEmoji = (m) => (MOODS.find((x) => x[0] === m) || ["", "·"])[1];
+
+const PALETTE = [
+  "#E4572E",
+  "#3E7A46",
+  "#B8860B",
+  "#4A6FA5",
+  "#8E5BA6",
+  "#C0392B",
+  "#2A9D8F",
+  "#8A8578",
+];
+
+function WaktuSection({ session }) {
+  const [blocks, setBlocks] = useState(null);
+  const [form, setForm] = useState({ name: "", hours: "", wajib: false });
+  const [showForm, setShowForm] = useState(false);
+
+  useEffect(() => {
+    supabase
+      .from("time_blocks")
+      .select("*")
+      .eq("user_id", session.user.id)
+      .order("hours", { ascending: false })
+      .then(({ data, error }) => setBlocks(error ? [] : data));
+  }, [session]);
+
+  const addBlock = async () => {
+    const name = form.name.trim();
+    const hours = parseFloat(String(form.hours).replace(",", "."));
+    if (!name || isNaN(hours) || hours <= 0) return;
+    const used = (blocks || []).length;
+    const row = {
+      name,
+      hours,
+      wajib: form.wajib,
+      color: PALETTE[used % PALETTE.length],
+    };
+    setForm({ name: "", hours: "", wajib: false });
+    setShowForm(false);
+    const { data, error } = await supabase
+      .from("time_blocks")
+      .insert(row)
+      .select()
+      .single();
+    if (!error)
+      setBlocks((xs) => [...xs, data].sort((a, b) => b.hours - a.hours));
+  };
+
+  const patchBlock = async (id, patch) => {
+    setBlocks((xs) =>
+      xs
+        .map((x) => (x.id === id ? { ...x, ...patch } : x))
+        .sort((a, b) => b.hours - a.hours),
+    );
+    await supabase.from("time_blocks").update(patch).eq("id", id);
+  };
+
+  const removeBlock = async (id) => {
+    setBlocks((xs) => xs.filter((x) => x.id !== id));
+    await supabase.from("time_blocks").delete().eq("id", id);
+  };
+
+  const cycleColor = (b) => {
+    const i = PALETTE.indexOf(b.color);
+    patchBlock(b.id, { color: PALETTE[(i + 1) % PALETTE.length] });
+  };
+
+  if (blocks === null) return null;
+
+  const used = blocks.reduce((s, b) => s + Number(b.hours), 0);
+  const free = Math.max(0, 24 - used);
+  const over = used > 24;
+  const wajibTotal = blocks
+    .filter((b) => b.wajib)
+    .reduce((s, b) => s + Number(b.hours), 0);
+
+  return (
+    <>
+      <div style={{ ...S.sectionHead, marginTop: 26 }}>
+        <span>Peta 24 jam</span>
+      </div>
+
+      {/* stacked bar */}
+      <div
+        style={{
+          display: "flex",
+          height: 34,
+          borderRadius: 10,
+          overflow: "hidden",
+          border: "1px solid var(--border)",
+        }}
+      >
+        {blocks.map((b) => (
+          <div
+            key={b.id}
+            title={`${b.name} — ${b.hours} jam`}
+            style={{
+              width: `${(Number(b.hours) / 24) * 100}%`,
+              background: b.color || "#8A8578",
+              minWidth: 2,
+            }}
+          />
+        ))}
+        {free > 0 && (
+          <div
+            title={`belum keclaim — ${free.toFixed(1)} jam`}
+            style={{
+              width: `${(free / 24) * 100}%`,
+              background:
+                "repeating-linear-gradient(45deg, transparent, transparent 4px, var(--border) 4px, var(--border) 6px)",
+            }}
+          />
+        )}
+      </div>
+
+      <div style={{ ...S.dumpHint, marginTop: 6, textAlign: "center" }}>
+        {over ? (
+          <span style={{ color: "var(--red)" }}>
+            kepake {used.toFixed(1)} jam — lebih {(used - 24).toFixed(1)} jam
+            dari 24. Ada yang harus ngalah.
+          </span>
+        ) : (
+          <>
+            kepake {used.toFixed(1)} jam · wajib {wajibTotal.toFixed(1)} jam ·{" "}
+            <b style={{ color: "var(--green)" }}>
+              {free.toFixed(1)} jam belum keclaim
+            </b>
+            {free >= 1 && ' — di situ tempat hal yang katanya "gak sempet"'}
+          </>
+        )}
+      </div>
+
+      <div
+        style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}
+      >
+        <button style={S.promAddLink} onClick={() => setShowForm((v) => !v)}>
+          {showForm ? "batal" : "+ kegiatan"}
+        </button>
+      </div>
+
+      {showForm && (
+        <div style={{ marginBottom: 8 }}>
+          <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+            <input
+              style={{ ...S.input, flex: 2, minWidth: 0 }}
+              placeholder="Kegiatan (misal: tidur, kerja, commute)"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+            />
+            <input
+              style={{ ...S.input, flex: 1, minWidth: 0 }}
+              placeholder="Jam"
+              inputMode="decimal"
+              value={form.hours}
+              onChange={(e) => setForm({ ...form, hours: e.target.value })}
+              onKeyDown={(e) => e.key === "Enter" && addBlock()}
+            />
+            <button style={{ ...S.addBtn, width: 60 }} onClick={addBlock}>
+              OK
+            </button>
+          </div>
+          <label style={S.optLabel}>
+            <input
+              type="checkbox"
+              checked={form.wajib}
+              onChange={(e) => setForm({ ...form, wajib: e.target.checked })}
+            />{" "}
+            Wajib (gak bisa diganggu gugat)
+          </label>
+        </div>
+      )}
+
+      {blocks.length === 0 && !showForm && (
+        <div style={S.empty}>
+          Kosong. Mulai dari yang pasti: tidur, kerja, commute, makan — sisanya
+          bakal keliatan sendiri.
+        </div>
+      )}
+
+      {blocks.map((b) => (
+        <div key={b.id} style={{ ...S.card, padding: "10px 14px" }}>
+          <button
+            title="Tap buat ganti warna"
+            onClick={() => cycleColor(b)}
+            style={{
+              width: 18,
+              height: 18,
+              borderRadius: 6,
+              border: "none",
+              background: b.color || "#8A8578",
+              cursor: "pointer",
+              flexShrink: 0,
+            }}
+          />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <EditableText
+              value={b.name}
+              onSave={(v) => patchBlock(b.id, { name: v })}
+              style={{ fontSize: 15, fontWeight: 500 }}
+            />
+          </div>
+          {b.wajib && (
+            <span
+              style={{
+                ...S.tag,
+                color: "var(--janji-ink)",
+                borderColor: "var(--janji-border)",
+              }}
+            >
+              wajib
+            </span>
+          )}
+          <EditableText
+            value={`${b.hours}`}
+            onSave={(v) => {
+              const n = parseFloat(String(v).replace(",", "."));
+              if (!isNaN(n) && n > 0) patchBlock(b.id, { hours: n });
+            }}
+            style={{
+              fontSize: 14,
+              fontWeight: 700,
+              minWidth: 34,
+              textAlign: "right",
+            }}
+          />
+          <span style={{ fontSize: 12, color: "var(--faint)" }}>jam</span>
+          <button
+            style={{ ...S.btnGhost, padding: "4px 8px", fontSize: 11 }}
+            title={b.wajib ? "Jadiin fleksibel" : "Tandain wajib"}
+            onClick={() => patchBlock(b.id, { wajib: !b.wajib })}
+          >
+            {b.wajib ? "☑" : "☐"}
+          </button>
+          <button style={S.btnGhost} onClick={() => removeBlock(b.id)}>
+            ✕
+          </button>
+        </div>
+      ))}
+    </>
+  );
+}
+
+function DiriPage({ session }) {
+  const [moods, setMoods] = useState([]);
+  const [habits, setHabits] = useState(null);
+  const [events, setEvents] = useState([]);
+  const [newHabit, setNewHabit] = useState("");
+  const [showHabitForm, setShowHabitForm] = useState(false);
+  const [justLogged, setJustLogged] = useState(null); // habit_id yang baru dicatet
+
+  useEffect(() => {
+    const since = new Date();
+    since.setDate(since.getDate() - 60);
+    const sinceStr = since.toISOString().slice(0, 10);
+    supabase
+      .from("moods")
+      .select("*")
+      .eq("user_id", session.user.id)
+      .gte("date", sinceStr)
+      .order("created_at", { ascending: false })
+      .then(({ data, error }) => setMoods(error ? [] : data));
+    supabase
+      .from("habits")
+      .select("*")
+      .eq("user_id", session.user.id)
+      .order("created_at", { ascending: true })
+      .then(({ data, error }) => setHabits(error ? [] : data));
+    supabase
+      .from("habit_events")
+      .select("*")
+      .eq("user_id", session.user.id)
+      .order("created_at", { ascending: false })
+      .limit(200)
+      .then(({ data, error }) => setEvents(error ? [] : data));
+  }, [session]);
+
+  const today = localToday();
+  const todayMood = moods.find((m) => m.date === today);
+
+  const checkIn = async (mood) => {
+    const row = { mood, date: today };
+    const { data, error } = await supabase
+      .from("moods")
+      .insert(row)
+      .select()
+      .single();
+    if (!error) setMoods((ms) => [data, ...ms]);
+  };
+
+  const addHabit = async () => {
+    const name = newHabit.trim();
+    if (!name) return;
+    setNewHabit("");
+    setShowHabitForm(false);
+    const { data, error } = await supabase
+      .from("habits")
+      .insert({ name })
+      .select()
+      .single();
+    if (!error) setHabits((hs) => [...hs, data]);
+  };
+
+  const removeHabit = async (id) => {
+    if (!window.confirm("Hapus kebiasaan ini beserta riwayatnya?")) return;
+    setHabits((hs) => hs.filter((h) => h.id !== id));
+    setEvents((es) => es.filter((e) => e.habit_id !== id));
+    await supabase.from("habits").delete().eq("id", id);
+  };
+
+  const logEvent = async (h) => {
+    const row = { habit_id: h.id, date: today, mood: todayMood?.mood || null };
+    setJustLogged(h.id);
+    setTimeout(() => setJustLogged(null), 6000);
+    const { data, error } = await supabase
+      .from("habit_events")
+      .insert(row)
+      .select()
+      .single();
+    if (!error) setEvents((es) => [data, ...es]);
+  };
+
+  const cleanDays = (h) => {
+    const ev = events.filter((e) => e.habit_id === h.id);
+    const last = ev.length > 0 ? ev[0].created_at : h.created_at;
+    return Math.floor((Date.now() - new Date(last)) / 86400000);
+  };
+
+  const topMood = (h) => {
+    const withMood = events.filter((e) => e.habit_id === h.id && e.mood);
+    if (withMood.length < 2) return null;
+    const count = {};
+    withMood.forEach((e) => (count[e.mood] = (count[e.mood] || 0) + 1));
+    return Object.entries(count).sort((a, b) => b[1] - a[1])[0][0];
+  };
+
+  // 7 hari terakhir buat strip mood
+  const last7 = [...Array(7)].map((_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (6 - i));
+    const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const m = moods.find((x) => x.date === ds);
+    return { ds, mood: m?.mood };
+  });
+
+  return (
+    <>
+      {/* ===== mood check-in ===== */}
+      <div style={S.dump}>
+        <div style={{ ...S.dumpTitle, marginBottom: 10 }}>
+          {todayMood
+            ? `Hari ini lu lagi ${todayMood.mood} ${moodEmoji(todayMood.mood)}`
+            : "Lagi ngerasa gimana?"}
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          {MOODS.map(([m, e]) => (
+            <button
+              key={m}
+              style={{
+                ...S.btnGhost,
+                fontSize: 13,
+                ...(todayMood?.mood === m
+                  ? { borderColor: "var(--accent)", color: "var(--accent)" }
+                  : {}),
+              }}
+              onClick={() => checkIn(m)}
+            >
+              {e} {m}
+            </button>
+          ))}
+        </div>
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            marginTop: 12,
+            justifyContent: "center",
+          }}
+        >
+          {last7.map((d) => (
+            <div
+              key={d.ds}
+              style={{ textAlign: "center", fontSize: 16 }}
+              title={d.ds}
+            >
+              {d.mood ? moodEmoji(d.mood) : "·"}
+            </div>
+          ))}
+        </div>
+        <div style={{ ...S.dumpHint, textAlign: "center", marginTop: 2 }}>
+          7 hari terakhir
+        </div>
+      </div>
+
+      {/* ===== kebiasaan ===== */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "baseline",
+          marginTop: 22,
+        }}
+      >
+        <div style={S.sectionHead}>
+          <span>Yang lagi dikurangin</span>
+        </div>
+        <button
+          style={S.promAddLink}
+          onClick={() => setShowHabitForm((v) => !v)}
+        >
+          {showHabitForm ? "batal" : "+ tambah"}
+        </button>
+      </div>
+
+      {showHabitForm && (
+        <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+          <input
+            style={{ ...S.input, flex: 1, minWidth: 0 }}
+            placeholder="Apa yang mau dikurangin?"
+            value={newHabit}
+            onChange={(e) => setNewHabit(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && addHabit()}
+          />
+          <button style={{ ...S.addBtn, width: 60 }} onClick={addHabit}>
+            OK
+          </button>
+        </div>
+      )}
+
+      {habits === null && <div style={S.empty}>Memuat…</div>}
+      {habits !== null && habits.length === 0 && !showHabitForm && (
+        <div style={S.empty}>
+          Belum ada. Mulai dari satu aja — jangan borong.
+        </div>
+      )}
+
+      {(habits || []).map((h) => {
+        const days = cleanDays(h);
+        const tm = topMood(h);
+        return (
+          <div key={h.id} style={{ ...S.card, display: "block" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={S.cardTitle}>{h.name}</div>
+                <div style={{ ...S.dumpHint, marginBottom: 0, marginTop: 3 }}>
+                  <span style={{ color: "var(--green)", fontWeight: 700 }}>
+                    {days === 0 ? "mulai lagi hari ini" : `bersih ${days} hari`}
+                  </span>
+                  {tm && (
+                    <>
+                      {" "}
+                      · biasanya kejadian pas lagi {tm} {moodEmoji(tm)}
+                    </>
+                  )}
+                </div>
+              </div>
+              <div style={S.cardBtns}>
+                <button style={S.btnGhost} onClick={() => logEvent(h)}>
+                  kejadian lagi
+                </button>
+                <button style={S.btnGhost} onClick={() => removeHabit(h.id)}>
+                  ✕
+                </button>
+              </div>
+            </div>
+            {justLogged === h.id && (
+              <div style={{ ...S.aiBubble, marginTop: 8 }}>
+                Kecatet. Gapapa — jujur itu bagian tersulitnya, dan lu barusan
+                lakuin. Hitungannya mulai lagi dari sekarang, bukan dari nol
+                harga diri.
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      <WaktuSection session={session} />
+
+      <div style={S.footer}>
+        Gak ada streak yang "hangus", gak ada merah, gak ada hukuman. Cuma data
+        — biar lu kenal polanya sendiri.
+      </div>
     </>
   );
 }
