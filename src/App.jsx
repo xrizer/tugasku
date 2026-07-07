@@ -1704,6 +1704,204 @@ function RutinView({ session, sources, onLogExpense }) {
   );
 }
 
+function UtangView({ session, sources, onLogExpense }) {
+  const [debts, setDebts] = useState(null);
+  const [form, setForm] = useState({ who: "", amount: "", note: "" });
+  const [showForm, setShowForm] = useState(false);
+  const [showLunas, setShowLunas] = useState(false);
+
+  useEffect(() => {
+    supabase
+      .from("debts")
+      .select("*")
+      .eq("user_id", session.user.id)
+      .order("created_at", { ascending: false })
+      .then(({ data, error }) => setDebts(error ? [] : data));
+  }, [session]);
+
+  const addDebt = async () => {
+    const who = form.who.trim();
+    const amount = parseInt(form.amount.replace(/\D/g, ""), 10);
+    if (!who || isNaN(amount)) return;
+    const row = { who, amount, note: form.note.trim() || null };
+    setForm({ who: "", amount: "", note: "" });
+    setShowForm(false);
+    const { data, error } = await supabase
+      .from("debts")
+      .insert(row)
+      .select()
+      .single();
+    if (!error) setDebts((xs) => [data, ...xs]);
+  };
+
+  const patchDebt = async (id, patch) => {
+    setDebts((xs) => xs.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+    await supabase.from("debts").update(patch).eq("id", id);
+  };
+
+  const removeDebt = async (id) => {
+    setDebts((xs) => xs.filter((x) => x.id !== id));
+    await supabase.from("debts").delete().eq("id", id);
+  };
+
+  const markLunas = async (d) => {
+    patchDebt(d.id, { status: "lunas" });
+    // duitnya balik -> kecatet sebagai pemasukan di Catet
+    onLogExpense({
+      amount: Number(d.amount),
+      kind: "in",
+      source: sources[0] || "cash",
+      note: `${d.who} lunasin utang${d.note ? " (" + d.note + ")" : ""}`,
+      spent_date: localToday(),
+    });
+  };
+
+  const ageOf = (ts) => {
+    const days = Math.floor((Date.now() - new Date(ts)) / 86400000);
+    if (days === 0) return "hari ini";
+    if (days === 1) return "kemarin";
+    return `${days} hari`;
+  };
+
+  if (debts === null) return <div style={S.empty}>Memuat…</div>;
+
+  const active = debts.filter((d) => d.status !== "lunas");
+  const lunas = debts.filter((d) => d.status === "lunas");
+  const total = active.reduce((s, d) => s + Number(d.amount), 0);
+
+  return (
+    <>
+      <div style={{ marginTop: 6, textAlign: "center" }}>
+        <div style={S.eyebrow}>Total piutang</div>
+        <div style={{ fontSize: 26, fontWeight: 700, color: "var(--green)" }}>
+          {rupiah(total)}
+        </div>
+        <div style={{ ...S.dumpHint, marginTop: 2 }}>
+          {active.length === 0
+            ? "gak ada yang ngutang. bersih."
+            : `${active.length} orang belum lunas`}
+        </div>
+      </div>
+
+      <div
+        style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}
+      >
+        <button style={S.promAddLink} onClick={() => setShowForm((v) => !v)}>
+          {showForm ? "batal" : "+ catat utang"}
+        </button>
+      </div>
+
+      {showForm && (
+        <div style={{ marginTop: 6 }}>
+          <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+            <input
+              style={{ ...S.input, flex: 2, minWidth: 0 }}
+              placeholder="Siapa?"
+              value={form.who}
+              onChange={(e) => setForm({ ...form, who: e.target.value })}
+            />
+            <input
+              style={{ ...S.input, flex: 1, minWidth: 0 }}
+              placeholder="Berapa?"
+              inputMode="numeric"
+              value={form.amount}
+              onChange={(e) => setForm({ ...form, amount: e.target.value })}
+            />
+          </div>
+          <div style={{ display: "flex", gap: 6 }}>
+            <input
+              style={{ ...S.input, flex: 1, minWidth: 0 }}
+              placeholder="Buat apa? (opsional)"
+              value={form.note}
+              onChange={(e) => setForm({ ...form, note: e.target.value })}
+              onKeyDown={(e) => e.key === "Enter" && addDebt()}
+            />
+            <button style={{ ...S.addBtn, width: 60 }} onClick={addDebt}>
+              OK
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div style={{ marginTop: 12 }}>
+        {active.length === 0 && (
+          <div style={{ ...S.empty, textAlign: "center" }}>
+            Kosong. Semoga awet 😄
+          </div>
+        )}
+        {active.map((d) => (
+          <div key={d.id} style={S.card}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <EditableText
+                value={d.who}
+                onSave={(v) => patchDebt(d.id, { who: v })}
+                style={S.cardTitle}
+              />
+              <div style={{ ...S.dumpHint, marginBottom: 0, marginTop: 3 }}>
+                <EditableText
+                  value={rupiah(d.amount)}
+                  onSave={(v) => {
+                    const n = parseInt(v.replace(/\D/g, ""), 10);
+                    if (!isNaN(n)) patchDebt(d.id, { amount: n });
+                  }}
+                  style={{
+                    display: "inline-block",
+                    fontSize: 13,
+                    fontWeight: 700,
+                  }}
+                />
+                {d.note ? ` · ${d.note}` : ""} · udah {ageOf(d.created_at)}
+              </div>
+            </div>
+            <div style={S.cardBtns}>
+              <button
+                style={{ ...S.btn, background: "var(--green-dark)" }}
+                onClick={() => markLunas(d)}
+              >
+                Lunas ✓
+              </button>
+              <button style={S.btnGhost} onClick={() => removeDebt(d.id)}>
+                ✕
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {lunas.length > 0 && (
+        <div style={{ marginTop: 16 }}>
+          <div
+            style={{ ...S.dumpHint, cursor: "pointer", userSelect: "none" }}
+            onClick={() => setShowLunas((v) => !v)}
+          >
+            {showLunas ? "▾" : "▸"} riwayat lunas ({lunas.length})
+          </div>
+          {showLunas &&
+            lunas.map((d) => (
+              <div key={d.id} style={{ ...S.card, opacity: 0.5 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    style={{ ...S.cardTitle, textDecoration: "line-through" }}
+                  >
+                    {d.who} — {rupiah(d.amount)}
+                  </div>
+                </div>
+                <button style={S.btnGhost} onClick={() => removeDebt(d.id)}>
+                  ✕
+                </button>
+              </div>
+            ))}
+        </div>
+      )}
+
+      <div style={S.footer}>
+        "Lunas ✓" otomatis kecatet sebagai pemasukan. Dibayar sebagian? Tap
+        nominalnya, kurangin.
+      </div>
+    </>
+  );
+}
+
 function MikirView({ session }) {
   const [fixedOut, setFixedOut] = useState(0);
   const [fixedIn, setFixedIn] = useState(0);
@@ -2173,6 +2371,7 @@ function DuitPage({ session }) {
           ["keluar", "Catet"],
           ["rutin", "Rutin"],
           ["mikir", "Rencana"],
+          ["utang", "Utang"],
           ["aset", "Aset"],
         ].map(([k, label]) => (
           <button
@@ -2199,6 +2398,13 @@ function DuitPage({ session }) {
         />
       )}
       {sub === "mikir" && <MikirView session={session} />}
+      {sub === "utang" && (
+        <UtangView
+          session={session}
+          sources={sources}
+          onLogExpense={logExpense}
+        />
+      )}
 
       {sub === "keluar" && (
         <>
