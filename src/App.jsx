@@ -1983,11 +1983,7 @@ function DuitPage({ session }) {
     setAmount("");
     setNote("");
     setKind("out");
-    if (row.spent_date !== localToday()) {
-      setAddedMsg(`Kecatet ke tanggal ${row.spent_date} ✓`);
-      setTimeout(() => setAddedMsg(""), 4000);
-    }
-    setSpentDate(localToday());
+    // tanggal gak di-reset — biar bisa nyatet beberapa entry di hari yang sama
     const { data, error } = await supabase
       .from("expenses")
       .insert(row)
@@ -2014,7 +2010,16 @@ function DuitPage({ session }) {
 
   const today = localToday();
   const isOut = (r) => (r.kind || "out") === "out";
-  const todayRows = rows.filter((r) => r.spent_date === today);
+  const viewDate = spentDate || today;
+  const isToday = viewDate === today;
+  const dayLabel = isToday
+    ? "hari ini"
+    : "hari " +
+      new Date(viewDate + "T00:00:00").toLocaleDateString("id-ID", {
+        weekday: "long",
+      }) +
+      ` (${viewDate.split("-").reverse().join("/")})`;
+  const todayRows = rows.filter((r) => r.spent_date === viewDate);
   const todayTotal = todayRows.filter(isOut).reduce((s, r) => s + r.amount, 0);
   const todayIn = todayRows.filter((r) => !isOut(r)).reduce((s, r) => s + r.amount, 0);
 
@@ -2167,7 +2172,7 @@ function DuitPage({ session }) {
 
       {/* angka hari ini — default disembunyiin, buka kalau siap liat */}
       <div style={{ marginTop: 22, textAlign: "center" }}>
-        <div style={S.eyebrow}>Keluar hari ini</div>
+        <div style={S.eyebrow}>Keluar {dayLabel}</div>
         <div
           style={{
             fontSize: 32,
@@ -2192,7 +2197,7 @@ function DuitPage({ session }) {
           <>
             {todayIn > 0 && (
               <div style={{ ...S.dumpHint, marginTop: 4, color: "var(--green)" }}>
-                masuk hari ini +{rupiah(todayIn)}
+                masuk {dayLabel} +{rupiah(todayIn)}
               </div>
             )}
             <div style={{ ...S.dumpHint, marginTop: 4 }}>
@@ -2228,7 +2233,7 @@ function DuitPage({ session }) {
       <div style={{ marginTop: 18 }}>
         {todayRows.length === 0 && (
           <div style={{ ...S.empty, textAlign: "center" }}>
-            Belum ada catatan hari ini.
+            Belum ada catatan {dayLabel === "hari ini" ? "hari ini" : dayLabel}.
           </div>
         )}
         {todayRows.map((r) => (
