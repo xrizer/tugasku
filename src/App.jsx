@@ -97,11 +97,7 @@ export default function LifeHack() {
   const [worryText, setWorryText] = useState("");
   const [released, setReleased] = useState(0);
   const [promises, setPromises] = useState([]);
-  const [promForm, setPromForm] = useState({
-    text: "",
-    to_whom: "",
-    due_date: "",
-  });
+  const [promForm, setPromForm] = useState({ text: "", to_whom: "", due_date: "" });
   const [showPromForm, setShowPromForm] = useState(false);
   const [collapsed, toggleCollapsed] = useCollapsed();
   const [page, setPage] = useState("tugas");
@@ -158,7 +154,7 @@ export default function LifeHack() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) =>
-      setSession(s),
+      setSession(s)
     );
     return () => sub.subscription.unsubscribe();
   }, []);
@@ -180,7 +176,7 @@ export default function LifeHack() {
 
       // reset daily tasks that were completed on a previous day
       const stale = data.filter(
-        (t) => t.daily && t.status === "done" && t.done_date !== todayStr(),
+        (t) => t.daily && t.status === "done" && t.done_date !== todayStr()
       );
       if (stale.length > 0) {
         const ids = stale.map((t) => t.id);
@@ -286,7 +282,7 @@ export default function LifeHack() {
   const togglePublic = async (t) => {
     const v = !t.is_public;
     setTasks((ts) =>
-      ts.map((x) => (x.id === t.id ? { ...x, is_public: v } : x)),
+      ts.map((x) => (x.id === t.id ? { ...x, is_public: v } : x))
     );
     await supabase.from("tasks").update({ is_public: v }).eq("id", t.id);
   };
@@ -344,8 +340,8 @@ export default function LifeHack() {
     }
     setPromises((ps) =>
       [...ps, data].sort((a, b) =>
-        (a.due_date || "9999") < (b.due_date || "9999") ? -1 : 1,
-      ),
+        (a.due_date || "9999") < (b.due_date || "9999") ? -1 : 1
+      )
     );
   };
 
@@ -395,15 +391,7 @@ export default function LifeHack() {
 
   if (session === undefined)
     return (
-      <div
-        style={{
-          ...S.page,
-          ...themeVars,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
+      <div style={{ ...S.page, ...themeVars, display: "flex", alignItems: "center", justifyContent: "center" }}>
         <span style={{ color: "var(--muted)", fontSize: 14 }}>Memuat…</span>
       </div>
     );
@@ -412,15 +400,7 @@ export default function LifeHack() {
 
   if (error)
     return (
-      <div
-        style={{
-          ...S.page,
-          ...themeVars,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
+      <div style={{ ...S.page, ...themeVars, display: "flex", alignItems: "center", justifyContent: "center" }}>
         <div style={{ ...S.focusCard, maxWidth: 480 }}>
           <div style={{ ...S.focusLabel }}>Gagal terhubung ke database</div>
           <div style={{ fontSize: 14, lineHeight: 1.5 }}>
@@ -429,8 +409,7 @@ export default function LifeHack() {
             <br />
             Cek: (1) env <code>VITE_SUPABASE_URL</code> dan{" "}
             <code>VITE_SUPABASE_ANON_KEY</code> sudah diisi, (2) tabel{" "}
-            <code>tasks</code> sudah dibuat lewat{" "}
-            <code>supabase-setup.sql</code>.
+            <code>tasks</code> sudah dibuat lewat <code>supabase-setup.sql</code>.
           </div>
         </div>
       </div>
@@ -438,15 +417,7 @@ export default function LifeHack() {
 
   if (!tasks)
     return (
-      <div
-        style={{
-          ...S.page,
-          ...themeVars,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
+      <div style={{ ...S.page, ...themeVars, display: "flex", alignItems: "center", justifyContent: "center" }}>
         <span style={{ color: "var(--muted)", fontSize: 14 }}>Memuat…</span>
       </div>
     );
@@ -470,7 +441,7 @@ export default function LifeHack() {
   return (
     <div style={{ ...S.page, ...themeVars }}>
       <style>{FIRE_CSS}</style>
-      <div style={S.wrap}>
+      <div className="lh-wrap">
         {/* header */}
         <div
           style={{
@@ -483,9 +454,7 @@ export default function LifeHack() {
           <div>
             <div style={S.eyebrow}>{dateLabel}</div>
             <h1 style={S.h1}>LifeHack</h1>
-            <div style={{ fontSize: 12, color: "var(--faint)", marginTop: 2 }}>
-              by afifi
-            </div>
+            <div style={{ fontSize: 12, color: "var(--faint)", marginTop: 2 }}>by afifi</div>
           </div>
           <div style={{ display: "flex", gap: 6 }}>
             <button
@@ -532,13 +501,7 @@ export default function LifeHack() {
               style={{ ...S.navBtn, ...(page === p ? S.navBtnActive : {}) }}
               onClick={() => setPage(p)}
             >
-              {p === "tugas"
-                ? "Tugas"
-                : p === "barang"
-                  ? "Barang"
-                  : p === "duit"
-                    ? "Duit"
-                    : "Diri"}
+              {p === "tugas" ? "Tugas" : p === "barang" ? "Barang" : p === "duit" ? "Duit" : "Diri"}
             </button>
           ))}
         </div>
@@ -548,16 +511,8 @@ export default function LifeHack() {
         {page === "diri" && <DiriPage session={session} />}
 
         {page === "tugas" && showPassForm && (
-          <div
-            style={{
-              ...S.promBox,
-              background: "var(--card)",
-              border: "1px solid var(--border)",
-            }}
-          >
-            <div style={{ ...S.dumpTitle, marginBottom: 8 }}>
-              Ganti password
-            </div>
+          <div style={{ ...S.promBox, background: "var(--card)", border: "1px solid var(--border)" }}>
+            <div style={{ ...S.dumpTitle, marginBottom: 8 }}>Ganti password</div>
             <div style={{ display: "flex", gap: 6 }}>
               <input
                 type="password"
@@ -567,468 +522,326 @@ export default function LifeHack() {
                 onChange={(e) => setNewPass(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && changePassword()}
               />
-              <button
-                style={{ ...S.addBtn, width: 60 }}
-                onClick={changePassword}
-              >
+              <button style={{ ...S.addBtn, width: 60 }} onClick={changePassword}>
                 OK
               </button>
             </div>
             {passMsg && (
-              <div style={{ color: "var(--red)", fontSize: 13, marginTop: 6 }}>
-                {passMsg}
-              </div>
+              <div style={{ color: "var(--red)", fontSize: 13, marginTop: 6 }}>{passMsg}</div>
             )}
           </div>
         )}
 
         {page === "tugas" && (
+        <>
+        {/* focus card — one thing at a time */}
+        {focus && (
+          <div
+            style={{
+              ...S.focusCard,
+              ...(focus.status === "inprogress"
+                ? { animation: "emberGlow 1.8s ease-in-out infinite" }
+                : {}),
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              {focus.status === "inprogress" && <Flame />}
+              <div style={{ ...S.focusLabel, marginBottom: 0 }}>
+                {focus.status === "inprogress"
+                  ? "Lagi dikerjain — jangan pindah dulu"
+                  : "Fokus sekarang"}
+              </div>
+            </div>
+            <div style={{ height: 6 }} />
+            <div style={S.focusTitle}>{focus.title}</div>
+            {focus.status === "todo" ? (
+              <button style={S.focusBtn} onClick={() => move(focus.id, "inprogress")}>
+                Terima & mulai →
+              </button>
+            ) : (
+              <button style={S.focusBtn} onClick={() => move(focus.id, "done")}>
+                Tandai selesai ✓
+              </button>
+            )}
+          </div>
+        )}
+        {!focus && (
+          <div style={{ ...S.focusCard, background: "var(--green-bg)", borderColor: "var(--green-border)" }}>
+            <div style={{ ...S.focusLabel, color: "var(--green)" }}>Semua beres</div>
+            <div style={{ ...S.focusTitle, color: "var(--green-dark)" }}>
+              Tidak ada tugas tersisa hari ini. 🎉
+            </div>
+          </div>
+        )}
+
+        {/* janji — hal yang gak boleh kelupaan */}
+        <div style={S.promBox}>
+          <div style={{ ...S.dumpHead, cursor: "pointer", userSelect: "none" }}>
+            <span
+              style={{ ...S.dumpTitle, color: "var(--janji-ink)" }}
+              onClick={() => toggleCollapsed("janji")}
+            >
+              <span style={S.chev}>{collapsed.janji ? "▸" : "▾"}</span> Janji yang
+              harus ditepati
+              {collapsed.janji && promises.length > 0 && (
+                <span style={S.miniCount}>{promises.length}</span>
+              )}
+            </span>
+            {!collapsed.janji && (
+              <button
+                style={S.promAddLink}
+                onClick={() => setShowPromForm((v) => !v)}
+              >
+                {showPromForm ? "batal" : "+ janji baru"}
+              </button>
+            )}
+          </div>
+          {!collapsed.janji && (
           <>
-            {/* focus card — one thing at a time */}
-            {focus && (
+
+          {showPromForm && (
+            <div style={{ marginBottom: 10 }}>
+              <input
+                style={{ ...S.input, width: "100%", boxSizing: "border-box", marginBottom: 6 }}
+                placeholder="Janji apa? (misal: kirim laporan ke Rendy)"
+                value={promForm.text}
+                onChange={(e) => setPromForm({ ...promForm, text: e.target.value })}
+              />
+              <div style={{ display: "flex", gap: 6 }}>
+                <input
+                  style={{ ...S.input, flex: 1, minWidth: 0 }}
+                  placeholder="Ke siapa?"
+                  value={promForm.to_whom}
+                  onChange={(e) => setPromForm({ ...promForm, to_whom: e.target.value })}
+                />
+                <input
+                  type="date"
+                  style={{ ...S.input, flex: 1, minWidth: 0 }}
+                  value={promForm.due_date}
+                  onChange={(e) => setPromForm({ ...promForm, due_date: e.target.value })}
+                />
+                <button style={{ ...S.addBtn, width: 60 }} onClick={addPromise}>
+                  OK
+                </button>
+              </div>
+            </div>
+          )}
+
+          {promises.length === 0 && !showPromForm && (
+            <div style={S.dumpHint}>Gak ada janji tertunda. Aman.</div>
+          )}
+
+          {promises.map((p) => {
+            const overdue = p.due_date && p.due_date < todayStr();
+            const today = p.due_date === todayStr();
+            return (
               <div
+                key={p.id}
                 style={{
-                  ...S.focusCard,
-                  ...(focus.status === "inprogress"
-                    ? { animation: "emberGlow 1.8s ease-in-out infinite" }
+                  ...S.worryCard,
+                  ...(overdue
+                    ? { borderLeft: "3px solid var(--red)", background: "var(--red-bg)" }
+                    : today
+                    ? { borderLeft: "3px solid #B8860B", background: "var(--janji-bg)" }
                     : {}),
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  {focus.status === "inprogress" && <Flame />}
-                  <div style={{ ...S.focusLabel, marginBottom: 0 }}>
-                    {focus.status === "inprogress"
-                      ? "Lagi dikerjain — jangan pindah dulu"
-                      : "Fokus sekarang"}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <EditableText
+                    value={p.text}
+                    onSave={(v) => editPromise(p.id, v)}
+                    style={{ fontSize: 14, fontWeight: 500, lineHeight: 1.4 }}
+                  />
+                  <div style={{ ...S.dumpHint, marginBottom: 0, marginTop: 3 }}>
+                    {p.to_whom && <>ke <b>{p.to_whom}</b> · </>}
+                    {overdue && (
+                      <span style={{ color: "var(--red)", fontWeight: 700 }}>
+                        TELAT — {p.due_date}
+                      </span>
+                    )}
+                    {today && (
+                      <span style={{ color: "var(--janji-ink)", fontWeight: 700 }}>
+                        HARI INI
+                      </span>
+                    )}
+                    {!overdue && !today && p.due_date && <>sampai {p.due_date}</>}
+                    {!p.due_date && <>tanpa deadline</>}
                   </div>
                 </div>
-                <div style={{ height: 6 }} />
-                <div style={S.focusTitle}>{focus.title}</div>
-                {focus.status === "todo" ? (
-                  <button
-                    style={S.focusBtn}
-                    onClick={() => move(focus.id, "inprogress")}
-                  >
-                    Terima & mulai →
-                  </button>
-                ) : (
-                  <button
-                    style={S.focusBtn}
-                    onClick={() => move(focus.id, "done")}
-                  >
-                    Tandai selesai ✓
-                  </button>
-                )}
-              </div>
-            )}
-            {!focus && (
-              <div
-                style={{
-                  ...S.focusCard,
-                  background: "var(--green-bg)",
-                  borderColor: "var(--green-border)",
-                }}
-              >
-                <div style={{ ...S.focusLabel, color: "var(--green)" }}>
-                  Semua beres
-                </div>
-                <div style={{ ...S.focusTitle, color: "var(--green-dark)" }}>
-                  Tidak ada tugas tersisa hari ini. 🎉
-                </div>
-              </div>
-            )}
-
-            {/* janji — hal yang gak boleh kelupaan */}
-            <div style={S.promBox}>
-              <div
-                style={{ ...S.dumpHead, cursor: "pointer", userSelect: "none" }}
-              >
-                <span
-                  style={{ ...S.dumpTitle, color: "var(--janji-ink)" }}
-                  onClick={() => toggleCollapsed("janji")}
-                >
-                  <span style={S.chev}>{collapsed.janji ? "▸" : "▾"}</span>{" "}
-                  Janji yang harus ditepati
-                  {collapsed.janji && promises.length > 0 && (
-                    <span style={S.miniCount}>{promises.length}</span>
+                <div style={S.cardBtns}>
+                  {p.due_date && (
+                    <a
+                      href={gcalUrl(p)}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ ...S.btnGhost, textDecoration: "none", display: "inline-block" }}
+                      title="Tambah ke Google Calendar"
+                    >
+                      📅
+                    </a>
                   )}
-                </span>
-                {!collapsed.janji && (
-                  <button
-                    style={S.promAddLink}
-                    onClick={() => setShowPromForm((v) => !v)}
-                  >
-                    {showPromForm ? "batal" : "+ janji baru"}
-                  </button>
-                )}
-              </div>
-              {!collapsed.janji && (
-                <>
-                  {showPromForm && (
-                    <div style={{ marginBottom: 10 }}>
-                      <input
-                        style={{
-                          ...S.input,
-                          width: "100%",
-                          boxSizing: "border-box",
-                          marginBottom: 6,
-                        }}
-                        placeholder="Janji apa? (misal: kirim laporan ke Rendy)"
-                        value={promForm.text}
-                        onChange={(e) =>
-                          setPromForm({ ...promForm, text: e.target.value })
-                        }
-                      />
-                      <div style={{ display: "flex", gap: 6 }}>
-                        <input
-                          style={{ ...S.input, flex: 1, minWidth: 0 }}
-                          placeholder="Ke siapa?"
-                          value={promForm.to_whom}
-                          onChange={(e) =>
-                            setPromForm({
-                              ...promForm,
-                              to_whom: e.target.value,
-                            })
-                          }
-                        />
-                        <input
-                          type="date"
-                          style={{ ...S.input, flex: 1, minWidth: 0 }}
-                          value={promForm.due_date}
-                          onChange={(e) =>
-                            setPromForm({
-                              ...promForm,
-                              due_date: e.target.value,
-                            })
-                          }
-                        />
-                        <button
-                          style={{ ...S.addBtn, width: 60 }}
-                          onClick={addPromise}
-                        >
-                          OK
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {promises.length === 0 && !showPromForm && (
-                    <div style={S.dumpHint}>Gak ada janji tertunda. Aman.</div>
-                  )}
-
-                  {promises.map((p) => {
-                    const overdue = p.due_date && p.due_date < todayStr();
-                    const today = p.due_date === todayStr();
-                    return (
-                      <div
-                        key={p.id}
-                        style={{
-                          ...S.worryCard,
-                          ...(overdue
-                            ? {
-                                borderLeft: "3px solid var(--red)",
-                                background: "var(--red-bg)",
-                              }
-                            : today
-                              ? {
-                                  borderLeft: "3px solid #B8860B",
-                                  background: "var(--janji-bg)",
-                                }
-                              : {}),
-                        }}
-                      >
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <EditableText
-                            value={p.text}
-                            onSave={(v) => editPromise(p.id, v)}
-                            style={{
-                              fontSize: 14,
-                              fontWeight: 500,
-                              lineHeight: 1.4,
-                            }}
-                          />
-                          <div
-                            style={{
-                              ...S.dumpHint,
-                              marginBottom: 0,
-                              marginTop: 3,
-                            }}
-                          >
-                            {p.to_whom && (
-                              <>
-                                ke <b>{p.to_whom}</b> ·{" "}
-                              </>
-                            )}
-                            {overdue && (
-                              <span
-                                style={{ color: "var(--red)", fontWeight: 700 }}
-                              >
-                                TELAT — {p.due_date}
-                              </span>
-                            )}
-                            {today && (
-                              <span
-                                style={{
-                                  color: "var(--janji-ink)",
-                                  fontWeight: 700,
-                                }}
-                              >
-                                HARI INI
-                              </span>
-                            )}
-                            {!overdue && !today && p.due_date && (
-                              <>sampai {p.due_date}</>
-                            )}
-                            {!p.due_date && <>tanpa deadline</>}
-                          </div>
-                        </div>
-                        <div style={S.cardBtns}>
-                          {p.due_date && (
-                            <a
-                              href={gcalUrl(p)}
-                              target="_blank"
-                              rel="noreferrer"
-                              style={{
-                                ...S.btnGhost,
-                                textDecoration: "none",
-                                display: "inline-block",
-                              }}
-                              title="Tambah ke Google Calendar"
-                            >
-                              📅
-                            </a>
-                          )}
-                          <button
-                            style={{
-                              ...S.btn,
-                              background: "var(--green-dark)",
-                            }}
-                            onClick={() => keepPromise(p.id)}
-                          >
-                            Ditepati ✓
-                          </button>
-                          <button
-                            style={S.btnGhost}
-                            onClick={() => removePromise(p.id)}
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </>
-              )}
-            </div>
-
-            {/* add */}
-            <div style={S.addRow}>
-              <input
-                style={S.input}
-                placeholder="Tambah tugas baru…"
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && addTask()}
-              />
-              <button style={S.addBtn} onClick={addTask}>
-                +
-              </button>
-            </div>
-            <div style={S.addOpts}>
-              <label style={S.optLabel}>
-                <input
-                  type="checkbox"
-                  checked={newDaily}
-                  onChange={(e) => setNewDaily(e.target.checked)}
-                />{" "}
-                Tugas harian (reset tiap hari)
-              </label>
-              <label style={S.optLabel}>
-                <input
-                  type="checkbox"
-                  checked={newPriority === 0}
-                  onChange={(e) => setNewPriority(e.target.checked ? 0 : 1)}
-                />{" "}
-                Penting
-              </label>
-            </div>
-
-            {/* brain dump — tumpahin dulu, sortir belakangan */}
-            <div style={S.dump}>
-              <div
-                style={{ ...S.dumpHead, cursor: "pointer", userSelect: "none" }}
-                onClick={() => toggleCollapsed("dump")}
-              >
-                <span style={S.dumpTitle}>
-                  <span style={S.chev}>{collapsed.dump ? "▸" : "▾"}</span> Lagi
-                  resah apa?
-                  {collapsed.dump && worries.length > 0 && (
-                    <span style={S.miniCount}>{worries.length}</span>
-                  )}
-                </span>
-                {released > 0 && !collapsed.dump && (
-                  <span style={S.dumpReleased}>
-                    {released} dilepas hari ini
-                  </span>
-                )}
-              </div>
-              {!collapsed.dump && (
-                <>
-                  <div style={S.addRow}>
-                    <input
-                      style={{ ...S.input, background: "var(--card2)" }}
-                      placeholder="Tumpahin di sini, jangan disimpen di kepala…"
-                      value={worryText}
-                      onChange={(e) => setWorryText(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && addWorry()}
-                    />
-                    <button style={S.addBtn} onClick={addWorry}>
-                      +
-                    </button>
-                  </div>
-                  {worries.length > 0 && (
-                    <div style={{ marginTop: 10 }}>
-                      <div style={S.dumpHint}>
-                        Sortir: bisa lu pengaruhi → jadiin tugas. Di luar
-                        kendali lu → lepasin.
-                      </div>
-                      {worries.map((w) => (
-                        <div key={w.id} style={S.worryCard}>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <EditableText
-                              value={w.text}
-                              onSave={(v) => editWorry(w.id, v)}
-                              style={{ fontSize: 14, lineHeight: 1.4 }}
-                            />
-                            {suggestions[w.id] && (
-                              <div style={S.aiBubble}>
-                                {suggestions[w.id] === "..."
-                                  ? "AI lagi mikir…"
-                                  : suggestions[w.id]}
-                              </div>
-                            )}
-                          </div>
-                          <div style={S.cardBtns}>
-                            <button
-                              style={S.btnGhost}
-                              title="Minta saran AI"
-                              onClick={() => suggestAI(w)}
-                            >
-                              ✨
-                            </button>
-                            <button
-                              style={S.btn}
-                              onClick={() => worryToTask(w)}
-                            >
-                              Jadiin tugas
-                            </button>
-                            <button
-                              style={S.btnGhost}
-                              onClick={() => releaseWorry(w.id)}
-                            >
-                              Lepasin
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-
-            {/* sections */}
-            <Section
-              title="Todo"
-              count={todo.length}
-              collapsed={!!collapsed.todo}
-              onToggle={() => toggleCollapsed("todo")}
-            >
-              {todo.map((t) => (
-                <Card
-                  key={t.id}
-                  t={t}
-                  onEdit={editTask}
-                  onTogglePublic={togglePublic}
-                >
-                  <button
-                    style={S.btn}
-                    onClick={() => move(t.id, "inprogress")}
-                  >
-                    Terima
-                  </button>
-                  <button style={S.btnGhost} onClick={() => remove(t.id)}>
-                    ✕
-                  </button>
-                </Card>
-              ))}
-              {todo.length === 0 && <Empty text="Kosong — mantap." />}
-            </Section>
-
-            <Section
-              title="In Progress"
-              count={doing.length}
-              collapsed={!!collapsed.doing}
-              onToggle={() => toggleCollapsed("doing")}
-            >
-              {doing.map((t) => (
-                <Card
-                  key={t.id}
-                  t={t}
-                  active
-                  onEdit={editTask}
-                  onTogglePublic={togglePublic}
-                >
                   <button
                     style={{ ...S.btn, background: "var(--green-dark)" }}
-                    onClick={() => move(t.id, "done")}
+                    onClick={() => keepPromise(p.id)}
                   >
-                    Selesai
+                    Ditepati ✓
                   </button>
-                  <button style={S.btnGhost} onClick={() => move(t.id, "todo")}>
-                    ↩
+                  <button style={S.btnGhost} onClick={() => removePromise(p.id)}>
+                    ✕
                   </button>
-                </Card>
-              ))}
-              {doing.length === 0 && (
-                <Empty text="Belum ada yang dikerjakan." />
-              )}
-            </Section>
-
-            <Section
-              title="Completed"
-              count={done.length}
-              collapsed={!!collapsed.done}
-              onToggle={() => toggleCollapsed("done")}
-            >
-              {done.map((t) => (
-                <Card
-                  key={t.id}
-                  t={t}
-                  done
-                  onEdit={editTask}
-                  onTogglePublic={togglePublic}
-                >
-                  <button style={S.btnGhost} onClick={() => move(t.id, "todo")}>
-                    ↩
-                  </button>
-                  {!t.daily && (
-                    <button style={S.btnGhost} onClick={() => remove(t.id)}>
-                      ✕
-                    </button>
-                  )}
-                </Card>
-              ))}
-              {done.length === 0 && (
-                <Empty text="Belum ada yang selesai hari ini." />
-              )}
-            </Section>
-
-            <div style={S.footer}>
-              Tugas harian otomatis balik ke Todo setiap pagi. Data tersimpan di
-              cloud — buka dari HP atau laptop, tetap sync.
-            </div>
+                </div>
+              </div>
+            );
+          })}
           </>
+          )}
+        </div>
+
+        {/* add */}
+        <div style={S.addRow}>
+          <input
+            style={S.input}
+            placeholder="Tambah tugas baru…"
+            value={newTitle}
+            onChange={(e) => setNewTitle(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && addTask()}
+          />
+          <button style={S.addBtn} onClick={addTask}>+</button>
+        </div>
+        <div style={S.addOpts}>
+          <label style={S.optLabel}>
+            <input
+              type="checkbox"
+              checked={newDaily}
+              onChange={(e) => setNewDaily(e.target.checked)}
+            />{" "}
+            Tugas harian (reset tiap hari)
+          </label>
+          <label style={S.optLabel}>
+            <input
+              type="checkbox"
+              checked={newPriority === 0}
+              onChange={(e) => setNewPriority(e.target.checked ? 0 : 1)}
+            />{" "}
+            Penting
+          </label>
+        </div>
+
+        {/* brain dump — tumpahin dulu, sortir belakangan */}
+        <div style={S.dump}>
+          <div
+            style={{ ...S.dumpHead, cursor: "pointer", userSelect: "none" }}
+            onClick={() => toggleCollapsed("dump")}
+          >
+            <span style={S.dumpTitle}>
+              <span style={S.chev}>{collapsed.dump ? "▸" : "▾"}</span> Lagi resah
+              apa?
+              {collapsed.dump && worries.length > 0 && (
+                <span style={S.miniCount}>{worries.length}</span>
+              )}
+            </span>
+            {released > 0 && !collapsed.dump && (
+              <span style={S.dumpReleased}>{released} dilepas hari ini</span>
+            )}
+          </div>
+          {!collapsed.dump && (
+          <>
+          <div style={S.addRow}>
+            <input
+              style={{ ...S.input, background: "var(--card2)" }}
+              placeholder="Tumpahin di sini, jangan disimpen di kepala…"
+              value={worryText}
+              onChange={(e) => setWorryText(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && addWorry()}
+            />
+            <button style={S.addBtn} onClick={addWorry}>+</button>
+          </div>
+          {worries.length > 0 && (
+            <div style={{ marginTop: 10 }}>
+              <div style={S.dumpHint}>
+                Sortir: bisa lu pengaruhi → jadiin tugas. Di luar kendali lu → lepasin.
+              </div>
+              {worries.map((w) => (
+                <div key={w.id} style={S.worryCard}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <EditableText
+                      value={w.text}
+                      onSave={(v) => editWorry(w.id, v)}
+                      style={{ fontSize: 14, lineHeight: 1.4 }}
+                    />
+                    {suggestions[w.id] && (
+                      <div style={S.aiBubble}>
+                        {suggestions[w.id] === "..."
+                          ? "AI lagi mikir…"
+                          : suggestions[w.id]}
+                      </div>
+                    )}
+                  </div>
+                  <div style={S.cardBtns}>
+                    <button
+                      style={S.btnGhost}
+                      title="Minta saran AI"
+                      onClick={() => suggestAI(w)}
+                    >
+                      ✨
+                    </button>
+                    <button style={S.btn} onClick={() => worryToTask(w)}>
+                      Jadiin tugas
+                    </button>
+                    <button style={S.btnGhost} onClick={() => releaseWorry(w.id)}>
+                      Lepasin
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          </>
+          )}
+        </div>
+
+        {/* sections */}
+        <Section title="Todo" count={todo.length} collapsed={!!collapsed.todo} onToggle={() => toggleCollapsed("todo")}>
+          {todo.map((t) => (
+            <Card key={t.id} t={t} onEdit={editTask} onTogglePublic={togglePublic}>
+              <button style={S.btn} onClick={() => move(t.id, "inprogress")}>
+                Terima
+              </button>
+              <button style={S.btnGhost} onClick={() => remove(t.id)}>✕</button>
+            </Card>
+          ))}
+          {todo.length === 0 && <Empty text="Kosong — mantap." />}
+        </Section>
+
+        <Section title="In Progress" count={doing.length} collapsed={!!collapsed.doing} onToggle={() => toggleCollapsed("doing")}>
+          {doing.map((t) => (
+            <Card key={t.id} t={t} active onEdit={editTask} onTogglePublic={togglePublic}>
+              <button style={{ ...S.btn, background: "var(--green-dark)" }} onClick={() => move(t.id, "done")}>
+                Selesai
+              </button>
+              <button style={S.btnGhost} onClick={() => move(t.id, "todo")}>↩</button>
+            </Card>
+          ))}
+          {doing.length === 0 && <Empty text="Belum ada yang dikerjakan." />}
+        </Section>
+
+        <Section title="Completed" count={done.length} collapsed={!!collapsed.done} onToggle={() => toggleCollapsed("done")}>
+          {done.map((t) => (
+            <Card key={t.id} t={t} done onEdit={editTask} onTogglePublic={togglePublic}>
+              <button style={S.btnGhost} onClick={() => move(t.id, "todo")}>↩</button>
+              {!t.daily && (
+                <button style={S.btnGhost} onClick={() => remove(t.id)}>✕</button>
+              )}
+            </Card>
+          ))}
+          {done.length === 0 && <Empty text="Belum ada yang selesai hari ini." />}
+        </Section>
+
+        <div style={S.footer}>
+          Tugas harian otomatis balik ke Todo setiap pagi. Data tersimpan di
+          cloud — buka dari HP atau laptop, tetap sync.
+        </div>
+        </>
         )}
       </div>
     </div>
@@ -1037,6 +850,9 @@ export default function LifeHack() {
 
 const FIRE_CSS = `
 html, body, #root { margin: 0; padding: 0; }
+.lh-wrap { max-width: 560px; margin: 0 auto; }
+@media (min-width: 900px)  { .lh-wrap { max-width: 720px; } }
+@media (min-width: 1280px) { .lh-wrap { max-width: 820px; } }
 
 @keyframes flickerOuter {
   0%   { transform: rotate(45deg) scale(1)    translateY(0); }
@@ -1158,25 +974,14 @@ function EditableText({ value, onSave, style }) {
 const STATUS_ORDER = ["ada", "dipinjem", "rusak", "servis", "ilang"];
 const STATUS_META = {
   ada: { label: "✓ ada", color: "var(--green)", border: "var(--green-border)" },
-  dipinjem: {
-    label: "🤝 dipinjem",
-    color: "var(--janji-ink)",
-    border: "var(--janji-border)",
-  },
-  rusak: {
-    label: "⚠ rusak",
-    color: "var(--accent)",
-    border: "var(--accent-border)",
-  },
-  servis: {
-    label: "🔧 diservis",
-    color: "var(--janji-ink)",
-    border: "var(--janji-border)",
-  },
+  dipinjem: { label: "🤝 dipinjem", color: "var(--janji-ink)", border: "var(--janji-border)" },
+  rusak: { label: "⚠ rusak", color: "var(--accent)", border: "var(--accent-border)" },
+  servis: { label: "🔧 diservis", color: "var(--janji-ink)", border: "var(--janji-border)" },
   ilang: { label: "? ilang", color: "var(--red)", border: "var(--red)" },
 };
 
-const rupiah = (n) => (n == null ? "" : "Rp" + n.toLocaleString("id-ID"));
+const rupiah = (n) =>
+  n == null ? "" : "Rp" + n.toLocaleString("id-ID");
 
 function BarangPage({ session }) {
   const [items, setItems] = useState(null);
@@ -1199,17 +1004,11 @@ function BarangPage({ session }) {
     const row = {
       name,
       location: form.location.trim() || null,
-      price: form.price
-        ? parseInt(form.price.replace(/\D/g, ""), 10) || null
-        : null,
+      price: form.price ? parseInt(form.price.replace(/\D/g, ""), 10) || null : null,
     };
     setForm({ name: "", location: "", price: "" });
     setShowForm(false);
-    const { data, error } = await supabase
-      .from("items")
-      .insert(row)
-      .select()
-      .single();
+    const { data, error } = await supabase.from("items").insert(row).select().single();
     if (!error) setItems((xs) => [data, ...xs]);
   };
 
@@ -1236,7 +1035,7 @@ function BarangPage({ session }) {
     ? items.filter(
         (x) =>
           x.name.toLowerCase().includes(ql) ||
-          (x.location || "").toLowerCase().includes(ql),
+          (x.location || "").toLowerCase().includes(ql)
       )
     : items;
 
@@ -1258,14 +1057,7 @@ function BarangPage({ session }) {
         onChange={(e) => setQ(e.target.value)}
       />
 
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginTop: 12,
-        }}
-      >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12 }}>
         <span style={S.dumpHint}>
           {items.length} barang · total {rupiah(total)}
         </span>
@@ -1277,12 +1069,7 @@ function BarangPage({ session }) {
       {showForm && (
         <div style={{ marginTop: 8 }}>
           <input
-            style={{
-              ...S.input,
-              width: "100%",
-              boxSizing: "border-box",
-              marginBottom: 6,
-            }}
+            style={{ ...S.input, width: "100%", boxSizing: "border-box", marginBottom: 6 }}
             placeholder="Nama barang (misal: e-money mandiri)"
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -1301,9 +1088,7 @@ function BarangPage({ session }) {
               value={form.price}
               onChange={(e) => setForm({ ...form, price: e.target.value })}
             />
-            <button style={{ ...S.addBtn, width: 60 }} onClick={addItem}>
-              OK
-            </button>
+            <button style={{ ...S.addBtn, width: 60 }} onClick={addItem}>OK</button>
           </div>
         </div>
       )}
@@ -1311,9 +1096,7 @@ function BarangPage({ session }) {
       <div style={{ marginTop: 14 }}>
         {shown.length === 0 && (
           <div style={S.empty}>
-            {ql
-              ? `Gak nemu "${q}" — belum dicatet atau beneran ilang 😅`
-              : "Belum ada barang. Mulai dari yang sering lu cari."}
+            {ql ? `Gak nemu "${q}" — belum dicatet atau beneran ilang 😅` : "Belum ada barang. Mulai dari yang sering lu cari."}
           </div>
         )}
         {shown.map((it) => {
@@ -1326,18 +1109,8 @@ function BarangPage({ session }) {
                   onSave={(v) => patchItem(it.id, { name: v })}
                   style={S.cardTitle}
                 />
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 8,
-                    alignItems: "baseline",
-                    marginTop: 4,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <span style={{ fontSize: 13, color: "var(--muted2)" }}>
-                    📍
-                  </span>
+                <div style={{ display: "flex", gap: 8, alignItems: "baseline", marginTop: 4, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 13, color: "var(--muted2)" }}>📍</span>
                   <EditableText
                     value={it.location || "belum dicatet"}
                     onSave={(v) => patchItem(it.id, { location: v })}
@@ -1350,20 +1123,13 @@ function BarangPage({ session }) {
               </div>
               <div style={S.cardBtns}>
                 <button
-                  style={{
-                    ...S.btnGhost,
-                    color: m.color,
-                    borderColor: m.border,
-                    whiteSpace: "nowrap",
-                  }}
+                  style={{ ...S.btnGhost, color: m.color, borderColor: m.border, whiteSpace: "nowrap" }}
                   title="Klik buat ganti status"
                   onClick={() => cycleStatus(it)}
                 >
                   {m.label}
                 </button>
-                <button style={S.btnGhost} onClick={() => removeItem(it.id)}>
-                  ✕
-                </button>
+                <button style={S.btnGhost} onClick={() => removeItem(it.id)}>✕</button>
               </div>
             </div>
           );
@@ -1371,8 +1137,7 @@ function BarangPage({ session }) {
       </div>
 
       <div style={S.footer}>
-        Pindahin barang? Tap lokasinya, edit. Status: klik buat muter ada →
-        dipinjem → rusak → diservis → ilang.
+        Pindahin barang? Tap lokasinya, edit. Status: klik buat muter ada → dipinjem → rusak → diservis → ilang.
       </div>
     </>
   );
@@ -1508,9 +1273,7 @@ function RutinView({ session, sources, onLogExpense }) {
         </div>
       </div>
 
-      <div
-        style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}
-      >
+      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
         <button style={S.promAddLink} onClick={() => setShowForm((v) => !v)}>
           {showForm ? "batal" : "+ biaya rutin"}
         </button>
@@ -1519,12 +1282,7 @@ function RutinView({ session, sources, onLogExpense }) {
       {showForm && (
         <div style={{ marginTop: 6 }}>
           <input
-            style={{
-              ...S.input,
-              width: "100%",
-              boxSizing: "border-box",
-              marginBottom: 6,
-            }}
+            style={{ ...S.input, width: "100%", boxSizing: "border-box", marginBottom: 6 }}
             placeholder="Nama (misal: kosan, Claude Pro)"
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -1545,9 +1303,7 @@ function RutinView({ session, sources, onLogExpense }) {
               onChange={(e) => setForm({ ...form, due_day: e.target.value })}
               onKeyDown={(e) => e.key === "Enter" && addItem()}
             />
-            <button style={{ ...S.addBtn, width: 60 }} onClick={addItem}>
-              OK
-            </button>
+            <button style={{ ...S.addBtn, width: 60 }} onClick={addItem}>OK</button>
           </div>
         </div>
       )}
@@ -1561,10 +1317,7 @@ function RutinView({ session, sources, onLogExpense }) {
         {items.map((it) => {
           const paid = it.last_paid === month;
           return (
-            <div
-              key={it.id}
-              style={{ ...S.card, ...(paid ? { opacity: 0.55 } : {}) }}
-            >
+            <div key={it.id} style={{ ...S.card, ...(paid ? { opacity: 0.55 } : {}) }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <EditableText
                   value={it.name}
@@ -1586,13 +1339,7 @@ function RutinView({ session, sources, onLogExpense }) {
               </div>
               <div style={S.cardBtns}>
                 {paid ? (
-                  <span
-                    style={{
-                      ...S.tag,
-                      color: "var(--green)",
-                      borderColor: "var(--green-border)",
-                    }}
-                  >
+                  <span style={{ ...S.tag, color: "var(--green)", borderColor: "var(--green-border)" }}>
                     ✓ bulan ini
                   </span>
                 ) : (
@@ -1603,9 +1350,7 @@ function RutinView({ session, sources, onLogExpense }) {
                     Bayar ✓
                   </button>
                 )}
-                <button style={S.btnGhost} onClick={() => removeItem(it.id)}>
-                  ✕
-                </button>
+                <button style={S.btnGhost} onClick={() => removeItem(it.id)}>✕</button>
               </div>
             </div>
           );
@@ -1620,9 +1365,7 @@ function RutinView({ session, sources, onLogExpense }) {
         </div>
       </div>
 
-      <div
-        style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}
-      >
+      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
         <button style={S.promAddLink} onClick={() => setShowInForm((v) => !v)}>
           {showInForm ? "batal" : "+ pemasukan rutin"}
         </button>
@@ -1644,9 +1387,7 @@ function RutinView({ session, sources, onLogExpense }) {
             onChange={(e) => setInForm({ ...inForm, amount: e.target.value })}
             onKeyDown={(e) => e.key === "Enter" && addIncome()}
           />
-          <button style={{ ...S.addBtn, width: 60 }} onClick={addIncome}>
-            OK
-          </button>
+          <button style={{ ...S.addBtn, width: 60 }} onClick={addIncome}>OK</button>
         </div>
       )}
 
@@ -1654,10 +1395,7 @@ function RutinView({ session, sources, onLogExpense }) {
         {incomes.map((it) => {
           const received = it.last_received === thisMonthStr();
           return (
-            <div
-              key={it.id}
-              style={{ ...S.card, ...(received ? { opacity: 0.55 } : {}) }}
-            >
+            <div key={it.id} style={{ ...S.card, ...(received ? { opacity: 0.55 } : {}) }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <EditableText
                   value={it.name}
@@ -1677,13 +1415,7 @@ function RutinView({ session, sources, onLogExpense }) {
               </div>
               <div style={S.cardBtns}>
                 {received ? (
-                  <span
-                    style={{
-                      ...S.tag,
-                      color: "var(--green)",
-                      borderColor: "var(--green-border)",
-                    }}
-                  >
+                  <span style={{ ...S.tag, color: "var(--green)", borderColor: "var(--green-border)" }}>
                     ✓ bulan ini
                   </span>
                 ) : (
@@ -1694,9 +1426,7 @@ function RutinView({ session, sources, onLogExpense }) {
                     Terima ✓
                   </button>
                 )}
-                <button style={S.btnGhost} onClick={() => removeIncome(it.id)}>
-                  ✕
-                </button>
+                <button style={S.btnGhost} onClick={() => removeIncome(it.id)}>✕</button>
               </div>
             </div>
           );
@@ -1704,8 +1434,7 @@ function RutinView({ session, sources, onLogExpense }) {
       </div>
 
       <div style={S.footer}>
-        "Bayar ✓" / "Terima ✓" otomatis nyatet ke Catet — sekali tap, dua urusan
-        kelar.
+        "Bayar ✓" / "Terima ✓" otomatis nyatet ke Catet — sekali tap, dua urusan kelar.
       </div>
     </>
   );
@@ -1733,11 +1462,7 @@ function UtangView({ session, sources, onLogExpense }) {
     const row = { who, amount, note: form.note.trim() || null };
     setForm({ who: "", amount: "", note: "" });
     setShowForm(false);
-    const { data, error } = await supabase
-      .from("debts")
-      .insert(row)
-      .select()
-      .single();
+    const { data, error } = await supabase.from("debts").insert(row).select().single();
     if (!error) setDebts((xs) => [data, ...xs]);
   };
 
@@ -1784,15 +1509,11 @@ function UtangView({ session, sources, onLogExpense }) {
           {rupiah(total)}
         </div>
         <div style={{ ...S.dumpHint, marginTop: 2 }}>
-          {active.length === 0
-            ? "gak ada yang ngutang. bersih."
-            : `${active.length} orang belum lunas`}
+          {active.length === 0 ? "gak ada yang ngutang. bersih." : `${active.length} orang belum lunas`}
         </div>
       </div>
 
-      <div
-        style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}
-      >
+      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
         <button style={S.promAddLink} onClick={() => setShowForm((v) => !v)}>
           {showForm ? "batal" : "+ catat utang"}
         </button>
@@ -1823,9 +1544,7 @@ function UtangView({ session, sources, onLogExpense }) {
               onChange={(e) => setForm({ ...form, note: e.target.value })}
               onKeyDown={(e) => e.key === "Enter" && addDebt()}
             />
-            <button style={{ ...S.addBtn, width: 60 }} onClick={addDebt}>
-              OK
-            </button>
+            <button style={{ ...S.addBtn, width: 60 }} onClick={addDebt}>OK</button>
           </div>
         </div>
       )}
@@ -1851,11 +1570,7 @@ function UtangView({ session, sources, onLogExpense }) {
                     const n = parseInt(v.replace(/\D/g, ""), 10);
                     if (!isNaN(n)) patchDebt(d.id, { amount: n });
                   }}
-                  style={{
-                    display: "inline-block",
-                    fontSize: 13,
-                    fontWeight: 700,
-                  }}
+                  style={{ display: "inline-block", fontSize: 13, fontWeight: 700 }}
                 />
                 {d.note ? ` · ${d.note}` : ""} · udah {ageOf(d.created_at)}
               </div>
@@ -1867,9 +1582,7 @@ function UtangView({ session, sources, onLogExpense }) {
               >
                 Lunas ✓
               </button>
-              <button style={S.btnGhost} onClick={() => removeDebt(d.id)}>
-                ✕
-              </button>
+              <button style={S.btnGhost} onClick={() => removeDebt(d.id)}>✕</button>
             </div>
           </div>
         ))}
@@ -1887,23 +1600,18 @@ function UtangView({ session, sources, onLogExpense }) {
             lunas.map((d) => (
               <div key={d.id} style={{ ...S.card, opacity: 0.5 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div
-                    style={{ ...S.cardTitle, textDecoration: "line-through" }}
-                  >
+                  <div style={{ ...S.cardTitle, textDecoration: "line-through" }}>
                     {d.who} — {rupiah(d.amount)}
                   </div>
                 </div>
-                <button style={S.btnGhost} onClick={() => removeDebt(d.id)}>
-                  ✕
-                </button>
+                <button style={S.btnGhost} onClick={() => removeDebt(d.id)}>✕</button>
               </div>
             ))}
         </div>
       )}
 
       <div style={S.footer}>
-        "Lunas ✓" otomatis kecatet sebagai pemasukan. Dibayar sebagian? Tap
-        nominalnya, kurangin.
+        "Lunas ✓" otomatis kecatet sebagai pemasukan. Dibayar sebagian? Tap nominalnya, kurangin.
       </div>
     </>
   );
@@ -1921,14 +1629,14 @@ function MikirView({ session }) {
       .select("amount")
       .eq("user_id", session.user.id)
       .then(({ data }) =>
-        setFixedOut((data || []).reduce((s, x) => s + Number(x.amount), 0)),
+        setFixedOut((data || []).reduce((s, x) => s + Number(x.amount), 0))
       );
     supabase
       .from("fixed_income")
       .select("amount")
       .eq("user_id", session.user.id)
       .then(({ data }) =>
-        setFixedIn((data || []).reduce((s, x) => s + Number(x.amount), 0)),
+        setFixedIn((data || []).reduce((s, x) => s + Number(x.amount), 0))
       );
   }, [session]);
 
@@ -1938,20 +1646,9 @@ function MikirView({ session }) {
   const pct = (a, b) => (b > 0 ? Math.round((a / b) * 100) : 0);
 
   const Row = ({ label, value, strong, color }) => (
-    <div
-      style={{
-        display: "flex",
-        justifyContent: "space-between",
-        fontSize: 14,
-        lineHeight: 1.9,
-      }}
-    >
+    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, lineHeight: 1.9 }}>
       <span style={{ color: "var(--muted2)" }}>{label}</span>
-      <span
-        style={{ fontWeight: strong ? 700 : 500, ...(color ? { color } : {}) }}
-      >
-        {value}
-      </span>
+      <span style={{ fontWeight: strong ? 700 : 500, ...(color ? { color } : {}) }}>{value}</span>
     </div>
   );
 
@@ -1959,15 +1656,11 @@ function MikirView({ session }) {
     <>
       <div style={{ ...S.dump, marginTop: 6 }}>
         <Row label="Pemasukan rutin" value={rupiah(fixedIn)} />
-        <Row
-          label="Beban rutin"
-          value={`${rupiah(fixedOut)} (${pct(fixedOut, fixedIn)}% dari income)`}
-        />
+        <Row label="Beban rutin" value={`${rupiah(fixedOut)} (${pct(fixedOut, fixedIn)}% dari income)`} />
         <Row label="Sisa bebas per bulan" value={rupiah(sisa)} strong />
         {(fixedIn === 0 || fixedOut === 0) && (
           <div style={{ ...S.dumpHint, marginTop: 6 }}>
-            Isi dulu pemasukan & biaya rutin di tab Rutin biar hitungannya
-            bener.
+            Isi dulu pemasukan & biaya rutin di tab Rutin biar hitungannya bener.
           </div>
         )}
       </div>
@@ -1996,11 +1689,7 @@ function MikirView({ session }) {
         <div style={{ ...S.dump, marginTop: 12 }}>
           {m > 1 ? (
             <>
-              <Row
-                label={`Cicilan (${m} bulan)`}
-                value={`${rupiah(Math.ceil(p / m))}/bulan`}
-                strong
-              />
+              <Row label={`Cicilan (${m} bulan)`} value={`${rupiah(Math.ceil(p / m))}/bulan`} strong />
               <Row
                 label="Beban rutin baru"
                 value={`${rupiah(fixedOut + Math.ceil(p / m))} (${pct(fixedOut + Math.ceil(p / m), fixedIn)}% dari income)`}
@@ -2019,15 +1708,11 @@ function MikirView({ session }) {
                 label="Setara sisa bebas"
                 value={sisa > 0 ? `${(p / sisa).toFixed(1)} bulan` : "—"}
               />
-              <Row
-                label="Persen dari income sebulan"
-                value={`${pct(p, fixedIn)}%`}
-              />
+              <Row label="Persen dari income sebulan" value={`${pct(p, fixedIn)}%`} />
             </>
           )}
           <div style={{ ...S.dumpHint, marginTop: 8 }}>
-            Angkanya gitu — keputusannya tetep di lu. Gak ada yang nge-judge di
-            sini.
+            Angkanya gitu — keputusannya tetep di lu. Gak ada yang nge-judge di sini.
           </div>
         </div>
       )}
@@ -2074,13 +1759,14 @@ function AsetView({ session }) {
       .insert({ name, value })
       .select()
       .single();
-    if (!error)
-      setAssets((xs) => [...xs, data].sort((a, b) => b.value - a.value));
+    if (!error) setAssets((xs) => [...xs, data].sort((a, b) => b.value - a.value));
   };
 
   const patchAsset = async (id, patch) => {
     const withTime = { ...patch, updated_at: new Date().toISOString() };
-    setAssets((xs) => xs.map((x) => (x.id === id ? { ...x, ...withTime } : x)));
+    setAssets((xs) =>
+      xs.map((x) => (x.id === id ? { ...x, ...withTime } : x))
+    );
     await supabase.from("assets").update(withTime).eq("id", id);
   };
 
@@ -2125,9 +1811,7 @@ function AsetView({ session }) {
         </div>
       </div>
 
-      <div
-        style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}
-      >
+      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}>
         <button style={S.promAddLink} onClick={() => setShowForm((v) => !v)}>
           {showForm ? "batal" : "+ aset baru"}
         </button>
@@ -2149,9 +1833,7 @@ function AsetView({ session }) {
             onChange={(e) => setForm({ ...form, value: e.target.value })}
             onKeyDown={(e) => e.key === "Enter" && addAsset()}
           />
-          <button style={{ ...S.addBtn, width: 60 }} onClick={addAsset}>
-            OK
-          </button>
+          <button style={{ ...S.addBtn, width: 60 }} onClick={addAsset}>OK</button>
         </div>
       )}
 
@@ -2180,24 +1862,16 @@ function AsetView({ session }) {
                   const n = parseInt(v.replace(/\D/g, ""), 10);
                   if (!isNaN(n)) patchAsset(a.id, { value: n });
                 }}
-                style={{
-                  fontSize: 15,
-                  fontWeight: 700,
-                  textAlign: "right",
-                  minWidth: 90,
-                }}
+                style={{ fontSize: 15, fontWeight: 700, textAlign: "right", minWidth: 90 }}
               />
-              <button style={S.btnGhost} onClick={() => removeAsset(a.id)}>
-                ✕
-              </button>
+              <button style={S.btnGhost} onClick={() => removeAsset(a.id)}>✕</button>
             </div>
           </div>
         ))}
       </div>
 
       <div style={S.footer}>
-        Update pas nilainya berubah aja — gak usah tiap hari. Tap angkanya buat
-        edit.
+        Update pas nilainya berubah aja — gak usah tiap hari. Tap angkanya buat edit.
       </div>
     </>
   );
@@ -2342,9 +2016,7 @@ function DuitPage({ session }) {
   const isOut = (r) => (r.kind || "out") === "out";
   const todayRows = rows.filter((r) => r.spent_date === today);
   const todayTotal = todayRows.filter(isOut).reduce((s, r) => s + r.amount, 0);
-  const todayIn = todayRows
-    .filter((r) => !isOut(r))
-    .reduce((s, r) => s + r.amount, 0);
+  const todayIn = todayRows.filter((r) => !isOut(r)).reduce((s, r) => s + r.amount, 0);
 
   // konteks 7 hari — biar satu hari gak diliat sendirian
   const week = new Date();
@@ -2361,34 +2033,17 @@ function DuitPage({ session }) {
   monday.setDate(now.getDate() - dow);
   const mondayStr = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, "0")}-${String(monday.getDate()).padStart(2, "0")}`;
   const firstStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
-  const thisWeek = rows
-    .filter((r) => r.spent_date >= mondayStr && isOut(r))
-    .reduce((s, r) => s + r.amount, 0);
-  const thisMonth = rows
-    .filter((r) => r.spent_date >= firstStr && isOut(r))
-    .reduce((s, r) => s + r.amount, 0);
-  const monthIn = rows
-    .filter((r) => r.spent_date >= firstStr && !isOut(r))
-    .reduce((s, r) => s + r.amount, 0);
+  const thisWeek = rows.filter((r) => r.spent_date >= mondayStr && isOut(r)).reduce((s, r) => s + r.amount, 0);
+  const thisMonth = rows.filter((r) => r.spent_date >= firstStr && isOut(r)).reduce((s, r) => s + r.amount, 0);
+  const monthIn = rows.filter((r) => r.spent_date >= firstStr && !isOut(r)).reduce((s, r) => s + r.amount, 0);
 
   return (
     <>
       <div style={{ ...S.nav, marginBottom: 14, padding: 3 }}>
-        {[
-          ["keluar", "Catet"],
-          ["rutin", "Rutin"],
-          ["mikir", "Rencana"],
-          ["utang", "Utang"],
-          ["aset", "Aset"],
-        ].map(([k, label]) => (
+        {[["keluar", "Catet"], ["rutin", "Rutin"], ["mikir", "Rencana"], ["utang", "Utang"], ["aset", "Aset"]].map(([k, label]) => (
           <button
             key={k}
-            style={{
-              ...S.navBtn,
-              padding: "7px 0",
-              fontSize: 13,
-              ...(sub === k ? S.navBtnActive : {}),
-            }}
+            style={{ ...S.navBtn, padding: "7px 0", fontSize: 13, ...(sub === k ? S.navBtnActive : {}) }}
             onClick={() => setSub(k)}
           >
             {label}
@@ -2398,294 +2053,226 @@ function DuitPage({ session }) {
 
       {sub === "aset" && <AsetView session={session} />}
       {sub === "rutin" && (
-        <RutinView
-          session={session}
-          sources={sources}
-          onLogExpense={logExpense}
-        />
+        <RutinView session={session} sources={sources} onLogExpense={logExpense} />
       )}
       {sub === "mikir" && <MikirView session={session} />}
       {sub === "utang" && (
-        <UtangView
-          session={session}
-          sources={sources}
-          onLogExpense={logExpense}
-        />
+        <UtangView session={session} sources={sources} onLogExpense={logExpense} />
       )}
 
       {sub === "keluar" && (
-        <>
-          {/* input dulu, angka belakangan — biar nyatetnya gak mikir */}
-          <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-            {[
-              ["out", "− Keluar"],
-              ["in", "+ Masuk"],
-            ].map(([k, label]) => (
-              <button
-                key={k}
-                style={{
-                  ...S.btnGhost,
-                  flex: 1,
-                  fontSize: 12,
-                  fontWeight: 700,
-                  ...(kind === k
-                    ? k === "in"
-                      ? { borderColor: "var(--green)", color: "var(--green)" }
-                      : {
-                          borderColor: "var(--muted2)",
-                          color: "var(--ink)",
-                          background: "var(--card)",
-                        }
-                    : {}),
-                }}
-                onClick={() => setKind(k)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          <div style={{ display: "flex", gap: 6 }}>
-            <input
-              style={{ ...S.input, flex: 1, minWidth: 0, fontSize: 17 }}
-              placeholder="Berapa? (misal 25000)"
-              inputMode="numeric"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && add()}
-            />
-            <button style={{ ...S.addBtn, width: 60 }} onClick={add}>
-              OK
-            </button>
-          </div>
-          {!editSrc ? (
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 6,
-                marginTop: 8,
-              }}
-            >
-              {sources.map((s) => (
-                <button
-                  key={s}
-                  style={{
-                    ...S.btnGhost,
-                    textTransform: "uppercase",
-                    fontSize: 12,
-                    fontWeight: 700,
-                    whiteSpace: "nowrap",
-                    ...(source === s
-                      ? { borderColor: "var(--accent)", color: "var(--accent)" }
-                      : {}),
-                  }}
-                  onClick={() => setSource(s)}
-                >
-                  {s}
-                </button>
-              ))}
-              <button
-                style={{ ...S.btnGhost, padding: "7px 10px" }}
-                title="Edit daftar sumber"
-                onClick={() => {
-                  setSrcDraft(sources.join(", "));
-                  setEditSrc(true);
-                }}
-              >
-                ✎
-              </button>
-            </div>
-          ) : (
-            <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-              <input
-                style={{ ...S.input, flex: 1, minWidth: 0, fontSize: 16 }}
-                placeholder="Pisahin pakai koma, misal: cash, bca, danamon, gopay"
-                value={srcDraft}
-                autoFocus
-                onChange={(e) => setSrcDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") saveSources();
-                  if (e.key === "Escape") setEditSrc(false);
-                }}
-              />
-              <button style={{ ...S.addBtn, width: 60 }} onClick={saveSources}>
-                OK
-              </button>
-            </div>
-          )}
-          <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-            <input
-              style={{ ...S.input, flex: 2, minWidth: 0, fontSize: 16 }}
-              placeholder="Catatan (opsional)"
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && add()}
-            />
-            <input
-              type="date"
-              max={localToday()}
-              style={{ ...S.input, flex: 1, minWidth: 0, fontSize: 14 }}
-              title="Tanggal — ganti kalau mau catet pengeluaran kemarin"
-              value={spentDate}
-              onChange={(e) => setSpentDate(e.target.value)}
-            />
-          </div>
-          {addedMsg && (
-            <div
-              style={{
-                fontSize: 13,
-                color: "var(--green)",
-                marginTop: 6,
-                textAlign: "center",
-              }}
-            >
-              {addedMsg}
-            </div>
-          )}
-
-          {/* angka hari ini — default disembunyiin, buka kalau siap liat */}
-          <div style={{ marginTop: 22, textAlign: "center" }}>
-            <div style={S.eyebrow}>Keluar hari ini</div>
-            <div
-              style={{
-                fontSize: 32,
-                fontWeight: 700,
-                letterSpacing: showTotal ? "-0.02em" : "0.15em",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 10,
-              }}
-            >
-              <span>{showTotal ? rupiah(todayTotal) : "Rp ••••••"}</span>
-              <button
-                style={{ ...S.btnGhost, fontSize: 14, padding: "5px 9px" }}
-                title={showTotal ? "Sembunyiin total" : "Liat total"}
-                onClick={toggleTotal}
-              >
-                {showTotal ? "🙈" : "👁"}
-              </button>
-            </div>
-            {showTotal && (
-              <>
-                {todayIn > 0 && (
-                  <div
-                    style={{
-                      ...S.dumpHint,
-                      marginTop: 4,
-                      color: "var(--green)",
-                    }}
-                  >
-                    masuk hari ini +{rupiah(todayIn)}
-                  </div>
-                )}
-                <div style={{ ...S.dumpHint, marginTop: 4 }}>
-                  rata-rata 7 hari terakhir: {rupiah(avg)}/hari
-                </div>
-                <div style={{ ...S.dumpHint, marginTop: 2 }}>
-                  minggu ini {rupiah(thisWeek)} · bulan ini {rupiah(thisMonth)}
-                </div>
-                {monthIn > 0 && (
-                  <div
-                    style={{
-                      ...S.dumpHint,
-                      marginTop: 2,
-                      color: "var(--green)",
-                    }}
-                  >
-                    masuk bulan ini +{rupiah(monthIn)}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-
-          <div style={{ textAlign: "center", marginTop: 14 }}>
+      <>
+      {/* input dulu, angka belakangan — biar nyatetnya gak mikir */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+        {[["out", "− Keluar"], ["in", "+ Masuk"]].map(([k, label]) => (
+          <button
+            key={k}
+            style={{
+              ...S.btnGhost,
+              flex: 1,
+              fontSize: 12,
+              fontWeight: 700,
+              ...(kind === k
+                ? k === "in"
+                  ? { borderColor: "var(--green)", color: "var(--green)" }
+                  : { borderColor: "var(--muted2)", color: "var(--ink)", background: "var(--card)" }
+                : {}),
+            }}
+            onClick={() => setKind(k)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <div style={{ display: "flex", gap: 6 }}>
+        <input
+          style={{ ...S.input, flex: 1, minWidth: 0, fontSize: 17 }}
+          placeholder="Berapa? (misal 25000)"
+          inputMode="numeric"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && add()}
+        />
+        <button style={{ ...S.addBtn, width: 60 }} onClick={add}>OK</button>
+      </div>
+      {!editSrc ? (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+          {sources.map((s) => (
             <button
-              style={{ ...S.btnGhost, fontSize: 13 }}
-              onClick={analyzeAI}
-              disabled={analysis === "..."}
+              key={s}
+              style={{
+                ...S.btnGhost,
+                textTransform: "uppercase",
+                fontSize: 12,
+                fontWeight: 700,
+                whiteSpace: "nowrap",
+                ...(source === s
+                  ? { borderColor: "var(--accent)", color: "var(--accent)" }
+                  : {}),
+              }}
+              onClick={() => setSource(s)}
             >
-              ✨{" "}
-              {analysis === "..."
-                ? "AI lagi baca catatan lu…"
-                : "Duit gue kemana aja?"}
+              {s}
             </button>
-          </div>
-          {analysis && analysis !== "..." && (
-            <div
-              style={{ ...S.aiBubble, marginTop: 10, whiteSpace: "pre-wrap" }}
-            >
-              {analysis}
-            </div>
-          )}
+          ))}
+          <button
+            style={{ ...S.btnGhost, padding: "7px 10px" }}
+            title="Edit daftar sumber"
+            onClick={() => {
+              setSrcDraft(sources.join(", "));
+              setEditSrc(true);
+            }}
+          >
+            ✎
+          </button>
+        </div>
+      ) : (
+        <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+          <input
+            style={{ ...S.input, flex: 1, minWidth: 0, fontSize: 16 }}
+            placeholder="Pisahin pakai koma, misal: cash, bca, danamon, gopay"
+            value={srcDraft}
+            autoFocus
+            onChange={(e) => setSrcDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") saveSources();
+              if (e.key === "Escape") setEditSrc(false);
+            }}
+          />
+          <button style={{ ...S.addBtn, width: 60 }} onClick={saveSources}>OK</button>
+        </div>
+      )}
+      <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+        <input
+          style={{ ...S.input, flex: 2, minWidth: 0, fontSize: 16 }}
+          placeholder="Catatan (opsional)"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && add()}
+        />
+        <input
+          type="date"
+          max={localToday()}
+          style={{ ...S.input, flex: 1, minWidth: 0, fontSize: 14 }}
+          title="Tanggal — ganti kalau mau catet pengeluaran kemarin"
+          value={spentDate}
+          onChange={(e) => setSpentDate(e.target.value)}
+        />
+      </div>
+      {addedMsg && (
+        <div style={{ fontSize: 13, color: "var(--green)", marginTop: 6, textAlign: "center" }}>
+          {addedMsg}
+        </div>
+      )}
 
-          <div style={{ marginTop: 18 }}>
-            {todayRows.length === 0 && (
-              <div style={{ ...S.empty, textAlign: "center" }}>
-                Belum ada catatan hari ini.
+      {/* angka hari ini — default disembunyiin, buka kalau siap liat */}
+      <div style={{ marginTop: 22, textAlign: "center" }}>
+        <div style={S.eyebrow}>Keluar hari ini</div>
+        <div
+          style={{
+            fontSize: 32,
+            fontWeight: 700,
+            letterSpacing: showTotal ? "-0.02em" : "0.15em",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 10,
+          }}
+        >
+          <span>{showTotal ? rupiah(todayTotal) : "Rp ••••••"}</span>
+          <button
+            style={{ ...S.btnGhost, fontSize: 14, padding: "5px 9px" }}
+            title={showTotal ? "Sembunyiin total" : "Liat total"}
+            onClick={toggleTotal}
+          >
+            {showTotal ? "🙈" : "👁"}
+          </button>
+        </div>
+        {showTotal && (
+          <>
+            {todayIn > 0 && (
+              <div style={{ ...S.dumpHint, marginTop: 4, color: "var(--green)" }}>
+                masuk hari ini +{rupiah(todayIn)}
               </div>
             )}
-            {todayRows.map((r) => (
-              <div key={r.id} style={{ ...S.card, padding: "10px 14px" }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <span
-                    style={{
-                      fontSize: 15,
-                      fontWeight: 600,
-                      ...((r.kind || "out") === "in" && showTotal
-                        ? { color: "var(--green)" }
-                        : {}),
-                      ...(!showTotal
-                        ? { color: "var(--faint)", letterSpacing: "0.1em" }
-                        : {}),
-                    }}
-                  >
-                    {showTotal
-                      ? `${(r.kind || "out") === "in" ? "+" : ""}${rupiah(r.amount)}`
-                      : "Rp ••••"}
-                  </span>
-                  <span style={{ ...S.dumpHint, marginLeft: 8 }}>
-                    {r.source}
-                    {r.note ? ` · ${r.note}` : ""}
-                  </span>
-                </div>
-                <button style={S.btnGhost} onClick={() => remove(r.id)}>
-                  ✕
-                </button>
+            <div style={{ ...S.dumpHint, marginTop: 4 }}>
+              rata-rata 7 hari terakhir: {rupiah(avg)}/hari
+            </div>
+            <div style={{ ...S.dumpHint, marginTop: 2 }}>
+              minggu ini {rupiah(thisWeek)} · bulan ini {rupiah(thisMonth)}
+            </div>
+            {monthIn > 0 && (
+              <div style={{ ...S.dumpHint, marginTop: 2, color: "var(--green)" }}>
+                masuk bulan ini +{rupiah(monthIn)}
               </div>
-            ))}
-          </div>
+            )}
+          </>
+        )}
+      </div>
 
-          <div style={S.footer}>
-            Dicatet doang, gak dinilai. Angka gede sehari itu normal — liatnya
-            per minggu.
+      <div style={{ textAlign: "center", marginTop: 14 }}>
+        <button
+          style={{ ...S.btnGhost, fontSize: 13 }}
+          onClick={analyzeAI}
+          disabled={analysis === "..."}
+        >
+          ✨ {analysis === "..." ? "AI lagi baca catatan lu…" : "Duit gue kemana aja?"}
+        </button>
+      </div>
+      {analysis && analysis !== "..." && (
+        <div style={{ ...S.aiBubble, marginTop: 10, whiteSpace: "pre-wrap" }}>
+          {analysis}
+        </div>
+      )}
+
+      <div style={{ marginTop: 18 }}>
+        {todayRows.length === 0 && (
+          <div style={{ ...S.empty, textAlign: "center" }}>
+            Belum ada catatan hari ini.
           </div>
-        </>
+        )}
+        {todayRows.map((r) => (
+          <div key={r.id} style={{ ...S.card, padding: "10px 14px" }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <span
+                style={{
+                  fontSize: 15,
+                  fontWeight: 600,
+                  ...((r.kind || "out") === "in" && showTotal ? { color: "var(--green)" } : {}),
+                  ...(!showTotal ? { color: "var(--faint)", letterSpacing: "0.1em" } : {}),
+                }}
+              >
+                {showTotal
+                  ? `${(r.kind || "out") === "in" ? "+" : ""}${rupiah(r.amount)}`
+                  : "Rp ••••"}
+              </span>
+              <span style={{ ...S.dumpHint, marginLeft: 8 }}>
+                {r.source}{r.note ? ` · ${r.note}` : ""}
+              </span>
+            </div>
+            <button style={S.btnGhost} onClick={() => remove(r.id)}>✕</button>
+          </div>
+        ))}
+      </div>
+
+      <div style={S.footer}>
+        Dicatet doang, gak dinilai. Angka gede sehari itu normal — liatnya per minggu.
+      </div>
+      </>
       )}
     </>
   );
 }
 
 const MOODS = [
-  ["lelah", "😴"],
-  ["sedih", "😢"],
-  ["frustasi", "😤"],
-  ["cemas", "😰"],
-  ["biasa", "😐"],
-  ["oke", "🙂"],
+  ["lelah", "😴"], ["sedih", "😢"], ["frustasi", "😤"],
+  ["cemas", "😰"], ["biasa", "😐"], ["oke", "🙂"],
 ];
 const moodEmoji = (m) => (MOODS.find((x) => x[0] === m) || ["", "·"])[1];
 
 const PALETTE = [
-  "#E4572E",
-  "#3E7A46",
-  "#B8860B",
-  "#4A6FA5",
-  "#8E5BA6",
-  "#C0392B",
-  "#2A9D8F",
-  "#8A8578",
+  "#E4572E", "#3E7A46", "#B8860B", "#4A6FA5",
+  "#8E5BA6", "#C0392B", "#2A9D8F", "#8A8578",
 ];
 
 function WaktuSection({ session }) {
@@ -2716,10 +2303,7 @@ function WaktuSection({ session }) {
     setForm({ name: "", hours: "", wajib: false });
     setShowForm(false);
     const { data, error } = await supabase
-      .from("time_blocks")
-      .insert(row)
-      .select()
-      .single();
+      .from("time_blocks").insert(row).select().single();
     if (!error)
       setBlocks((xs) => [...xs, data].sort((a, b) => b.hours - a.hours));
   };
@@ -2728,7 +2312,7 @@ function WaktuSection({ session }) {
     setBlocks((xs) =>
       xs
         .map((x) => (x.id === id ? { ...x, ...patch } : x))
-        .sort((a, b) => b.hours - a.hours),
+        .sort((a, b) => b.hours - a.hours)
     );
     await supabase.from("time_blocks").update(patch).eq("id", id);
   };
@@ -2794,8 +2378,7 @@ function WaktuSection({ session }) {
       <div style={{ ...S.dumpHint, marginTop: 6, textAlign: "center" }}>
         {over ? (
           <span style={{ color: "var(--red)" }}>
-            kepake {used.toFixed(1)} jam — lebih {(used - 24).toFixed(1)} jam
-            dari 24. Ada yang harus ngalah.
+            kepake {used.toFixed(1)} jam — lebih {(used - 24).toFixed(1)} jam dari 24. Ada yang harus ngalah.
           </span>
         ) : (
           <>
@@ -2803,14 +2386,12 @@ function WaktuSection({ session }) {
             <b style={{ color: "var(--green)" }}>
               {free.toFixed(1)} jam belum keclaim
             </b>
-            {free >= 1 && ' — di situ tempat hal yang katanya "gak sempet"'}
+            {free >= 1 && " — di situ tempat hal yang katanya \"gak sempet\""}
           </>
         )}
       </div>
 
-      <div
-        style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}
-      >
+      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
         <button style={S.promAddLink} onClick={() => setShowForm((v) => !v)}>
           {showForm ? "batal" : "+ kegiatan"}
         </button>
@@ -2833,9 +2414,7 @@ function WaktuSection({ session }) {
               onChange={(e) => setForm({ ...form, hours: e.target.value })}
               onKeyDown={(e) => e.key === "Enter" && addBlock()}
             />
-            <button style={{ ...S.addBtn, width: 60 }} onClick={addBlock}>
-              OK
-            </button>
+            <button style={{ ...S.addBtn, width: 60 }} onClick={addBlock}>OK</button>
           </div>
           <label style={S.optLabel}>
             <input
@@ -2850,8 +2429,7 @@ function WaktuSection({ session }) {
 
       {blocks.length === 0 && !showForm && (
         <div style={S.empty}>
-          Kosong. Mulai dari yang pasti: tidur, kerja, commute, makan — sisanya
-          bakal keliatan sendiri.
+          Kosong. Mulai dari yang pasti: tidur, kerja, commute, makan — sisanya bakal keliatan sendiri.
         </div>
       )}
 
@@ -2878,13 +2456,7 @@ function WaktuSection({ session }) {
             />
           </div>
           {b.wajib && (
-            <span
-              style={{
-                ...S.tag,
-                color: "var(--janji-ink)",
-                borderColor: "var(--janji-border)",
-              }}
-            >
+            <span style={{ ...S.tag, color: "var(--janji-ink)", borderColor: "var(--janji-border)" }}>
               wajib
             </span>
           )}
@@ -2894,12 +2466,7 @@ function WaktuSection({ session }) {
               const n = parseFloat(String(v).replace(",", "."));
               if (!isNaN(n) && n > 0) patchBlock(b.id, { hours: n });
             }}
-            style={{
-              fontSize: 14,
-              fontWeight: 700,
-              minWidth: 34,
-              textAlign: "right",
-            }}
+            style={{ fontSize: 14, fontWeight: 700, minWidth: 34, textAlign: "right" }}
           />
           <span style={{ fontSize: 12, color: "var(--faint)" }}>jam</span>
           <button
@@ -2909,11 +2476,270 @@ function WaktuSection({ session }) {
           >
             {b.wajib ? "☑" : "☐"}
           </button>
-          <button style={S.btnGhost} onClick={() => removeBlock(b.id)}>
-            ✕
-          </button>
+          <button style={S.btnGhost} onClick={() => removeBlock(b.id)}>✕</button>
         </div>
       ))}
+    </>
+  );
+}
+
+function EnergiSection({ session }) {
+  const [drains, setDrains] = useState([]);
+  const [drainEvents, setDrainEvents] = useState([]);
+  const [dreams, setDreams] = useState([]);
+  const [touches, setTouches] = useState([]);
+  const [dailyStat, setDailyStat] = useState(null);
+  const [newDrain, setNewDrain] = useState("");
+  const [newDream, setNewDream] = useState("");
+  const [showDrainForm, setShowDrainForm] = useState(false);
+  const [showDreamForm, setShowDreamForm] = useState(false);
+
+  const today = localToday();
+
+  useEffect(() => {
+    const since = new Date();
+    since.setDate(since.getDate() - 7);
+    const sinceStr = since.toISOString().slice(0, 10);
+
+    supabase.from("drains").select("*")
+      .eq("user_id", session.user.id)
+      .then(({ data, error }) => setDrains(error ? [] : data));
+    supabase.from("drain_events").select("*")
+      .eq("user_id", session.user.id).gte("date", sinceStr)
+      .then(({ data, error }) => setDrainEvents(error ? [] : data));
+    supabase.from("dreams").select("*")
+      .eq("user_id", session.user.id)
+      .order("created_at", { ascending: true })
+      .then(({ data, error }) => setDreams(error ? [] : data));
+    supabase.from("dream_touches").select("*")
+      .eq("user_id", session.user.id).gte("date", sinceStr)
+      .then(({ data, error }) => setTouches(error ? [] : data));
+    // wajib harian dari board Tugas
+    supabase.from("tasks").select("status")
+      .eq("user_id", session.user.id).eq("daily", true)
+      .then(({ data, error }) => {
+        if (!error && data.length > 0)
+          setDailyStat({
+            done: data.filter((t) => t.status === "done").length,
+            total: data.length,
+          });
+      });
+  }, [session]);
+
+  const addDrain = async () => {
+    const name = newDrain.trim();
+    if (!name) return;
+    setNewDrain("");
+    setShowDrainForm(false);
+    const { data, error } = await supabase.from("drains").insert({ name }).select().single();
+    if (!error) setDrains((xs) => [...xs, data]);
+  };
+
+  const logDrain = async (d) => {
+    const { data, error } = await supabase
+      .from("drain_events").insert({ drain_id: d.id, date: today }).select().single();
+    if (!error) setDrainEvents((es) => [...es, data]);
+  };
+
+  const removeDrain = async (id) => {
+    if (!window.confirm("Hapus beserta riwayatnya?")) return;
+    setDrains((xs) => xs.filter((x) => x.id !== id));
+    await supabase.from("drains").delete().eq("id", id);
+  };
+
+  const addDream = async () => {
+    const name = newDream.trim();
+    if (!name) return;
+    setNewDream("");
+    setShowDreamForm(false);
+    const { data, error } = await supabase.from("dreams").insert({ name }).select().single();
+    if (!error) setDreams((xs) => [...xs, data]);
+  };
+
+  const touchDream = async (dr) => {
+    const { data, error } = await supabase
+      .from("dream_touches")
+      .upsert({ dream_id: dr.id, date: today }, { onConflict: "dream_id,date" })
+      .select().single();
+    if (!error) setTouches((ts) => [...ts.filter((t) => !(t.dream_id === dr.id && t.date === today)), data]);
+  };
+
+  const patchDream = async (id, patch) => {
+    setDreams((xs) => xs.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+    await supabase.from("dreams").update(patch).eq("id", id);
+  };
+
+  const removeDream = async (id) => {
+    if (!window.confirm("Hapus mimpi ini beserta riwayatnya?")) return;
+    setDreams((xs) => xs.filter((x) => x.id !== id));
+    await supabase.from("dreams").delete().eq("id", id);
+  };
+
+  // rekap drain 7 hari
+  const drainCount = (id) => drainEvents.filter((e) => e.drain_id === id).length;
+  const drainToday = (id) => drainEvents.filter((e) => e.drain_id === id && e.date === today).length;
+  const topDrains = drains
+    .map((d) => ({ ...d, n: drainCount(d.id) }))
+    .filter((d) => d.n > 0)
+    .sort((a, b) => b.n - a.n)
+    .slice(0, 3);
+
+  const touchedDays = (id) =>
+    new Set(touches.filter((t) => t.dream_id === id).map((t) => t.date)).size;
+  const touchedToday = (id) =>
+    touches.some((t) => t.dream_id === id && t.date === today);
+
+  return (
+    <>
+      {/* ===== yang nyedot energi ===== */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 26 }}>
+        <div style={S.sectionHead}><span>Yang nyedot energi</span></div>
+        <button style={S.promAddLink} onClick={() => setShowDrainForm((v) => !v)}>
+          {showDrainForm ? "batal" : "+ tambah"}
+        </button>
+      </div>
+
+      {showDrainForm && (
+        <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+          <input
+            style={{ ...S.input, flex: 1, minWidth: 0 }}
+            placeholder="Apa yang nyedot? (misal: scroll, suruhan dadakan)"
+            value={newDrain}
+            onChange={(e) => setNewDrain(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && addDrain()}
+          />
+          <button style={{ ...S.addBtn, width: 60 }} onClick={addDrain}>OK</button>
+        </div>
+      )}
+
+      {drains.length === 0 && !showDrainForm && (
+        <div style={S.empty}>
+          Tambahin penyedot energi lu (scroll, meeting dadakan, macet…) — tiap kejadian tinggal tap.
+        </div>
+      )}
+
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+        {drains.map((d) => {
+          const n = drainToday(d.id);
+          return (
+            <button
+              key={d.id}
+              style={{ ...S.btnGhost, fontSize: 13 }}
+              title="Tap tiap kejadian. Tahan buat hapus? — pakai ✕ di rekap"
+              onClick={() => logDrain(d)}
+            >
+              ⚡ {d.name}{n > 0 ? ` ·${n}` : ""}
+            </button>
+          );
+        })}
+      </div>
+
+      {topDrains.length > 0 && (
+        <div style={{ ...S.dumpHint, marginTop: 8 }}>
+          7 hari terakhir paling nyedot:{" "}
+          {topDrains.map((d, i) => (
+            <span key={d.id}>
+              {i > 0 && " · "}
+              <b>{d.name} ×{d.n}</b>
+              <span
+                style={{ cursor: "pointer", marginLeft: 3, color: "var(--faint)" }}
+                onClick={() => removeDrain(d.id)}
+              >✕</span>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* ===== mimpi yang dikejar ===== */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 26 }}>
+        <div style={S.sectionHead}><span>Mimpi yang dikejar</span></div>
+        <button style={S.promAddLink} onClick={() => setShowDreamForm((v) => !v)}>
+          {showDreamForm ? "batal" : "+ mimpi"}
+        </button>
+      </div>
+
+      {showDreamForm && (
+        <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+          <input
+            style={{ ...S.input, flex: 1, minWidth: 0 }}
+            placeholder="Misal: IELTS, benerin CV"
+            value={newDream}
+            onChange={(e) => setNewDream(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && addDream()}
+          />
+          <button style={{ ...S.addBtn, width: 60 }} onClick={addDream}>OK</button>
+        </div>
+      )}
+
+      {dreams.length === 0 && !showDreamForm && (
+        <div style={S.empty}>
+          Apapun yang lu pengin kejar tapi ngerasa gak ada waktu/energi — taro di sini.
+          Yang penting bukan selesai, tapi kesentuh.
+        </div>
+      )}
+
+      {dreams.map((dr) => {
+        const days = touchedDays(dr.id);
+        const doneToday = touchedToday(dr.id);
+        return (
+          <div key={dr.id} style={{ ...S.card, display: "block" }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={S.cardTitle}>{dr.name}</div>
+                <div style={{ marginTop: 3 }}>
+                  <EditableText
+                    value={dr.why || ""}
+                    onSave={(v) => patchDream(dr.id, { why: v })}
+                    placeholder="kenapa ini penting? (tap — buat dibaca pas males)"
+                    style={{ fontSize: 12, color: "var(--muted2)", fontStyle: "italic", lineHeight: 1.4 }}
+                  />
+                </div>
+              </div>
+              <div style={S.cardBtns}>
+                {doneToday ? (
+                  <span style={{ ...S.tag, color: "var(--green)", borderColor: "var(--green-border)" }}>
+                    ✓ hari ini
+                  </span>
+                ) : (
+                  <button
+                    style={{ ...S.btn, background: "var(--green-dark)" }}
+                    onClick={() => touchDream(dr)}
+                  >
+                    Sentuh ✓
+                  </button>
+                )}
+                <button style={S.btnGhost} onClick={() => removeDream(dr.id)}>✕</button>
+              </div>
+            </div>
+            <div style={{ marginTop: 8, padding: "8px 10px", background: "var(--card2)", border: "1px solid var(--border)", borderRadius: 10 }}>
+              <div style={{ ...S.fieldLabel || {}, fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--faint)", marginBottom: 2 }}>
+                Langkah kecil berikutnya
+              </div>
+              <EditableText
+                value={dr.next_step || ""}
+                onSave={(v) => patchDream(dr.id, { next_step: v })}
+                placeholder="tap — sekecil mungkin, misal: buka 1 video, tulis 1 paragraf"
+                style={{ fontSize: 14, lineHeight: 1.4 }}
+              />
+            </div>
+            <div style={{ ...S.dumpHint, marginBottom: 0, marginTop: 6 }}>
+              kesentuh <b>{days}/7 hari</b> terakhir
+              {days === 0 && " — 5 menit juga ngitung"}
+            </div>
+          </div>
+        );
+      })}
+
+      {/* ===== wajib harian tetep jalan ===== */}
+      {dailyStat && (
+        <div style={{ ...S.dumpHint, marginTop: 14, textAlign: "center" }}>
+          Wajib harian hari ini:{" "}
+          <b style={{ color: dailyStat.done === dailyStat.total ? "var(--green)" : "var(--ink)" }}>
+            {dailyStat.done}/{dailyStat.total} kelar
+          </b>{" "}
+          (dari board Tugas)
+        </div>
+      )}
     </>
   );
 }
@@ -2931,21 +2757,18 @@ function DiriPage({ session }) {
     since.setDate(since.getDate() - 60);
     const sinceStr = since.toISOString().slice(0, 10);
     supabase
-      .from("moods")
-      .select("*")
+      .from("moods").select("*")
       .eq("user_id", session.user.id)
       .gte("date", sinceStr)
       .order("created_at", { ascending: false })
       .then(({ data, error }) => setMoods(error ? [] : data));
     supabase
-      .from("habits")
-      .select("*")
+      .from("habits").select("*")
       .eq("user_id", session.user.id)
       .order("created_at", { ascending: true })
       .then(({ data, error }) => setHabits(error ? [] : data));
     supabase
-      .from("habit_events")
-      .select("*")
+      .from("habit_events").select("*")
       .eq("user_id", session.user.id)
       .order("created_at", { ascending: false })
       .limit(200)
@@ -2957,11 +2780,7 @@ function DiriPage({ session }) {
 
   const checkIn = async (mood) => {
     const row = { mood, date: today };
-    const { data, error } = await supabase
-      .from("moods")
-      .insert(row)
-      .select()
-      .single();
+    const { data, error } = await supabase.from("moods").insert(row).select().single();
     if (!error) setMoods((ms) => [data, ...ms]);
   };
 
@@ -2970,11 +2789,7 @@ function DiriPage({ session }) {
     if (!name) return;
     setNewHabit("");
     setShowHabitForm(false);
-    const { data, error } = await supabase
-      .from("habits")
-      .insert({ name })
-      .select()
-      .single();
+    const { data, error } = await supabase.from("habits").insert({ name }).select().single();
     if (!error) setHabits((hs) => [...hs, data]);
   };
 
@@ -2990,10 +2805,7 @@ function DiriPage({ session }) {
     setJustLogged(h.id);
     setTimeout(() => setJustLogged(null), 6000);
     const { data, error } = await supabase
-      .from("habit_events")
-      .insert(row)
-      .select()
-      .single();
+      .from("habit_events").insert(row).select().single();
     if (!error) setEvents((es) => [data, ...es]);
   };
 
@@ -3046,45 +2858,22 @@ function DiriPage({ session }) {
             </button>
           ))}
         </div>
-        <div
-          style={{
-            display: "flex",
-            gap: 8,
-            marginTop: 12,
-            justifyContent: "center",
-          }}
-        >
+        <div style={{ display: "flex", gap: 8, marginTop: 12, justifyContent: "center" }}>
           {last7.map((d) => (
-            <div
-              key={d.ds}
-              style={{ textAlign: "center", fontSize: 16 }}
-              title={d.ds}
-            >
+            <div key={d.ds} style={{ textAlign: "center", fontSize: 16 }} title={d.ds}>
               {d.mood ? moodEmoji(d.mood) : "·"}
             </div>
           ))}
         </div>
-        <div style={{ ...S.dumpHint, textAlign: "center", marginTop: 2 }}>
-          7 hari terakhir
-        </div>
+        <div style={{ ...S.dumpHint, textAlign: "center", marginTop: 2 }}>7 hari terakhir</div>
       </div>
 
       {/* ===== kebiasaan ===== */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "baseline",
-          marginTop: 22,
-        }}
-      >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 22 }}>
         <div style={S.sectionHead}>
           <span>Yang lagi dikurangin</span>
         </div>
-        <button
-          style={S.promAddLink}
-          onClick={() => setShowHabitForm((v) => !v)}
-        >
+        <button style={S.promAddLink} onClick={() => setShowHabitForm((v) => !v)}>
           {showHabitForm ? "batal" : "+ tambah"}
         </button>
       </div>
@@ -3098,17 +2887,13 @@ function DiriPage({ session }) {
             onChange={(e) => setNewHabit(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && addHabit()}
           />
-          <button style={{ ...S.addBtn, width: 60 }} onClick={addHabit}>
-            OK
-          </button>
+          <button style={{ ...S.addBtn, width: 60 }} onClick={addHabit}>OK</button>
         </div>
       )}
 
       {habits === null && <div style={S.empty}>Memuat…</div>}
       {habits !== null && habits.length === 0 && !showHabitForm && (
-        <div style={S.empty}>
-          Belum ada. Mulai dari satu aja — jangan borong.
-        </div>
+        <div style={S.empty}>Belum ada. Mulai dari satu aja — jangan borong.</div>
       )}
 
       {(habits || []).map((h) => {
@@ -3123,39 +2908,33 @@ function DiriPage({ session }) {
                   <span style={{ color: "var(--green)", fontWeight: 700 }}>
                     {days === 0 ? "mulai lagi hari ini" : `bersih ${days} hari`}
                   </span>
-                  {tm && (
-                    <>
-                      {" "}
-                      · biasanya kejadian pas lagi {tm} {moodEmoji(tm)}
-                    </>
-                  )}
+                  {tm && <> · biasanya kejadian pas lagi {tm} {moodEmoji(tm)}</>}
                 </div>
               </div>
               <div style={S.cardBtns}>
                 <button style={S.btnGhost} onClick={() => logEvent(h)}>
                   kejadian lagi
                 </button>
-                <button style={S.btnGhost} onClick={() => removeHabit(h.id)}>
-                  ✕
-                </button>
+                <button style={S.btnGhost} onClick={() => removeHabit(h.id)}>✕</button>
               </div>
             </div>
             {justLogged === h.id && (
               <div style={{ ...S.aiBubble, marginTop: 8 }}>
-                Kecatet. Gapapa — jujur itu bagian tersulitnya, dan lu barusan
-                lakuin. Hitungannya mulai lagi dari sekarang, bukan dari nol
-                harga diri.
+                Kecatet. Gapapa — jujur itu bagian tersulitnya, dan lu barusan lakuin.
+                Hitungannya mulai lagi dari sekarang, bukan dari nol harga diri.
               </div>
             )}
           </div>
         );
       })}
 
+      <EnergiSection session={session} />
+
       <WaktuSection session={session} />
 
       <div style={S.footer}>
-        Gak ada streak yang "hangus", gak ada merah, gak ada hukuman. Cuma data
-        — biar lu kenal polanya sendiri.
+        Gak ada streak yang "hangus", gak ada merah, gak ada hukuman.
+        Cuma data — biar lu kenal polanya sendiri.
       </div>
     </>
   );
@@ -3174,9 +2953,7 @@ function PublicView({ userId, themeVars }) {
   }, [userId]);
 
   const byStatus = (s) =>
-    (tasks || [])
-      .filter((t) => t.status === s)
-      .sort((a, b) => a.priority - b.priority);
+    (tasks || []).filter((t) => t.status === s).sort((a, b) => a.priority - b.priority);
   const doing = byStatus("inprogress");
   const todo = byStatus("todo");
   const done = byStatus("done");
@@ -3190,13 +2967,15 @@ function PublicView({ userId, themeVars }) {
   return (
     <div style={{ ...S.page, ...themeVars }}>
       <style>{FIRE_CSS}</style>
-      <div style={S.wrap}>
+      <div className="lh-wrap">
         <div style={{ marginBottom: 20 }}>
           <div style={S.eyebrow}>{dateLabel} · Papan publik (read-only)</div>
           <h1 style={S.h1}>LifeHack</h1>
         </div>
 
-        {tasks === null && <div style={S.empty}>Memuat…</div>}
+        {tasks === null && (
+          <div style={S.empty}>Memuat…</div>
+        )}
 
         {tasks !== null && tasks.length === 0 && (
           <div style={{ ...S.focusCard }}>
@@ -3205,23 +2984,13 @@ function PublicView({ userId, themeVars }) {
         )}
 
         {doing.length > 0 && (
-          <div
-            style={{
-              ...S.focusCard,
-              animation: "emberGlow 1.8s ease-in-out infinite",
-            }}
-          >
+          <div style={{ ...S.focusCard, animation: "emberGlow 1.8s ease-in-out infinite" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <Flame />
-              <div style={{ ...S.focusLabel, marginBottom: 0 }}>
-                Lagi dikerjain
-              </div>
+              <div style={{ ...S.focusLabel, marginBottom: 0 }}>Lagi dikerjain</div>
             </div>
             {doing.map((t) => (
-              <div
-                key={t.id}
-                style={{ ...S.focusTitle, marginBottom: 4, marginTop: 8 }}
-              >
+              <div key={t.id} style={{ ...S.focusTitle, marginBottom: 4, marginTop: 8 }}>
                 {t.title}
               </div>
             ))}
@@ -3230,10 +2999,7 @@ function PublicView({ userId, themeVars }) {
 
         {todo.length > 0 && (
           <div style={{ marginTop: 26 }}>
-            <div style={S.sectionHead}>
-              <span>Antrian</span>
-              <span style={S.count}>{todo.length}</span>
-            </div>
+            <div style={S.sectionHead}><span>Antrian</span><span style={S.count}>{todo.length}</span></div>
             {todo.map((t) => (
               <div key={t.id} style={S.card}>
                 <div style={S.cardTitle}>{t.title}</div>
@@ -3244,23 +3010,16 @@ function PublicView({ userId, themeVars }) {
 
         {done.length > 0 && (
           <div style={{ marginTop: 26 }}>
-            <div style={S.sectionHead}>
-              <span>Kelar</span>
-              <span style={S.count}>{done.length}</span>
-            </div>
+            <div style={S.sectionHead}><span>Kelar</span><span style={S.count}>{done.length}</span></div>
             {done.map((t) => (
               <div key={t.id} style={{ ...S.card, opacity: 0.55 }}>
-                <div style={{ ...S.cardTitle, textDecoration: "line-through" }}>
-                  {t.title}
-                </div>
+                <div style={{ ...S.cardTitle, textDecoration: "line-through" }}>{t.title}</div>
               </div>
             ))}
           </div>
         )}
 
-        <div style={S.footer}>
-          Cuma yang ditandain publik yang keliatan di sini.
-        </div>
+        <div style={S.footer}>Cuma yang ditandain publik yang keliatan di sini.</div>
       </div>
     </div>
   );
@@ -3298,16 +3057,9 @@ function Login({ themeVars }) {
       <div style={{ width: "100%", maxWidth: 340, padding: 16 }}>
         <div style={S.eyebrow}>Masuk dulu</div>
         <h1 style={{ ...S.h1, marginBottom: 4 }}>LifeHack</h1>
-        <div style={{ fontSize: 12, color: "var(--faint)", marginBottom: 18 }}>
-          by afifi
-        </div>
+        <div style={{ fontSize: 12, color: "var(--faint)", marginBottom: 18 }}>by afifi</div>
         <input
-          style={{
-            ...S.input,
-            width: "100%",
-            boxSizing: "border-box",
-            marginBottom: 8,
-          }}
+          style={{ ...S.input, width: "100%", boxSizing: "border-box", marginBottom: 8 }}
           placeholder="Username"
           autoCapitalize="none"
           value={username}
@@ -3315,12 +3067,7 @@ function Login({ themeVars }) {
         />
         <input
           type="password"
-          style={{
-            ...S.input,
-            width: "100%",
-            boxSizing: "border-box",
-            marginBottom: 12,
-          }}
+          style={{ ...S.input, width: "100%", boxSizing: "border-box", marginBottom: 12 }}
           placeholder="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
@@ -3390,25 +3137,13 @@ function Card({ t, children, active, done, onEdit, onTogglePublic }) {
         />
         <div style={S.tags}>
           {t.priority === 0 && (
-            <span
-              style={{
-                ...S.tag,
-                color: "var(--accent)",
-                borderColor: "var(--accent-border)",
-              }}
-            >
+            <span style={{ ...S.tag, color: "var(--accent)", borderColor: "var(--accent-border)" }}>
               penting
             </span>
           )}
           {t.daily && <span style={S.tag}>harian</span>}
           {t.is_public && (
-            <span
-              style={{
-                ...S.tag,
-                color: "var(--green)",
-                borderColor: "var(--green-border)",
-              }}
-            >
+            <span style={{ ...S.tag, color: "var(--green)", borderColor: "var(--green-border)" }}>
               publik
             </span>
           )}
@@ -3417,17 +3152,8 @@ function Card({ t, children, active, done, onEdit, onTogglePublic }) {
       <div style={S.cardBtns}>
         {more && onTogglePublic && (
           <button
-            style={{
-              ...S.btnGhost,
-              ...(t.is_public
-                ? { borderColor: "var(--green)", color: "var(--green)" }
-                : {}),
-            }}
-            title={
-              t.is_public
-                ? "Keliatan di link publik — klik buat sembunyiin"
-                : "Privat — klik buat tampilin di link publik"
-            }
+            style={{ ...S.btnGhost, ...(t.is_public ? { borderColor: "var(--green)", color: "var(--green)" } : {}) }}
+            title={t.is_public ? "Keliatan di link publik — klik buat sembunyiin" : "Privat — klik buat tampilin di link publik"}
             onClick={() => onTogglePublic(t)}
           >
             {t.is_public ? "👁" : "🙈"}
@@ -3485,12 +3211,7 @@ const S = {
     fontWeight: 700,
     marginBottom: 6,
   },
-  focusTitle: {
-    fontSize: 18,
-    fontWeight: 600,
-    lineHeight: 1.35,
-    marginBottom: 12,
-  },
+  focusTitle: { fontSize: 18, fontWeight: 600, lineHeight: 1.35, marginBottom: 12 },
   focusBtn: {
     background: "var(--accent)",
     color: "#fff",
@@ -3523,13 +3244,7 @@ const S = {
     cursor: "pointer",
   },
   addOpts: { display: "flex", gap: 16, marginTop: 8 },
-  optLabel: {
-    fontSize: 13,
-    color: "var(--muted2)",
-    display: "flex",
-    alignItems: "center",
-    gap: 4,
-  },
+  optLabel: { fontSize: 13, color: "var(--muted2)", display: "flex", alignItems: "center", gap: 4 },
 
   sectionHead: {
     display: "flex",
@@ -3649,12 +3364,7 @@ const S = {
     cursor: "pointer",
     lineHeight: 1,
   },
-  chev: {
-    display: "inline-block",
-    width: 14,
-    fontSize: 11,
-    color: "var(--faint)",
-  },
+  chev: { display: "inline-block", width: 14, fontSize: 11, color: "var(--faint)" },
   miniCount: {
     marginLeft: 8,
     background: "var(--badge)",
