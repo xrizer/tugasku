@@ -100,7 +100,7 @@ export default function LifeHack() {
   const [promForm, setPromForm] = useState({ text: "", to_whom: "", due_date: "" });
   const [showPromForm, setShowPromForm] = useState(false);
   const [collapsed, toggleCollapsed] = useCollapsed();
-  const [page, setPage] = useState("tugas");
+  const [page, setPage] = useState("home");
   const [dark, setDark] = useState(() => {
     try {
       const s = localStorage.getItem(THEME_KEY);
@@ -495,13 +495,13 @@ export default function LifeHack() {
         </div>
 
         <div style={S.nav}>
-          {["tugas", "barang", "duit", "diri"].map((p) => (
+          {["home", "tugas", "barang", "duit", "diri"].map((p) => (
             <button
               key={p}
               style={{ ...S.navBtn, ...(page === p ? S.navBtnActive : {}) }}
               onClick={() => setPage(p)}
             >
-              {p === "tugas" ? "Tugas" : p === "barang" ? "Barang" : p === "duit" ? "Duit" : "Diri"}
+              {p === "home" ? "Home" : p === "tugas" ? "Tugas" : p === "barang" ? "Barang" : p === "duit" ? "Duit" : "Diri"}
             </button>
           ))}
         </div>
@@ -509,6 +509,7 @@ export default function LifeHack() {
         {page === "barang" && <BarangPage session={session} />}
         {page === "duit" && <DuitPage session={session} />}
         {page === "diri" && <DiriPage session={session} />}
+        {page === "home" && <HomePage session={session} go={setPage} />}
 
         {page === "tugas" && showPassForm && (
           <div style={{ ...S.promBox, background: "var(--card)", border: "1px solid var(--border)" }}>
@@ -3045,6 +3046,153 @@ function DiriPage({ session }) {
         Gak ada streak yang "hangus", gak ada merah, gak ada hukuman.
         Cuma data — biar lu kenal polanya sendiri.
       </div>
+    </>
+  );
+}
+
+function HomePage({ session, go }) {
+  const [d, setD] = useState(null);
+
+  useEffect(() => {
+    (async () => {
+      const uid = session.user.id;
+      const today = localToday();
+      const month = today.slice(0, 7);
+
+      const [tasks, promises, exp, fixed, moods, dreams, touches, habits, hevents, debts] =
+        await Promise.all([
+          supabase.from("tasks").select("title,status,daily").eq("user_id", uid),
+          supabase.from("promises").select("text,to_whom,due_date").eq("done", false),
+          supabase.from("expenses").select("amount,kind").eq("user_id", uid).eq("spent_date", today),
+          supabase.from("fixed_costs").select("name,last_paid").eq("user_id", uid),
+          supabase.from("moods").select("mood,date").eq("user_id", uid).eq("date", today).order("created_at", { ascending: false }).limit(1),
+          supabase.from("dreams").select("id,name,next_step").eq("user_id", uid),
+          supabase.from("dream_touches").select("dream_id").eq("user_id", uid).eq("date", today),
+          supabase.from("habits").select("id,name,created_at").eq("user_id", uid),
+          supabase.from("habit_events").select("habit_id,created_at").eq("user_id", uid).order("created_at", { ascending: false }).limit(100),
+          supabase.from("debts").select("amount,status").eq("user_id", uid),
+        ]);
+
+      const t = tasks.data || [];
+      const doing = t.find((x) => x.status === "inprogress");
+      const daily = t.filter((x) => x.daily);
+      const proms = promises.data || [];
+      const overdue = proms.filter((p) => p.due_date && p.due_date < today);
+      const dueToday = proms.filter((p) => p.due_date === today);
+      const out = (exp.data || []).filter((r) => (r.kind || "out") === "out").reduce((s, r) => s + r.amount, 0);
+      const unpaid = (fixed.data || []).filter((f) => f.last_paid !== month);
+      const drs = dreams.data || [];
+      const touchedIds = new Set((touches.data || []).map((x) => x.dream_id));
+      const hbs = (habits.data || []).map((h) => {
+        const ev = (hevents.data || []).filter((e) => e.habit_id === h.id);
+        const last = ev.length > 0 ? ev[0].created_at : h.created_at;
+        return { name: h.name, days: Math.floor((Date.now() - new Date(last)) / 86400000) };
+      });
+      const piutang = (debts.data || []).filter((x) => x.status !== "lunas").reduce((s, x) => s + Number(x.amount), 0);
+
+      let showMoney = false;
+      try { showMoney = localStorage.getItem("tugasku-show-total") === "1"; } catch {}
+
+      setD({
+        doing, todoCount: t.filter((x) => x.status === "todo").length,
+        dailyDone: daily.filter((x) => x.status === "done").length, dailyTotal: daily.length,
+        overdue, dueToday, promCount: proms.length,
+        out, showMoney, unpaid,
+        mood: moods.data?.[0]?.mood || null,
+        dreams: drs.map((x) => ({ ...x, touched: touchedIds.has(x.id) })),
+        habits: hbs, piutang,
+      });
+    })();
+  }, [session]);
+
+  if (!d) return <div style={S.empty}>Memuat…</div>;
+
+  const Card = ({ emoji, title, children, page, accent }) => (
+    <div
+      style={{
+        ...S.card,
+        display: "block",
+        cursor: "pointer",
+        ...(accent ? { border: "1px solid var(--accent-border)", background: "var(--accent-bg)" } : {}),
+      }}
+      onClick={() => go(page)}
+    >
+      <div style={{ ...S.eyebrow, marginBottom: 6 }}>{emoji} {title}</div>
+      {children}
+    </div>
+  );
+  const big = { fontSize: 16, fontWeight: 600, lineHeight: 1.35 };
+  const sub = { fontSize: 12, color: "var(--muted2)", marginTop: 3 };
+
+  return (
+    <>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+        <div style={{ gridColumn: "1 / -1" }}>
+          <Card emoji="🔥" title="Fokus sekarang" page="tugas" accent>
+            <div style={big}>
+              {d.doing ? d.doing.title : "Gak ada yang nyala — pilih satu dari " + d.todoCount + " todo"}
+            </div>
+            {d.dailyTotal > 0 && (
+              <div style={sub}>
+                wajib harian: <b style={{ color: d.dailyDone === d.dailyTotal ? "var(--green)" : "var(--ink)" }}>{d.dailyDone}/{d.dailyTotal}</b> kelar
+              </div>
+            )}
+          </Card>
+        </div>
+
+        <Card emoji="🤝" title="Janji" page="tugas">
+          <div style={big}>
+            {d.overdue.length > 0 ? (
+              <span style={{ color: "var(--red)" }}>{d.overdue.length} TELAT</span>
+            ) : d.dueToday.length > 0 ? (
+              <span style={{ color: "var(--janji-ink)" }}>{d.dueToday.length} hari ini</span>
+            ) : d.promCount > 0 ? (
+              `${d.promCount} jalan`
+            ) : (
+              "aman ✓"
+            )}
+          </div>
+          {(d.overdue[0] || d.dueToday[0]) && (
+            <div style={sub}>
+              {(d.overdue[0] || d.dueToday[0]).text}
+              {(d.overdue[0] || d.dueToday[0]).to_whom && <> · ke <b>{(d.overdue[0] || d.dueToday[0]).to_whom}</b></>}
+            </div>
+          )}
+        </Card>
+
+        <Card emoji="💸" title="Duit hari ini" page="duit">
+          <div style={big}>{d.showMoney ? rupiah(d.out) : "Rp ••••"}</div>
+          <div style={sub}>
+            {d.unpaid.length > 0 ? `${d.unpaid.length} rutin belum dibayar` : "rutin bulan ini beres ✓"}
+            {d.piutang > 0 && d.showMoney && <> · piutang {rupiah(d.piutang)}</>}
+          </div>
+        </Card>
+
+        <Card emoji={d.mood ? moodEmoji(d.mood) : "🫥"} title="Mood" page="diri">
+          <div style={big}>{d.mood || "belum check-in"}</div>
+          {d.habits.length > 0 && (
+            <div style={sub}>
+              {d.habits.slice(0, 2).map((h, i) => (
+                <span key={h.name}>{i > 0 && " · "}{h.name}: <b style={{ color: "var(--green)" }}>{h.days}h</b></span>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        <Card emoji="⭐" title="Mimpi" page="diri">
+          <div style={big}>
+            {d.dreams.length === 0
+              ? "belum ada"
+              : `${d.dreams.filter((x) => x.touched).length}/${d.dreams.length} kesentuh`}
+          </div>
+          {d.dreams.find((x) => !x.touched) && (
+            <div style={sub}>
+              next: {d.dreams.find((x) => !x.touched).next_step || d.dreams.find((x) => !x.touched).name}
+            </div>
+          )}
+        </Card>
+      </div>
+      <div style={S.footer}>Tap kartu buat buka tab-nya. Satu layar, cukup.</div>
     </>
   );
 }
