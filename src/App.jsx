@@ -1617,11 +1617,67 @@ function UtangView({ session, sources, onLogExpense }) {
   );
 }
 
-function MikirView({ session }) {
+function MikirView({ session, onLogExpense }) {
   const [fixedOut, setFixedOut] = useState(0);
   const [fixedIn, setFixedIn] = useState(0);
+  const [name, setName] = useState("");
   const [price, setPrice] = useState("");
   const [months, setMonths] = useState("");
+  const [plans, setPlans] = useState([]);
+
+  useEffect(() => {
+    supabase
+      .from("purchase_plans")
+      .select("*")
+      .eq("user_id", session.user.id)
+      .order("created_at", { ascending: false })
+      .then(({ data, error }) => setPlans(error ? [] : data));
+  }, [session]);
+
+  const savePlan = async () => {
+    const p2 = parseInt(price.replace(/\D/g, ""), 10);
+    const m2 = parseInt(months, 10) || null;
+    const nm = name.trim() || "rencana beli";
+    if (!p2) return;
+    setName("");
+    setPrice("");
+    setMonths("");
+    const { data, error } = await supabase
+      .from("purchase_plans")
+      .insert({ name: nm, price: p2, months: m2 })
+      .select()
+      .single();
+    if (!error) setPlans((xs) => [data, ...xs]);
+  };
+
+  const removePlan = async (id) => {
+    setPlans((xs) => xs.filter((x) => x.id !== id));
+    await supabase.from("purchase_plans").delete().eq("id", id);
+  };
+
+  const markBought = async (pl) => {
+    setPlans((xs) =>
+      xs.map((x) => (x.id === pl.id ? { ...x, status: "kebeli" } : x))
+    );
+    await supabase.from("purchase_plans").update({ status: "kebeli" }).eq("id", pl.id);
+    if (pl.months && pl.months > 1) {
+      // cicilan -> otomatis jadi biaya rutin bulanan
+      await supabase.from("fixed_costs").insert({
+        name: `cicilan ${pl.name}`,
+        amount: Math.ceil(Number(pl.price) / pl.months),
+      });
+      alert(`"cicilan ${pl.name}" ditambahin ke biaya Rutin ✓`);
+    } else {
+      // cash -> kecatet sebagai pengeluaran hari ini
+      onLogExpense({
+        amount: Number(pl.price),
+        kind: "out",
+        source: "cash",
+        note: pl.name,
+        spent_date: localToday(),
+      });
+    }
+  };
 
   useEffect(() => {
     supabase
@@ -1667,7 +1723,13 @@ function MikirView({ session }) {
 
       <div style={{ marginTop: 16 }}>
         <div style={S.eyebrow}>Mau beli sesuatu yang gede?</div>
-        <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+        <input
+          style={{ ...S.input, width: "100%", boxSizing: "border-box", marginTop: 8 }}
+          placeholder="Barangnya apa? (misal: iPhone, motor)"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+        <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
           <input
             style={{ ...S.input, flex: 2, minWidth: 0 }}
             placeholder="Harganya berapa?"
@@ -1714,6 +1776,48 @@ function MikirView({ session }) {
           <div style={{ ...S.dumpHint, marginTop: 8 }}>
             Angkanya gitu — keputusannya tetep di lu. Gak ada yang nge-judge di sini.
           </div>
+          <button style={{ ...S.focusBtn, marginTop: 10 }} onClick={savePlan}>
+            Simpan sebagai rencana
+          </button>
+        </div>
+      )}
+
+      {/* ===== daftar rencana ===== */}
+      {plans.length > 0 && (
+        <div style={{ marginTop: 20 }}>
+          <div style={S.eyebrow}>Rencana pembelian</div>
+          {plans.map((pl) => {
+            const perMonth = pl.months && pl.months > 1 ? Math.ceil(Number(pl.price) / pl.months) : null;
+            const bought = pl.status === "kebeli";
+            return (
+              <div key={pl.id} style={{ ...S.card, marginTop: 8, ...(bought ? { opacity: 0.55 } : {}) }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ ...S.cardTitle, ...(bought ? { textDecoration: "line-through" } : {}) }}>
+                    {pl.name}
+                  </div>
+                  <div style={{ ...S.dumpHint, marginBottom: 0, marginTop: 3 }}>
+                    {rupiah(Number(pl.price))}
+                    {perMonth
+                      ? ` · cicil ${pl.months} bln (${rupiah(perMonth)}/bln) · sisa bebas jadi ${rupiah(sisa - perMonth)}`
+                      : sisa > 0
+                      ? ` · cash — setara ${(Number(pl.price) / sisa).toFixed(1)} bulan sisa bebas`
+                      : ""}
+                  </div>
+                </div>
+                <div style={S.cardBtns}>
+                  {!bought && (
+                    <button
+                      style={{ ...S.btn, background: "var(--green-dark)" }}
+                      onClick={() => markBought(pl)}
+                    >
+                      Kebeli ✓
+                    </button>
+                  )}
+                  <button style={S.btnGhost} onClick={() => removePlan(pl.id)}>✕</button>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </>
@@ -2060,7 +2164,7 @@ function DuitPage({ session }) {
       {sub === "rutin" && (
         <RutinView session={session} sources={sources} onLogExpense={logExpense} />
       )}
-      {sub === "mikir" && <MikirView session={session} />}
+      {sub === "mikir" && <MikirView session={session} onLogExpense={logExpense} />}
       {sub === "utang" && (
         <UtangView session={session} sources={sources} onLogExpense={logExpense} />
       )}
