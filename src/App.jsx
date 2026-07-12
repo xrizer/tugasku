@@ -163,7 +163,7 @@ export default function LifeHack() {
   useEffect(() => {
     if (!session) return;
     (async () => {
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from("tasks")
         .select("*")
         .eq("user_id", session.user.id)
@@ -172,6 +172,21 @@ export default function LifeHack() {
       if (error) {
         setError(error.message);
         return;
+      }
+
+      // auto-clean: task selesai (non-harian) lebih dari 2 hari -> hapus
+      const cutoff = Date.now() - 2 * 86400000;
+      const expired = data.filter(
+        (t) =>
+          t.status === "done" &&
+          !t.daily &&
+          t.done_at &&
+          new Date(t.done_at).getTime() < cutoff
+      );
+      if (expired.length > 0) {
+        const ids = expired.map((t) => t.id);
+        await supabase.from("tasks").delete().in("id", ids);
+        data = data.filter((t) => !ids.includes(t.id));
       }
 
       // reset daily tasks that were completed on a previous day
@@ -212,8 +227,8 @@ export default function LifeHack() {
   const move = async (id, status) => {
     const patch =
       status === "done"
-        ? { status, done_date: todayStr() }
-        : { status, done_date: null };
+        ? { status, done_date: todayStr(), done_at: new Date().toISOString() }
+        : { status, done_date: null, done_at: null };
     setTasks((ts) => ts.map((t) => (t.id === id ? { ...t, ...patch } : t)));
     const { error } = await supabase.from("tasks").update(patch).eq("id", id);
     if (error) setError(error.message);
