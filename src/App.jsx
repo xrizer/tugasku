@@ -66,9 +66,6 @@ const THEMES = {
 };
 
 const THEME_KEY = "tugasku-theme";
-const INVITE_CODE = "lifehack123";
-const AUTH_EMAIL_DOMAIN = "tugasku.app";
-const LEGACY_AUTH_EMAIL_DOMAIN = "tugasku.local";
 
 function useCollapsed() {
   const [collapsed, setCollapsed] = useState(() => {
@@ -1871,8 +1868,9 @@ function MikirView({ session, onLogExpense }) {
   );
 }
 
-function AsetView({ session }) {
+function AsetView({ session, sources }) {
   const [assets, setAssets] = useState(null);
+  const [balances, setBalances] = useState([]);
   const [form, setForm] = useState({ name: "", value: "" });
   const [showForm, setShowForm] = useState(false);
   const [show, setShow] = useState(() => {
@@ -1897,7 +1895,25 @@ function AsetView({ session }) {
       .eq("user_id", session.user.id)
       .order("value", { ascending: false })
       .then(({ data, error }) => setAssets(error ? [] : data));
+    supabase
+      .from("balances")
+      .select("*")
+      .eq("user_id", session.user.id)
+      .then(({ data, error }) => setBalances(error ? [] : data));
   }, [session]);
+
+  const setBalance = async (source, amount) => {
+    const row = {
+      source,
+      amount,
+      updated_at: new Date().toISOString(),
+      user_id: session.user.id,
+    };
+    setBalances((bs) => [...bs.filter((b) => b.source !== source), row]);
+    await supabase.from("balances").upsert(row, { onConflict: "user_id,source" });
+  };
+
+  const balanceOf = (source) => balances.find((b) => b.source === source);
 
   const addAsset = async () => {
     const name = form.name.trim();
@@ -1935,12 +1951,13 @@ function AsetView({ session }) {
 
   if (assets === null) return <div style={S.empty}>Memuat…</div>;
 
-  const total = assets.reduce((s, x) => s + x.value, 0);
+  const saldoTotal = balances.reduce((s, b) => s + Number(b.amount), 0);
+  const total = assets.reduce((s, x) => s + x.value, 0) + saldoTotal;
 
   return (
     <>
       <div style={{ marginTop: 6, textAlign: "center" }}>
-        <div style={S.eyebrow}>Total aset</div>
+        <div style={S.eyebrow}>Total aset (saldo + lainnya)</div>
         <div
           style={{
             fontSize: 32,
@@ -1962,7 +1979,46 @@ function AsetView({ session }) {
         </div>
       </div>
 
-      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}>
+      {/* ===== saldo per sumber ===== */}
+      <div style={{ ...S.sectionHead, marginTop: 18, marginBottom: 8 }}>
+        <span>Saldo</span>
+        <span style={{ ...S.count, fontWeight: 400 }}>
+          {show ? rupiah(saldoTotal) : "••••"}
+        </span>
+      </div>
+      {sources.map((s) => {
+        const b = balanceOf(s);
+        return (
+          <div key={s} style={{ ...S.card, padding: "10px 14px" }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                {s}
+              </span>
+              {b && (
+                <span style={{ ...S.dumpHint, marginLeft: 8 }}>
+                  update {Math.floor((Date.now() - new Date(b.updated_at)) / 86400000) === 0
+                    ? "hari ini"
+                    : `${Math.floor((Date.now() - new Date(b.updated_at)) / 86400000)} hari lalu`}
+                </span>
+              )}
+            </div>
+            <EditableText
+              value={b ? (show ? rupiah(Number(b.amount)) : "••••") : "isi saldo…"}
+              onSave={(v) => {
+                const n = parseInt(v.replace(/\D/g, ""), 10);
+                if (!isNaN(n)) setBalance(s, n);
+              }}
+              style={{ fontSize: 15, fontWeight: 700, textAlign: "right", minWidth: 90 }}
+            />
+          </div>
+        );
+      })}
+      <div style={{ ...S.dumpHint, marginBottom: 4 }}>
+        Nama sumber ngikutin chip di tab Catet (edit lewat ✎ di sana).
+      </div>
+
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 18 }}>
+        <div style={S.sectionHead}><span>Aset lainnya</span></div>
         <button style={S.promAddLink} onClick={() => setShowForm((v) => !v)}>
           {showForm ? "batal" : "+ aset baru"}
         </button>
@@ -2207,7 +2263,7 @@ function DuitPage({ session }) {
         ))}
       </div>
 
-      {sub === "aset" && <AsetView session={session} />}
+      {sub === "aset" && <AsetView session={session} sources={sources} />}
       {sub === "rutin" && (
         <RutinView session={session} sources={sources} onLogExpense={logExpense} />
       )}
@@ -3438,59 +3494,50 @@ function Login({ themeVars }) {
   const [mode, setMode] = useState("login");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [inviteCode, setInviteCode] = useState("");
+  const [invite, setInvite] = useState("");
   const [err, setErr] = useState("");
-  const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
 
   const submit = async () => {
     const u = username.trim().toLowerCase();
-    if (!u || !password) {
-      setErr("Username dan password wajib diisi.");
-      return;
-    }
-    if (mode === "register" && password.length < 6) {
-      setErr("Password minimal 6 karakter.");
-      return;
-    }
-    if (mode === "register" && inviteCode.trim() !== INVITE_CODE) {
-      setErr("Invite code tidak valid.");
-      return;
-    }
+    if (!u || !password) return;
     setBusy(true);
     setErr("");
-    setNotice("");
-    const email = `${u}@${AUTH_EMAIL_DOMAIN}`;
-    let result;
-    if (mode === "login") {
-      result = await supabase.auth.signInWithPassword({ email, password });
-      // Akun yang dibuat sebelum form daftar menggunakan domain internal ini.
-      if (result.error) {
-        result = await supabase.auth.signInWithPassword({
-          email: `${u}@${LEGACY_AUTH_EMAIL_DOMAIN}`,
+
+    if (mode === "register") {
+      try {
+        const r = await fetch("/api/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username: u, password, invite }),
+        });
+        const data = await r.json();
+        setBusy(false);
+        if (!r.ok) {
+          setErr(data.error || "Gagal daftar.");
+          return;
+        }
+        const { error } = await supabase.auth.signInWithPassword({
+          email: `${u}@tugasku.local`,
           password,
         });
+        if (error) {
+          setErr("Akun jadi, tapi gagal auto-login. Coba masuk manual.");
+          setMode("login");
+        }
+      } catch {
+        setBusy(false);
+        setErr("Gagal konek ke server.");
       }
-    } else {
-      result = await supabase.auth.signUp({ email, password });
+      return;
     }
-    const { data, error } = result;
-    setBusy(false);
-    if (error) {
-      setErr(
-        mode === "login"
-          ? "Username atau password salah."
-          : error.message
-      );
-    } else if (mode === "register" && !data.session) {
-      setNotice("Akun berhasil dibuat. Konfirmasi email diperlukan sebelum masuk.");
-    }
-  };
 
-  const switchMode = (nextMode) => {
-    setMode(nextMode);
-    setErr("");
-    setNotice("");
+    const { error } = await supabase.auth.signInWithPassword({
+      email: `${u}@tugasku.local`,
+      password,
+    });
+    setBusy(false);
+    if (error) setErr("Username atau password salah.");
   };
 
   return (
@@ -3504,25 +3551,30 @@ function Login({ themeVars }) {
       }}
     >
       <div style={{ width: "100%", maxWidth: 340, padding: 16 }}>
-        <div style={{ ...S.nav, marginBottom: 18, padding: 3 }}>
-          <button
-            type="button"
-            style={{ ...S.navBtn, ...(mode === "login" ? S.navBtnActive : {}) }}
-            onClick={() => switchMode("login")}
-          >
-            Masuk
-          </button>
-          <button
-            type="button"
-            style={{ ...S.navBtn, ...(mode === "register" ? S.navBtnActive : {}) }}
-            onClick={() => switchMode("register")}
-          >
-            Daftar
-          </button>
-        </div>
-        <div style={S.eyebrow}>{mode === "login" ? "Masuk dulu" : "Bikin akun baru"}</div>
+        <div style={S.eyebrow}>{mode === "register" ? "Bikin akun baru" : "Masuk dulu"}</div>
         <h1 style={{ ...S.h1, marginBottom: 4 }}>LifeHack</h1>
-        <div style={{ fontSize: 12, color: "var(--faint)", marginBottom: 18 }}>by afifi</div>
+        <div style={{ fontSize: 12, color: "var(--faint)", marginBottom: 14 }}>by afifi</div>
+        <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+          {[["login", "Masuk"], ["register", "Daftar"]].map(([k, label]) => (
+            <button
+              key={k}
+              style={{
+                ...S.btnGhost,
+                flex: 1,
+                padding: "8px 0",
+                fontSize: 13,
+                fontWeight: 700,
+                ...(mode === k ? { borderColor: "var(--accent)", color: "var(--accent)" } : {}),
+              }}
+              onClick={() => {
+                setMode(k);
+                setErr("");
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         <input
           style={{ ...S.input, width: "100%", boxSizing: "border-box", marginBottom: 8 }}
           placeholder="Username"
@@ -3542,8 +3594,8 @@ function Login({ themeVars }) {
           <input
             style={{ ...S.input, width: "100%", boxSizing: "border-box", marginBottom: 12 }}
             placeholder="Invite code"
-            value={inviteCode}
-            onChange={(e) => setInviteCode(e.target.value)}
+            value={invite}
+            onChange={(e) => setInvite(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && submit()}
           />
         )}
@@ -3552,17 +3604,12 @@ function Login({ themeVars }) {
             {err}
           </div>
         )}
-        {notice && (
-          <div style={{ color: "var(--green)", fontSize: 13, marginBottom: 10 }}>
-            {notice}
-          </div>
-        )}
         <button
           style={{ ...S.focusBtn, opacity: busy ? 0.6 : 1 }}
           disabled={busy}
           onClick={submit}
         >
-          {busy ? "Sebentar…" : mode === "login" ? "Masuk →" : "Daftar →"}
+          {busy ? "Sebentar…" : mode === "register" ? "Daftar →" : "Masuk →"}
         </button>
       </div>
     </div>
