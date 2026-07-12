@@ -68,6 +68,7 @@ const THEMES = {
 const THEME_KEY = "tugasku-theme";
 const INVITE_CODE = "lifehack123";
 const AUTH_EMAIL_DOMAIN = "tugasku.app";
+const LEGACY_AUTH_EMAIL_DOMAIN = "tugasku.local";
 
 function useCollapsed() {
   const [collapsed, setCollapsed] = useState(() => {
@@ -3460,10 +3461,20 @@ function Login({ themeVars }) {
     setErr("");
     setNotice("");
     const email = `${u}@${AUTH_EMAIL_DOMAIN}`;
-    const { data, error } =
-      mode === "login"
-        ? await supabase.auth.signInWithPassword({ email, password })
-        : await supabase.auth.signUp({ email, password });
+    let result;
+    if (mode === "login") {
+      result = await supabase.auth.signInWithPassword({ email, password });
+      // Akun yang dibuat sebelum form daftar menggunakan domain internal ini.
+      if (result.error) {
+        result = await supabase.auth.signInWithPassword({
+          email: `${u}@${LEGACY_AUTH_EMAIL_DOMAIN}`,
+          password,
+        });
+      }
+    } else {
+      result = await supabase.auth.signUp({ email, password });
+    }
+    const { data, error } = result;
     setBusy(false);
     if (error) {
       setErr(
