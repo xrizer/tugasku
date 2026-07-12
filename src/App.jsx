@@ -67,6 +67,7 @@ const THEMES = {
 
 const THEME_KEY = "tugasku-theme";
 const INVITE_CODE = "lifehack123";
+const AUTH_EMAIL_DOMAIN = "tugasku.app";
 
 function useCollapsed() {
   const [collapsed, setCollapsed] = useState(() => {
@@ -3458,7 +3459,7 @@ function Login({ themeVars }) {
     setBusy(true);
     setErr("");
     setNotice("");
-    const email = `${u}@tugasku.local`;
+    const email = `${u}@${AUTH_EMAIL_DOMAIN}`;
     const { data, error } =
       mode === "login"
         ? await supabase.auth.signInWithPassword({ email, password })
