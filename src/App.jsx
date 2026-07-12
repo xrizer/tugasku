@@ -2153,7 +2153,7 @@ function DuitPage({ session }) {
       .split(",")
       .map((s) => s.trim().toLowerCase())
       .filter(Boolean)
-      .slice(0, 6);
+      .slice(0, 12);
     if (list.length === 0) return;
     setSources(list);
     setSource(list[0]);
