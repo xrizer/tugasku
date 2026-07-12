@@ -66,6 +66,7 @@ const THEMES = {
 };
 
 const THEME_KEY = "tugasku-theme";
+const INVITE_CODE = "lifehack123";
 
 function useCollapsed() {
   const [collapsed, setCollapsed] = useState(() => {
@@ -3432,22 +3433,52 @@ function PublicView({ userId, themeVars }) {
 }
 
 function Login({ themeVars }) {
+  const [mode, setMode] = useState("login");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const [err, setErr] = useState("");
+  const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
 
   const submit = async () => {
     const u = username.trim().toLowerCase();
-    if (!u || !password) return;
+    if (!u || !password) {
+      setErr("Username dan password wajib diisi.");
+      return;
+    }
+    if (mode === "register" && password.length < 6) {
+      setErr("Password minimal 6 karakter.");
+      return;
+    }
+    if (mode === "register" && inviteCode.trim() !== INVITE_CODE) {
+      setErr("Invite code tidak valid.");
+      return;
+    }
     setBusy(true);
     setErr("");
-    const { error } = await supabase.auth.signInWithPassword({
-      email: `${u}@tugasku.local`,
-      password,
-    });
+    setNotice("");
+    const email = `${u}@tugasku.local`;
+    const { data, error } =
+      mode === "login"
+        ? await supabase.auth.signInWithPassword({ email, password })
+        : await supabase.auth.signUp({ email, password });
     setBusy(false);
-    if (error) setErr("Username atau password salah.");
+    if (error) {
+      setErr(
+        mode === "login"
+          ? "Username atau password salah."
+          : error.message
+      );
+    } else if (mode === "register" && !data.session) {
+      setNotice("Akun berhasil dibuat. Konfirmasi email diperlukan sebelum masuk.");
+    }
+  };
+
+  const switchMode = (nextMode) => {
+    setMode(nextMode);
+    setErr("");
+    setNotice("");
   };
 
   return (
@@ -3461,7 +3492,23 @@ function Login({ themeVars }) {
       }}
     >
       <div style={{ width: "100%", maxWidth: 340, padding: 16 }}>
-        <div style={S.eyebrow}>Masuk dulu</div>
+        <div style={{ ...S.nav, marginBottom: 18, padding: 3 }}>
+          <button
+            type="button"
+            style={{ ...S.navBtn, ...(mode === "login" ? S.navBtnActive : {}) }}
+            onClick={() => switchMode("login")}
+          >
+            Masuk
+          </button>
+          <button
+            type="button"
+            style={{ ...S.navBtn, ...(mode === "register" ? S.navBtnActive : {}) }}
+            onClick={() => switchMode("register")}
+          >
+            Daftar
+          </button>
+        </div>
+        <div style={S.eyebrow}>{mode === "login" ? "Masuk dulu" : "Bikin akun baru"}</div>
         <h1 style={{ ...S.h1, marginBottom: 4 }}>LifeHack</h1>
         <div style={{ fontSize: 12, color: "var(--faint)", marginBottom: 18 }}>by afifi</div>
         <input
@@ -3479,9 +3526,23 @@ function Login({ themeVars }) {
           onChange={(e) => setPassword(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && submit()}
         />
+        {mode === "register" && (
+          <input
+            style={{ ...S.input, width: "100%", boxSizing: "border-box", marginBottom: 12 }}
+            placeholder="Invite code"
+            value={inviteCode}
+            onChange={(e) => setInviteCode(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && submit()}
+          />
+        )}
         {err && (
           <div style={{ color: "var(--red)", fontSize: 13, marginBottom: 10 }}>
             {err}
+          </div>
+        )}
+        {notice && (
+          <div style={{ color: "var(--green)", fontSize: 13, marginBottom: 10 }}>
+            {notice}
           </div>
         )}
         <button
@@ -3489,7 +3550,7 @@ function Login({ themeVars }) {
           disabled={busy}
           onClick={submit}
         >
-          {busy ? "Sebentar…" : "Masuk →"}
+          {busy ? "Sebentar…" : mode === "login" ? "Masuk →" : "Daftar →"}
         </button>
       </div>
     </div>
