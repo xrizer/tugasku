@@ -576,7 +576,13 @@ export default function LifeHack() {
         )}
 
         {/* janji — hal yang gak boleh kelupaan */}
-        <div style={S.promBox}>
+        <div
+          style={
+            collapsed.janji
+              ? { marginBottom: 10, padding: "4px 2px" }
+              : S.promBox
+          }
+        >
           <div style={{ ...S.dumpHead, cursor: "pointer", userSelect: "none" }}>
             <span
               style={{ ...S.dumpTitle, color: "var(--janji-ink)" }}
@@ -709,27 +715,35 @@ export default function LifeHack() {
           />
           <button style={S.addBtn} onClick={addTask}>+</button>
         </div>
-        <div style={S.addOpts}>
-          <label style={S.optLabel}>
-            <input
-              type="checkbox"
-              checked={newDaily}
-              onChange={(e) => setNewDaily(e.target.checked)}
-            />{" "}
-            Tugas harian (reset tiap hari)
-          </label>
-          <label style={S.optLabel}>
-            <input
-              type="checkbox"
-              checked={newPriority === 0}
-              onChange={(e) => setNewPriority(e.target.checked ? 0 : 1)}
-            />{" "}
-            Penting
-          </label>
-        </div>
+        {newTitle.trim() !== "" && (
+          <div style={S.addOpts}>
+            <label style={S.optLabel}>
+              <input
+                type="checkbox"
+                checked={newDaily}
+                onChange={(e) => setNewDaily(e.target.checked)}
+              />{" "}
+              Tugas harian (reset tiap hari)
+            </label>
+            <label style={S.optLabel}>
+              <input
+                type="checkbox"
+                checked={newPriority === 0}
+                onChange={(e) => setNewPriority(e.target.checked ? 0 : 1)}
+              />{" "}
+              Penting
+            </label>
+          </div>
+        )}
 
         {/* brain dump — tumpahin dulu, sortir belakangan */}
-        <div style={S.dump}>
+        <div
+          style={
+            collapsed.dump
+              ? { marginTop: 14, padding: "4px 2px" }
+              : S.dump
+          }
+        >
           <div
             style={{ ...S.dumpHead, cursor: "pointer", userSelect: "none" }}
             onClick={() => toggleCollapsed("dump")}
@@ -811,7 +825,6 @@ export default function LifeHack() {
               <button style={S.btnGhost} onClick={() => remove(t.id)}>✕</button>
             </Card>
           ))}
-          {todo.length === 0 && <Empty text="Kosong — mantap." />}
         </Section>
 
         <Section title="In Progress" count={doing.length} collapsed={!!collapsed.doing} onToggle={() => toggleCollapsed("doing")}>
@@ -823,7 +836,6 @@ export default function LifeHack() {
               <button style={S.btnGhost} onClick={() => move(t.id, "todo")}>↩</button>
             </Card>
           ))}
-          {doing.length === 0 && <Empty text="Belum ada yang dikerjakan." />}
         </Section>
 
         <Section title="Completed" count={done.length} collapsed={!!collapsed.done} onToggle={() => toggleCollapsed("done")}>
@@ -835,13 +847,9 @@ export default function LifeHack() {
               )}
             </Card>
           ))}
-          {done.length === 0 && <Empty text="Belum ada yang selesai hari ini." />}
         </Section>
 
-        <div style={S.footer}>
-          Tugas harian otomatis balik ke Todo setiap pagi. Data tersimpan di
-          cloud — buka dari HP atau laptop, tetap sync.
-        </div>
+
         </>
         )}
       </div>
@@ -1443,6 +1451,7 @@ function RutinView({ session, sources, onLogExpense }) {
 
 function UtangView({ session, sources, onLogExpense }) {
   const [debts, setDebts] = useState(null);
+  const [dir, setDir] = useState("piutang"); // piutang = ke gue | utang = gue yang ngutang
   const [form, setForm] = useState({ who: "", amount: "", note: "" });
   const [showForm, setShowForm] = useState(false);
   const [showLunas, setShowLunas] = useState(false);
@@ -1460,7 +1469,7 @@ function UtangView({ session, sources, onLogExpense }) {
     const who = form.who.trim();
     const amount = parseInt(form.amount.replace(/\D/g, ""), 10);
     if (!who || isNaN(amount)) return;
-    const row = { who, amount, note: form.note.trim() || null };
+    const row = { who, amount, note: form.note.trim() || null, direction: dir };
     setForm({ who: "", amount: "", note: "" });
     setShowForm(false);
     const { data, error } = await supabase.from("debts").insert(row).select().single();
@@ -1479,12 +1488,15 @@ function UtangView({ session, sources, onLogExpense }) {
 
   const markLunas = async (d) => {
     patchDebt(d.id, { status: "lunas" });
-    // duitnya balik -> kecatet sebagai pemasukan di Catet
+    const isPiutang = (d.direction || "piutang") === "piutang";
+    // piutang lunas -> duit masuk; utang lunas -> duit keluar. Dua-duanya kecatet.
     onLogExpense({
       amount: Number(d.amount),
-      kind: "in",
+      kind: isPiutang ? "in" : "out",
       source: sources[0] || "cash",
-      note: `${d.who} lunasin utang${d.note ? " (" + d.note + ")" : ""}`,
+      note: isPiutang
+        ? `${d.who} lunasin utang${d.note ? " (" + d.note + ")" : ""}`
+        : `bayar utang ke ${d.who}${d.note ? " (" + d.note + ")" : ""}`,
       spent_date: localToday(),
     });
   };
@@ -1498,25 +1510,41 @@ function UtangView({ session, sources, onLogExpense }) {
 
   if (debts === null) return <div style={S.empty}>Memuat…</div>;
 
-  const active = debts.filter((d) => d.status !== "lunas");
-  const lunas = debts.filter((d) => d.status === "lunas");
+  const byDir = (x) => (x.direction || "piutang") === dir;
+  const active = debts.filter((d) => d.status !== "lunas" && byDir(d));
+  const lunas = debts.filter((d) => d.status === "lunas" && byDir(d));
   const total = active.reduce((s, d) => s + Number(d.amount), 0);
+  const isPiutang = dir === "piutang";
 
   return (
     <>
+      <div style={{ ...S.nav, marginTop: 4, marginBottom: 12, padding: 3 }}>
+        {[["piutang", "Ngutang ke gue"], ["utang", "Gue ngutang"]].map(([k, label]) => (
+          <button
+            key={k}
+            style={{ ...S.navBtn, padding: "7px 0", fontSize: 13, ...(dir === k ? S.navBtnActive : {}) }}
+            onClick={() => setDir(k)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       <div style={{ marginTop: 6, textAlign: "center" }}>
-        <div style={S.eyebrow}>Total piutang</div>
-        <div style={{ fontSize: 26, fontWeight: 700, color: "var(--green)" }}>
+        <div style={S.eyebrow}>{isPiutang ? "Total piutang" : "Total utang gue"}</div>
+        <div style={{ fontSize: 26, fontWeight: 700, color: isPiutang ? "var(--green)" : "var(--janji-ink)" }}>
           {rupiah(total)}
         </div>
         <div style={{ ...S.dumpHint, marginTop: 2 }}>
-          {active.length === 0 ? "gak ada yang ngutang. bersih." : `${active.length} orang belum lunas`}
+          {active.length === 0
+            ? isPiutang ? "gak ada yang ngutang. bersih." : "lu gak ngutang siapa-siapa. merdeka 🎉"
+            : isPiutang ? `${active.length} orang belum lunas` : `${active.length} utang belum dibayar`}
         </div>
       </div>
 
       <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
         <button style={S.promAddLink} onClick={() => setShowForm((v) => !v)}>
-          {showForm ? "batal" : "+ catat utang"}
+          {showForm ? "batal" : isPiutang ? "+ catat piutang" : "+ catat utang gue"}
         </button>
       </div>
 
@@ -1525,7 +1553,7 @@ function UtangView({ session, sources, onLogExpense }) {
           <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
             <input
               style={{ ...S.input, flex: 2, minWidth: 0 }}
-              placeholder="Siapa?"
+              placeholder={isPiutang ? "Siapa yang ngutang?" : "Ngutang ke siapa?"}
               value={form.who}
               onChange={(e) => setForm({ ...form, who: e.target.value })}
             />
@@ -1612,7 +1640,7 @@ function UtangView({ session, sources, onLogExpense }) {
       )}
 
       <div style={S.footer}>
-        "Lunas ✓" otomatis kecatet sebagai pemasukan. Dibayar sebagian? Tap nominalnya, kurangin.
+        Lunas otomatis kecatet ke Catet (piutang → masuk, utang → keluar). Dibayar sebagian? Tap nominalnya, kurangin.
       </div>
     </>
   );
@@ -2887,6 +2915,92 @@ function DiriPage({ session }) {
 
   const today = localToday();
   const todayMood = moods.find((m) => m.date === today);
+  const [reflection, setReflection] = useState(null);
+
+  const reflectAI = async () => {
+    setReflection("...");
+    try {
+      // rangkum data lokal + ambil drains/dreams sekalian
+      const since = new Date();
+      since.setDate(since.getDate() - 14);
+      const sinceStr = since.toISOString().slice(0, 10);
+      const [dr, de, dm, dt, tb, dtask] = await Promise.all([
+        supabase.from("drains").select("id,name").eq("user_id", session.user.id),
+        supabase.from("drain_events").select("drain_id,date").eq("user_id", session.user.id).gte("date", sinceStr),
+        supabase.from("dreams").select("id,name,why,next_step").eq("user_id", session.user.id),
+        supabase.from("dream_touches").select("dream_id,date").eq("user_id", session.user.id).gte("date", sinceStr),
+        supabase.from("time_blocks").select("name,hours,wajib").eq("user_id", session.user.id),
+        supabase.from("tasks").select("status").eq("user_id", session.user.id).eq("daily", true),
+      ]);
+
+      const moodCount = {};
+      moods.forEach((m) => (moodCount[m.mood] = (moodCount[m.mood] || 0) + 1));
+      const moodRecap = Object.entries(moodCount)
+        .sort((a, b) => b[1] - a[1])
+        .map(([m, n]) => `${m} ${n}x`)
+        .join(", ");
+      const moodLines = moods
+        .filter((m) => m.date >= sinceStr)
+        .map((m) => `${m.date}: ${m.mood}`)
+        .join("; ");
+
+      const habitLines = habits
+        .map((h) => {
+          const ev = events.filter((e) => e.habit_id === h.id);
+          const evMoods = ev.filter((e) => e.mood).map((e) => e.mood);
+          const last = ev.length > 0 ? ev[0].created_at : h.created_at;
+          const clean = Math.floor((Date.now() - new Date(last)) / 86400000);
+          return `${h.name}: bersih ${clean} hari, ${ev.length} kejadian tercatat${evMoods.length ? `, mood pas kejadian: ${evMoods.join(",")}` : ""}`;
+        })
+        .join("; ");
+
+      const drainLines = (dr.data || [])
+        .map((d) => {
+          const n = (de.data || []).filter((e) => e.drain_id === d.id).length;
+          return n > 0 ? `${d.name} ${n}x` : null;
+        })
+        .filter(Boolean)
+        .join(", ");
+
+      const dreamLines = (dm.data || [])
+        .map((d) => {
+          const n = new Set((dt.data || []).filter((t) => t.dream_id === d.id).map((t) => t.date)).size;
+          return `${d.name} (kesentuh ${n}/14 hari${d.why ? `, alasan: ${d.why}` : ""}${d.next_step ? `, langkah berikutnya: ${d.next_step}` : ""})`;
+        })
+        .join("; ");
+
+      const blocks = tb.data || [];
+      const usedH = blocks.reduce((s, b) => s + Number(b.hours), 0);
+      const timeLines = blocks.length
+        ? blocks.map((b) => `${b.name} ${b.hours}jam${b.wajib ? " (wajib)" : ""}`).join(", ") +
+          ` — total kepake ${usedH.toFixed(1)}/24 jam, sisa ${(24 - usedH).toFixed(1)} jam belum keclaim`
+        : "belum diisi";
+      const dt2 = dtask.data || [];
+      const dailyLine = dt2.length
+        ? `${dt2.filter((t) => t.status === "done").length}/${dt2.length} kelar hari ini`
+        : "belum ada";
+
+      const summary = [
+        `Rekap mood keseluruhan: ${moodRecap || "belum ada"}`,
+        `Mood 14 hari terakhir: ${moodLines || "belum ada data"}`,
+        `Kebiasaan yang dikurangin: ${habitLines || "belum ada"}`,
+        `Penyedot energi (14 hari): ${drainLines || "belum ada"}`,
+        `Mimpi yang dikejar: ${dreamLines || "belum ada"}`,
+        `Peta 24 jam: ${timeLines}`,
+        `Kegiatan wajib harian: ${dailyLine}`,
+      ].join("\n");
+
+      const res = await fetch("/api/reflect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ summary }),
+      });
+      const data = await res.json();
+      setReflection(data.reflection || "AI-nya lagi bengong, coba lagi.");
+    } catch {
+      setReflection("Gagal konek ke AI.");
+    }
+  };
 
   const checkIn = async (mood) => {
     const row = { mood, date: today };
@@ -2976,6 +3090,26 @@ function DiriPage({ session }) {
           ))}
         </div>
         <div style={{ ...S.dumpHint, textAlign: "center", marginTop: 2 }}>7 hari terakhir</div>
+
+        <div style={{ textAlign: "center", marginTop: 10 }}>
+          <button
+            style={{ ...S.btnGhost, fontSize: 13 }}
+            onClick={reflectAI}
+            disabled={reflection === "..."}
+          >
+            ✨ {reflection === "..." ? "AI lagi baca pola lu…" : "Baca pola gue dong"}
+          </button>
+        </div>
+        {reflection && reflection !== "..." && (
+          <>
+            <div style={{ ...S.aiBubble, marginTop: 10, whiteSpace: "pre-wrap" }}>
+              {reflection}
+            </div>
+            <div style={{ ...S.dumpHint, marginTop: 6, textAlign: "center" }}>
+              AI cuma baca pola, bukan diagnosis. Buat yang berat, psikolog tetep juaranya.
+            </div>
+          </>
+        )}
       </div>
 
       {/* ===== kebiasaan ===== */}
