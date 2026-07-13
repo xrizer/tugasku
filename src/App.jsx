@@ -2104,6 +2104,8 @@ function DuitPage({ session }) {
     }
   });
   const [analysis, setAnalysis] = useState(null); // null | "..." | text
+  const [showCal, setShowCal] = useState(false);
+  const [calMonth, setCalMonth] = useState(() => localToday().slice(0, 7)); // 'YYYY-MM'
 
   const analyzeAI = async () => {
     setAnalysis("...");
@@ -2371,6 +2373,102 @@ function DuitPage({ session }) {
           onChange={(e) => setSpentDate(e.target.value)}
         />
       </div>
+      <div style={{ textAlign: "right", marginTop: 6 }}>
+        <button style={S.promAddLink} onClick={() => setShowCal((v) => !v)}>
+          {showCal ? "tutup kalender" : "📅 kalender warna"}
+        </button>
+      </div>
+
+      {showCal && (() => {
+        // total keluar per tanggal (dari data yang keload, ~40 hari)
+        const perDay = {};
+        rows.forEach((r) => {
+          if ((r.kind || "out") === "out")
+            perDay[r.spent_date] = (perDay[r.spent_date] || 0) + r.amount;
+        });
+        const vals = Object.values(perDay).filter((v) => v > 0);
+        const avgDay = vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : 0;
+
+        const colorOf = (d) => {
+          if (!showTotal) return null; // mata ketutup = polos
+          const v = perDay[d];
+          if (!v) return null;
+          if (avgDay === 0) return null;
+          if (v < avgDay * 0.5) return "var(--green)";
+          if (v <= avgDay * 1.5) return "var(--janji-ink)";
+          return "var(--red)";
+        };
+
+        const [yy, mm] = calMonth.split("-").map(Number);
+        const first = new Date(yy, mm - 1, 1);
+        const daysIn = new Date(yy, mm, 0).getDate();
+        const startDow = first.getDay(); // Minggu = 0
+        const cells = [
+          ...Array(startDow).fill(null),
+          ...Array.from({ length: daysIn }, (_, i) => i + 1),
+        ];
+        const prevM = () => {
+          const d = new Date(yy, mm - 2, 1);
+          setCalMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+        };
+        const nextM = () => {
+          const d = new Date(yy, mm, 1);
+          setCalMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+        };
+        const monthLabel = first.toLocaleDateString("id-ID", { month: "long", year: "numeric" });
+
+        return (
+          <div style={{ ...S.dump, marginTop: 8 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <button style={S.btnGhost} onClick={prevM}>‹</button>
+              <span style={{ fontSize: 13, fontWeight: 700 }}>{monthLabel}</span>
+              <button style={S.btnGhost} onClick={nextM}>›</button>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 }}>
+              {["M", "S", "S", "R", "K", "J", "S"].map((d, i) => (
+                <div key={i} style={{ textAlign: "center", fontSize: 10, color: "var(--faint)" }}>{d}</div>
+              ))}
+              {cells.map((day, i) => {
+                if (!day) return <div key={i} />;
+                const ds = `${calMonth}-${String(day).padStart(2, "0")}`;
+                const c = colorOf(ds);
+                const sel = ds === (spentDate || localToday());
+                const future = ds > localToday();
+                return (
+                  <button
+                    key={i}
+                    disabled={future}
+                    onClick={() => {
+                      setSpentDate(ds);
+                      setShowCal(false);
+                    }}
+                    title={showTotal && perDay[ds] ? rupiah(perDay[ds]) : ds}
+                    style={{
+                      padding: "7px 0",
+                      borderRadius: 8,
+                      fontSize: 13,
+                      cursor: future ? "default" : "pointer",
+                      background: sel ? "var(--badge)" : "transparent",
+                      border: c ? `1.5px solid ${c}` : "1px solid var(--border)",
+                      color: future ? "var(--faint)" : c || "var(--ink)",
+                      fontWeight: c ? 700 : 400,
+                      opacity: future ? 0.35 : 1,
+                    }}
+                  >
+                    {day}
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ ...S.dumpHint, marginTop: 8, textAlign: "center" }}>
+              {showTotal
+                ? "relatif ke rata-rata lu: hijau < ½× · kuning sekitar · merah > 1½× — tap tanggal buat liat detail"
+                : "buka 👁 dulu buat liat warnanya"}
+            </div>
+          </div>
+        );
+      })()}
+
       {addedMsg && (
         <div style={{ fontSize: 13, color: "var(--green)", marginTop: 6, textAlign: "center" }}>
           {addedMsg}
@@ -2956,6 +3054,107 @@ function EnergiSection({ session }) {
   );
 }
 
+function PencapaianSection({ session }) {
+  const [items, setItems] = useState(null);
+  const [form, setForm] = useState({ text: "", year: "" });
+  const [showForm, setShowForm] = useState(false);
+
+  useEffect(() => {
+    supabase
+      .from("achievements")
+      .select("*")
+      .eq("user_id", session.user.id)
+      .order("year", { ascending: false, nullsFirst: false })
+      .then(({ data, error }) => setItems(error ? [] : data));
+  }, [session]);
+
+  const addItem = async () => {
+    const text = form.text.trim();
+    if (!text) return;
+    const y = parseInt(form.year, 10);
+    const row = { text, year: y >= 1900 && y <= 2100 ? y : null };
+    setForm({ text: "", year: "" });
+    setShowForm(false);
+    const { data, error } = await supabase
+      .from("achievements").insert(row).select().single();
+    if (!error)
+      setItems((xs) =>
+        [...xs, data].sort((a, b) => (b.year || 0) - (a.year || 0))
+      );
+  };
+
+  const patchItem = async (id, patch) => {
+    setItems((xs) => xs.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+    await supabase.from("achievements").update(patch).eq("id", id);
+  };
+
+  const removeItem = async (id) => {
+    setItems((xs) => xs.filter((x) => x.id !== id));
+    await supabase.from("achievements").delete().eq("id", id);
+  };
+
+  if (items === null) return null;
+
+  return (
+    <>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 26 }}>
+        <div style={S.sectionHead}>
+          <span>🏆 Pencapaian</span>
+          {items.length > 0 && <span style={S.count}>{items.length}</span>}
+        </div>
+        <button style={S.promAddLink} onClick={() => setShowForm((v) => !v)}>
+          {showForm ? "batal" : "+ tambah"}
+        </button>
+      </div>
+
+      {showForm && (
+        <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+          <input
+            style={{ ...S.input, flex: 2, minWidth: 0 }}
+            placeholder="Apa yang berhasil lu capai?"
+            value={form.text}
+            onChange={(e) => setForm({ ...form, text: e.target.value })}
+          />
+          <input
+            style={{ ...S.input, flex: 0.6, minWidth: 0 }}
+            placeholder="Tahun"
+            inputMode="numeric"
+            value={form.year}
+            onChange={(e) => setForm({ ...form, year: e.target.value })}
+            onKeyDown={(e) => e.key === "Enter" && addItem()}
+          />
+          <button style={{ ...S.addBtn, width: 60 }} onClick={addItem}>OK</button>
+        </div>
+      )}
+
+      {items.length === 0 && !showForm && (
+        <div style={S.empty}>
+          Lulus? Sertifikasi? Proyek yang jadi? Tulis di sini — otak suka lupa,
+          daftar ini yang inget. Buat dibaca pas lagi ngerasa gak becus.
+        </div>
+      )}
+
+      {items.map((a) => (
+        <div key={a.id} style={{ ...S.card, background: "var(--janji-bg)", border: "1px solid var(--janji-border)" }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <EditableText
+              value={a.text}
+              onSave={(v) => patchItem(a.id, { text: v })}
+              style={{ fontSize: 15, fontWeight: 500, lineHeight: 1.4 }}
+            />
+          </div>
+          {a.year && (
+            <span style={{ ...S.tag, color: "var(--janji-ink)", borderColor: "var(--janji-border)" }}>
+              {a.year}
+            </span>
+          )}
+          <button style={S.btnGhost} onClick={() => removeItem(a.id)}>✕</button>
+        </div>
+      ))}
+    </>
+  );
+}
+
 function DiriPage({ session }) {
   const [moods, setMoods] = useState([]);
   const [habits, setHabits] = useState(null);
@@ -2998,13 +3197,14 @@ function DiriPage({ session }) {
       const since = new Date();
       since.setDate(since.getDate() - 14);
       const sinceStr = since.toISOString().slice(0, 10);
-      const [dr, de, dm, dt, tb, dtask] = await Promise.all([
+      const [dr, de, dm, dt, tb, dtask, ach] = await Promise.all([
         supabase.from("drains").select("id,name").eq("user_id", session.user.id),
         supabase.from("drain_events").select("drain_id,date").eq("user_id", session.user.id).gte("date", sinceStr),
         supabase.from("dreams").select("id,name,why,next_step").eq("user_id", session.user.id),
         supabase.from("dream_touches").select("dream_id,date").eq("user_id", session.user.id).gte("date", sinceStr),
         supabase.from("time_blocks").select("name,hours,wajib").eq("user_id", session.user.id),
         supabase.from("tasks").select("status").eq("user_id", session.user.id).eq("daily", true),
+        supabase.from("achievements").select("text,year").eq("user_id", session.user.id),
       ]);
 
       const moodCount = {};
@@ -3062,6 +3262,7 @@ function DiriPage({ session }) {
         `Mimpi yang dikejar: ${dreamLines || "belum ada"}`,
         `Peta 24 jam: ${timeLines}`,
         `Kegiatan wajib harian: ${dailyLine}`,
+        `Pencapaian seumur hidup: ${(ach.data || []).map((a) => a.text + (a.year ? ` (${a.year})` : "")).join("; ") || "belum diisi"}`,
       ].join("\n");
 
       const res = await fetch("/api/reflect", {
@@ -3247,6 +3448,8 @@ function DiriPage({ session }) {
       })}
 
       <EnergiSection session={session} />
+
+      <PencapaianSection session={session} />
 
       <WaktuSection session={session} />
 
