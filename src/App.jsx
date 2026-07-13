@@ -36,6 +36,9 @@ const THEMES = {
     "--janji-ink": "#7A5C1E",
     "--red": "#C0392B",
     "--red-bg": "#FDF1EF",
+    "--glass": "rgba(255,255,255,0.45)",
+    "--glass-border": "rgba(0,0,0,0.07)",
+    "--glass-hi": "rgba(255,255,255,0.75)",
   },
   dark: {
     "--bg": "#16140F",
@@ -62,6 +65,9 @@ const THEMES = {
     "--janji-ink": "#D9B25C",
     "--red": "#E0604F",
     "--red-bg": "#2C1712",
+    "--glass": "rgba(42,38,30,0.45)",
+    "--glass-border": "rgba(255,255,255,0.08)",
+    "--glass-hi": "rgba(255,255,255,0.10)",
   },
 };
 
@@ -509,17 +515,12 @@ export default function LifeHack() {
           </div>
         </div>
 
-        <div style={S.nav}>
-          {["home", "tugas", "barang", "duit", "diri"].map((p) => (
-            <button
-              key={p}
-              style={{ ...S.navBtn, ...(page === p ? S.navBtnActive : {}) }}
-              onClick={() => setPage(p)}
-            >
-              {p === "home" ? "Home" : p === "tugas" ? "Tugas" : p === "barang" ? "Barang" : p === "duit" ? "Duit" : "Diri"}
-            </button>
-          ))}
-        </div>
+        <GlassNav
+          items={[["home", "Home"], ["tugas", "Tugas"], ["barang", "Barang"], ["duit", "Duit"], ["diri", "Diri"]]}
+          value={page}
+          onChange={setPage}
+          style={{ marginBottom: 20 }}
+        />
 
         {page === "barang" && <BarangPage session={session} />}
         {page === "duit" && <DuitPage session={session} />}
@@ -874,6 +875,45 @@ export default function LifeHack() {
 
 const FIRE_CSS = `
 html, body, #root { margin: 0; padding: 0; }
+.glass-nav {
+  position: relative;
+  display: flex;
+  border-radius: 16px;
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(18px) saturate(1.7);
+  -webkit-backdrop-filter: blur(18px) saturate(1.7);
+  box-shadow: inset 0 1px 0 var(--glass-hi), 0 4px 18px rgba(0,0,0,0.06);
+  padding: 4px;
+  overflow: hidden;
+}
+.glass-pill {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  border-radius: 12px;
+  background: var(--card);
+  box-shadow: 0 2px 10px rgba(0,0,0,0.14), inset 0 1px 0 var(--glass-hi);
+  transition: left 0.42s cubic-bezier(0.3, 1.35, 0.4, 1);
+  pointer-events: none;
+}
+.glass-tab {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-width: 0;
+  padding: 9px 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 12px;
+  transition: color 0.25s ease, transform 0.15s ease;
+  font-family: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.glass-tab:active { transform: scale(0.94); }
 .lh-wrap { max-width: 560px; margin: 0 auto; }
 @media (min-width: 900px)  { .lh-wrap { max-width: 720px; } }
 @media (min-width: 1280px) { .lh-wrap { max-width: 820px; } }
@@ -942,6 +982,36 @@ function Flame() {
       <div style={spark(0, 8)} />
       <div style={spark(0.5, 14)} />
       <div style={spark(0.9, 5)} />
+    </div>
+  );
+}
+
+function GlassNav({ items, value, onChange, small, style }) {
+  const idx = Math.max(0, items.findIndex(([k]) => k === value));
+  const n = items.length;
+  return (
+    <div className="glass-nav" style={style}>
+      <div
+        className="glass-pill"
+        style={{
+          width: `calc(${100 / n}% - 5px)`,
+          left: `calc(${(idx * 100) / n}% + 2.5px)`,
+        }}
+      />
+      {items.map(([k, label]) => (
+        <button
+          key={k}
+          className="glass-tab"
+          style={{
+            fontSize: small ? 13 : 14,
+            fontWeight: 700,
+            color: value === k ? "var(--ink)" : "var(--muted2)",
+          }}
+          onClick={() => onChange(k)}
+        >
+          {label}
+        </button>
+      ))}
     </div>
   );
 }
@@ -1536,17 +1606,13 @@ function UtangView({ session, sources, onLogExpense }) {
 
   return (
     <>
-      <div style={{ ...S.nav, marginTop: 4, marginBottom: 12, padding: 3 }}>
-        {[["piutang", "Ngutang ke gue"], ["utang", "Gue ngutang"]].map(([k, label]) => (
-          <button
-            key={k}
-            style={{ ...S.navBtn, padding: "7px 0", fontSize: 13, ...(dir === k ? S.navBtnActive : {}) }}
-            onClick={() => setDir(k)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      <GlassNav
+        small
+        items={[["piutang", "Ngutang ke gue"], ["utang", "Gue ngutang"]]}
+        value={dir}
+        onChange={setDir}
+        style={{ marginTop: 4, marginBottom: 12 }}
+      />
 
       <div style={{ marginTop: 6, textAlign: "center" }}>
         <div style={S.eyebrow}>{isPiutang ? "Total piutang" : "Total utang gue"}</div>
@@ -2595,17 +2661,13 @@ function DuitPage({ session }) {
 
   return (
     <>
-      <div style={{ ...S.nav, marginBottom: 14, padding: 3 }}>
-        {[["keluar", "Catet"], ["rutin", "Rutin"], ["mikir", "Rencana"], ["utang", "Utang"], ["grup", "Grup"], ["aset", "Aset"]].map(([k, label]) => (
-          <button
-            key={k}
-            style={{ ...S.navBtn, padding: "7px 0", fontSize: 13, ...(sub === k ? S.navBtnActive : {}) }}
-            onClick={() => setSub(k)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      <GlassNav
+        small
+        items={[["keluar", "Catet"], ["rutin", "Rutin"], ["mikir", "Rencana"], ["utang", "Utang"], ["grup", "Grup"], ["aset", "Aset"]]}
+        value={sub}
+        onChange={setSub}
+        style={{ marginBottom: 14 }}
+      />
 
       {sub === "aset" && <AsetView session={session} sources={sources} />}
       {sub === "rutin" && (
