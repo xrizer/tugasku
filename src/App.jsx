@@ -1168,6 +1168,9 @@ function BarangPage({ session }) {
 }
 
 // tanggal lokal (bukan UTC) biar jam 6 pagi WIB gak kecatet "kemarin"
+const usernameOf = (session) =>
+  (session?.user?.email || "").split("@")[0] || "anon";
+
 const localToday = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -1661,6 +1664,346 @@ function UtangView({ session, sources, onLogExpense }) {
   );
 }
 
+function GrupView({ session }) {
+  const me = usernameOf(session);
+  const [groups, setGroups] = useState(null);
+  const [gid, setGid] = useState(null);
+  const [members, setMembers] = useState([]);
+  const [expenses, setExpenses] = useState([]);
+  const [personal, setPersonal] = useState([]);
+  const [mode, setMode] = useState(null); // null | create | join
+  const [cForm, setCForm] = useState({ name: "", budget: "", end_date: "" });
+  const [jCode, setJCode] = useState("");
+  const [gAmt, setGAmt] = useState("");
+  const [gNote, setGNote] = useState("");
+  const [pAmt, setPAmt] = useState("");
+  const [pNote, setPNote] = useState("");
+  const [advice, setAdvice] = useState(null);
+  const [err, setErr] = useState("");
+
+  const loadGroups = async () => {
+    const { data, error } = await supabase.from("money_groups").select("*");
+    if (!error) {
+      setGroups(data);
+      if (data.length > 0 && !gid) setGid(data[0].id);
+    } else setGroups([]);
+  };
+  useEffect(() => { loadGroups(); }, [session]);
+
+  useEffect(() => {
+    if (!gid) return;
+    supabase.from("group_members").select("*").eq("group_id", gid)
+      .then(({ data, error }) => setMembers(error ? [] : data));
+    supabase.from("group_expenses").select("*").eq("group_id", gid)
+      .order("created_at", { ascending: false })
+      .then(({ data, error }) => setExpenses(error ? [] : data));
+    supabase.from("group_personal").select("*").eq("group_id", gid)
+      .eq("user_id", session.user.id)
+      .order("created_at", { ascending: false })
+      .then(({ data, error }) => setPersonal(error ? [] : data));
+    setAdvice(null);
+  }, [gid, session]);
+
+  const createGroup = async () => {
+    const name = cForm.name.trim();
+    if (!name) return;
+    const budget = parseInt(cForm.budget.replace(/\D/g, ""), 10) || null;
+    const code = Math.random().toString(36).slice(2, 8).toUpperCase();
+    const { data, error } = await supabase
+      .from("money_groups")
+      .insert({ name, budget, end_date: cForm.end_date || null, invite_code: code })
+      .select().single();
+    if (error) { setErr(error.message); return; }
+    await supabase.from("group_members").insert({ group_id: data.id, name: me });
+    setCForm({ name: "", budget: "", end_date: "" });
+    setMode(null);
+    setGroups((gs) => [...(gs || []), data]);
+    setGid(data.id);
+  };
+
+  const joinGroup = async () => {
+    const code = jCode.trim().toUpperCase();
+    if (!code) return;
+    setErr("");
+    const { data, error } = await supabase.rpc("join_money_group", { code, uname: me });
+    if (error || !data) { setErr("Kode grup gak ketemu."); return; }
+    setJCode("");
+    setMode(null);
+    await loadGroups();
+    setGid(data);
+  };
+
+  const addGroupExpense = async () => {
+    const amount = parseInt(gAmt.replace(/\D/g, ""), 10);
+    if (!amount) return;
+    const row = { group_id: gid, amount, note: gNote.trim() || null, by_name: me, spent_date: localToday() };
+    setGAmt(""); setGNote("");
+    const { data, error } = await supabase.from("group_expenses").insert(row).select().single();
+    if (!error) setExpenses((xs) => [data, ...xs]);
+  };
+
+  const addPersonalExpense = async () => {
+    const amount = parseInt(pAmt.replace(/\D/g, ""), 10);
+    if (!amount) return;
+    const row = { group_id: gid, amount, note: pNote.trim() || null, spent_date: localToday() };
+    setPAmt(""); setPNote("");
+    const { data, error } = await supabase.from("group_personal").insert(row).select().single();
+    if (!error) setPersonal((xs) => [data, ...xs]);
+  };
+
+  const g = (groups || []).find((x) => x.id === gid);
+  const myMember = members.find((m) => m.user_id === session.user.id);
+  const groupSpent = expenses.reduce((s, e) => s + Number(e.amount), 0);
+  const groupLeft = g?.budget != null ? Number(g.budget) - groupSpent : null;
+  const myPersonalSpent = personal.reduce((s, e) => s + Number(e.amount), 0);
+  const myPersonalLeft = myMember?.personal_budget != null ? Number(myMember.personal_budget) - myPersonalSpent : null;
+  const daysLeft = g?.end_date
+    ? Math.max(0, Math.ceil((new Date(g.end_date + "T00:00:00") - new Date(localToday() + "T00:00:00")) / 86400000))
+    : null;
+
+  const askAI = async () => {
+    setAdvice("...");
+    try {
+      const summary = [
+        `Trip: ${g.name}${g.end_date ? `, berakhir ${g.end_date} (sisa ${daysLeft} hari)` : ""}`,
+        `Budget bersama: ${g.budget != null ? rupiah(Number(g.budget)) : "belum diset"} | kepake ${rupiah(groupSpent)} | sisa ${groupLeft != null ? rupiah(groupLeft) : "-"}`,
+        `Anggota: ${members.map((m) => m.name).join(", ")} (${members.length} orang)`,
+        `Pengeluaran grup terakhir: ${expenses.slice(0, 10).map((e) => `${rupiah(Number(e.amount))}${e.note ? " " + e.note : ""}`).join("; ") || "belum ada"}`,
+        `Budget pribadi gue: ${myMember?.personal_budget != null ? rupiah(Number(myMember.personal_budget)) : "belum diset"} | kepake ${rupiah(myPersonalSpent)} | sisa ${myPersonalLeft != null ? rupiah(myPersonalLeft) : "-"}`,
+      ].join("\n");
+      const r = await fetch("/api/tripai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ summary }),
+      });
+      const data = await r.json();
+      setAdvice(data.advice || "AI-nya lagi bengong, coba lagi.");
+    } catch {
+      setAdvice("Gagal konek ke AI.");
+    }
+  };
+
+  if (groups === null) return <div style={S.empty}>Memuat…</div>;
+
+  // ---- belum punya grup / mau bikin-gabung ----
+  if (!g || mode) {
+    return (
+      <>
+        <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+          <button
+            style={{ ...S.btnGhost, flex: 1, fontWeight: 700, ...(mode === "create" ? { borderColor: "var(--accent)", color: "var(--accent)" } : {}) }}
+            onClick={() => setMode("create")}
+          >
+            + Bikin grup
+          </button>
+          <button
+            style={{ ...S.btnGhost, flex: 1, fontWeight: 700, ...(mode === "join" ? { borderColor: "var(--accent)", color: "var(--accent)" } : {}) }}
+            onClick={() => setMode("join")}
+          >
+            Gabung pakai kode
+          </button>
+          {g && (
+            <button style={{ ...S.btnGhost }} onClick={() => setMode(null)}>✕</button>
+          )}
+        </div>
+
+        {mode === "create" && (
+          <div style={{ marginTop: 10 }}>
+            <input
+              style={{ ...S.input, width: "100%", boxSizing: "border-box", marginBottom: 6 }}
+              placeholder="Nama grup (misal: Trip Karimun Jawa)"
+              value={cForm.name}
+              onChange={(e) => setCForm({ ...cForm, name: e.target.value })}
+            />
+            <div style={{ display: "flex", gap: 6 }}>
+              <input
+                style={{ ...S.input, flex: 1.5, minWidth: 0 }}
+                placeholder="Budget bersama"
+                inputMode="numeric"
+                value={cForm.budget}
+                onChange={(e) => setCForm({ ...cForm, budget: e.target.value })}
+              />
+              <input
+                type="date"
+                style={{ ...S.input, flex: 1, minWidth: 0 }}
+                title="Trip sampai kapan? (buat hitung sisa hari)"
+                value={cForm.end_date}
+                onChange={(e) => setCForm({ ...cForm, end_date: e.target.value })}
+              />
+              <button style={{ ...S.addBtn, width: 60 }} onClick={createGroup}>OK</button>
+            </div>
+          </div>
+        )}
+
+        {mode === "join" && (
+          <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+            <input
+              style={{ ...S.input, flex: 1, minWidth: 0, textTransform: "uppercase" }}
+              placeholder="Kode grup dari temen"
+              value={jCode}
+              onChange={(e) => setJCode(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && joinGroup()}
+            />
+            <button style={{ ...S.addBtn, width: 60 }} onClick={joinGroup}>OK</button>
+          </div>
+        )}
+
+        {err && <div style={{ color: "var(--red)", fontSize: 13, marginTop: 8 }}>{err}</div>}
+        {!g && !mode && (
+          <div style={{ ...S.empty, marginTop: 10 }}>
+            Buat patungan trip, kosan bareng, apapun — semua anggota bisa mantau pengeluaran bersama.
+          </div>
+        )}
+      </>
+    );
+  }
+
+  // ---- tampilan grup aktif ----
+  return (
+    <>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+        {groups.length > 1 ? (
+          <select
+            style={{ ...S.input, flex: 1, minWidth: 0, fontWeight: 700 }}
+            value={gid}
+            onChange={(e) => setGid(e.target.value)}
+          >
+            {groups.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+          </select>
+        ) : (
+          <div style={{ flex: 1, fontSize: 17, fontWeight: 700 }}>{g.name}</div>
+        )}
+        <button
+          style={S.btnGhost}
+          title="Copy kode invite buat temen"
+          onClick={() => {
+            navigator.clipboard
+              .writeText(`Gabung grup "${g.name}" di LifeHack: buka ${window.location.origin}, login/daftar, tab Duit → Grup → Gabung pakai kode: ${g.invite_code}`)
+              .then(() => alert(`Kode ${g.invite_code} + instruksi kecopy ✓`));
+          }}
+        >
+          🔗 {g.invite_code}
+        </button>
+        <button style={S.btnGhost} onClick={() => setMode("join")}>+</button>
+      </div>
+
+      <div style={{ ...S.dumpHint, marginTop: 6 }}>
+        anggota: {members.map((m) => m.name).join(" · ") || "cuma lu"}
+        {daysLeft != null && <> · <b>sisa {daysLeft} hari</b></>}
+      </div>
+
+      {/* budget bersama */}
+      <div style={{ ...S.dump, marginTop: 12, textAlign: "center" }}>
+        <div style={S.eyebrow}>Budget bersama</div>
+        <div style={{ fontSize: 26, fontWeight: 700, color: groupLeft != null && groupLeft < 0 ? "var(--red)" : "var(--ink)" }}>
+          {groupLeft != null ? `sisa ${rupiah(groupLeft)}` : rupiah(groupSpent) + " kepake"}
+        </div>
+        {g.budget != null && (
+          <div style={{ ...S.dumpHint, marginTop: 2 }}>
+            dari {rupiah(Number(g.budget))} · kepake {rupiah(groupSpent)}
+          </div>
+        )}
+        <button style={{ ...S.btnGhost, fontSize: 13, marginTop: 8 }} onClick={askAI} disabled={advice === "..."}>
+          ✨ {advice === "..." ? "AI lagi ngitung…" : "Duitnya cukup gak?"}
+        </button>
+        {advice && advice !== "..." && (
+          <div style={{ ...S.aiBubble, marginTop: 8, textAlign: "left", whiteSpace: "pre-wrap" }}>{advice}</div>
+        )}
+      </div>
+
+      {/* catat pengeluaran grup */}
+      <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
+        <input
+          style={{ ...S.input, flex: 1, minWidth: 0 }}
+          placeholder="Pengeluaran grup — berapa?"
+          inputMode="numeric"
+          value={gAmt}
+          onChange={(e) => setGAmt(e.target.value)}
+        />
+        <input
+          style={{ ...S.input, flex: 1.2, minWidth: 0 }}
+          placeholder="Buat apa? (penginapan, bensin…)"
+          value={gNote}
+          onChange={(e) => setGNote(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && addGroupExpense()}
+        />
+        <button style={{ ...S.addBtn, width: 50 }} onClick={addGroupExpense}>+</button>
+      </div>
+
+      {expenses.map((e) => (
+        <div key={e.id} style={{ ...S.card, padding: "10px 14px", marginTop: 8 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <span style={{ fontSize: 15, fontWeight: 600 }}>{rupiah(Number(e.amount))}</span>
+            <span style={{ ...S.dumpHint, marginLeft: 8 }}>
+              {e.note ? `${e.note} · ` : ""}oleh {e.by_name} · {e.spent_date}
+            </span>
+          </div>
+          <button style={S.btnGhost} onClick={async () => {
+            setExpenses((xs) => xs.filter((x) => x.id !== e.id));
+            await supabase.from("group_expenses").delete().eq("id", e.id);
+          }}>✕</button>
+        </div>
+      ))}
+
+      {/* pribadi — cuma lu yang liat */}
+      <div style={{ ...S.sectionHead, marginTop: 24, marginBottom: 6 }}>
+        <span>Pribadi lu (privat)</span>
+        <span style={{ ...S.count, fontWeight: 400 }}>
+          {myPersonalLeft != null ? `sisa ${rupiah(myPersonalLeft)}` : rupiah(myPersonalSpent) + " kepake"}
+        </span>
+      </div>
+      <div style={{ ...S.dumpHint, marginBottom: 6 }}>
+        budget pribadi:{" "}
+        <EditableText
+          value={myMember?.personal_budget != null ? rupiah(Number(myMember.personal_budget)) : ""}
+          onSave={async (v) => {
+            const n = parseInt(v.replace(/\D/g, ""), 10);
+            if (isNaN(n)) return;
+            setMembers((ms) => ms.map((m) => m.user_id === session.user.id ? { ...m, personal_budget: n } : m));
+            await supabase.from("group_members").update({ personal_budget: n })
+              .eq("group_id", gid).eq("user_id", session.user.id);
+          }}
+          placeholder="tap buat set (misal buat oleh-oleh)"
+          style={{ display: "inline-block", fontSize: 13, fontWeight: 700 }}
+        />
+      </div>
+      <div style={{ display: "flex", gap: 6 }}>
+        <input
+          style={{ ...S.input, flex: 1, minWidth: 0 }}
+          placeholder="Jajan pribadi — berapa?"
+          inputMode="numeric"
+          value={pAmt}
+          onChange={(e) => setPAmt(e.target.value)}
+        />
+        <input
+          style={{ ...S.input, flex: 1.2, minWidth: 0 }}
+          placeholder="Buat apa?"
+          value={pNote}
+          onChange={(e) => setPNote(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && addPersonalExpense()}
+        />
+        <button style={{ ...S.addBtn, width: 50 }} onClick={addPersonalExpense}>+</button>
+      </div>
+      {personal.map((e) => (
+        <div key={e.id} style={{ ...S.card, padding: "10px 14px", marginTop: 8 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <span style={{ fontSize: 15, fontWeight: 600 }}>{rupiah(Number(e.amount))}</span>
+            <span style={{ ...S.dumpHint, marginLeft: 8 }}>{e.note || ""} · {e.spent_date}</span>
+          </div>
+          <button style={S.btnGhost} onClick={async () => {
+            setPersonal((xs) => xs.filter((x) => x.id !== e.id));
+            await supabase.from("group_personal").delete().eq("id", e.id);
+          }}>✕</button>
+        </div>
+      ))}
+
+      <div style={S.footer}>
+        Pengeluaran grup keliatan semua anggota. Bagian "Pribadi lu" cuma lu yang bisa liat.
+      </div>
+    </>
+  );
+}
+
 function MikirView({ session, onLogExpense }) {
   const [fixedOut, setFixedOut] = useState(0);
   const [fixedIn, setFixedIn] = useState(0);
@@ -2104,7 +2447,6 @@ function DuitPage({ session }) {
     }
   });
   const [analysis, setAnalysis] = useState(null); // null | "..." | text
-  const [showCal, setShowCal] = useState(false);
   const [calMonth, setCalMonth] = useState(() => localToday().slice(0, 7)); // 'YYYY-MM'
 
   const analyzeAI = async () => {
@@ -2254,7 +2596,7 @@ function DuitPage({ session }) {
   return (
     <>
       <div style={{ ...S.nav, marginBottom: 14, padding: 3 }}>
-        {[["keluar", "Catet"], ["rutin", "Rutin"], ["mikir", "Rencana"], ["utang", "Utang"], ["aset", "Aset"]].map(([k, label]) => (
+        {[["keluar", "Catet"], ["rutin", "Rutin"], ["mikir", "Rencana"], ["utang", "Utang"], ["grup", "Grup"], ["aset", "Aset"]].map(([k, label]) => (
           <button
             key={k}
             style={{ ...S.navBtn, padding: "7px 0", fontSize: 13, ...(sub === k ? S.navBtnActive : {}) }}
@@ -2273,6 +2615,7 @@ function DuitPage({ session }) {
       {sub === "utang" && (
         <UtangView session={session} sources={sources} onLogExpense={logExpense} />
       )}
+      {sub === "grup" && <GrupView session={session} />}
 
       {sub === "keluar" && (
       <>
@@ -2373,13 +2716,7 @@ function DuitPage({ session }) {
           onChange={(e) => setSpentDate(e.target.value)}
         />
       </div>
-      <div style={{ textAlign: "right", marginTop: 6 }}>
-        <button style={S.promAddLink} onClick={() => setShowCal((v) => !v)}>
-          {showCal ? "tutup kalender" : "📅 kalender warna"}
-        </button>
-      </div>
-
-      {showCal && (() => {
+      {(() => {
         // total keluar per tanggal (dari data yang keload, ~40 hari)
         const perDay = {};
         rows.forEach((r) => {
@@ -2438,10 +2775,7 @@ function DuitPage({ session }) {
                   <button
                     key={i}
                     disabled={future}
-                    onClick={() => {
-                      setSpentDate(ds);
-                      setShowCal(false);
-                    }}
+                    onClick={() => setSpentDate(ds)}
                     title={showTotal && perDay[ds] ? rupiah(perDay[ds]) : ds}
                     style={{
                       padding: "7px 0",
