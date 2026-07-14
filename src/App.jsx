@@ -39,6 +39,7 @@ const THEMES = {
     "--glass": "rgba(255,255,255,0.45)",
     "--glass-border": "rgba(0,0,0,0.07)",
     "--glass-hi": "rgba(255,255,255,0.75)",
+    "--lens": "rgba(255,255,255,0.30)",
   },
   dark: {
     "--bg": "#16140F",
@@ -68,6 +69,7 @@ const THEMES = {
     "--glass": "rgba(42,38,30,0.45)",
     "--glass-border": "rgba(255,255,255,0.08)",
     "--glass-hi": "rgba(255,255,255,0.10)",
+    "--lens": "rgba(255,255,255,0.09)",
   },
 };
 
@@ -954,10 +956,10 @@ html, body, #root { margin: 0; padding: 0; }
   transition: none;
   transform: scale(1.18);
   z-index: 2;
-  opacity: 0.93;
-  box-shadow: 0 8px 26px rgba(0,0,0,0.30), inset 0 1px 0 var(--glass-hi), 0 0 0 1px var(--glass-border);
-  backdrop-filter: blur(6px) saturate(1.8);
-  -webkit-backdrop-filter: blur(6px) saturate(1.8);
+  background: var(--lens);
+  box-shadow: 0 8px 26px rgba(0,0,0,0.25), inset 0 1px 0 var(--glass-hi), 0 0 0 1px var(--glass-border);
+  backdrop-filter: blur(1.5px) saturate(1.9) brightness(1.12);
+  -webkit-backdrop-filter: blur(1.5px) saturate(1.9) brightness(1.12);
 }
 @keyframes pageFromRight { from { opacity: 0.35; transform: translateX(28px); } to { opacity: 1; transform: none; } }
 @keyframes pageFromLeft  { from { opacity: 0.35; transform: translateX(-28px); } to { opacity: 1; transform: none; } }
@@ -1061,18 +1063,22 @@ function GlassNav({ items, value, onChange, small, style }) {
     setDragX(x);
   };
 
-  const onPointerUp = () => {
+  const onPointerUp = (e) => {
     const d = drag.current;
     drag.current = null;
-    if (!d || !d.moved || d.lastX == null) {
-      setDragX(null);
-      return; // tap biasa — biar onClick tombol yang jalan
-    }
-    const segW = d.rect.width / n;
-    const pillW = segW - 5;
-    let i = Math.floor((d.lastX + pillW / 2) / segW);
-    i = Math.max(0, Math.min(n - 1, i));
     setDragX(null);
+    if (!d) return;
+    const segW = d.rect.width / n;
+    let i;
+    if (!d.moved || d.lastX == null) {
+      // tap biasa — pindah ke tab yang dipencet
+      // (pointer capture bikin onClick tombol gak kepanggil, jadi ditangani di sini)
+      i = Math.floor((e.clientX - d.rect.left) / segW);
+    } else {
+      const pillW = segW - 5;
+      i = Math.floor((d.lastX + pillW / 2) / segW);
+    }
+    i = Math.max(0, Math.min(n - 1, i));
     onChange(items[i][0]);
   };
 
