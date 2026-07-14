@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "./lib/supabase";
 
 // LifeHack by afifi — a dead-simple personal ticketing board, backed by Supabase.
@@ -107,6 +107,35 @@ export default function LifeHack() {
   const [showPromForm, setShowPromForm] = useState(false);
   const [collapsed, toggleCollapsed] = useCollapsed();
   const [page, setPage] = useState("home");
+  const [navDir, setNavDir] = useState(1);
+  const touchRef = useRef(null);
+  const PAGES = ["home", "tugas", "barang", "duit", "diri"];
+
+  const goPage = (p) => {
+    setNavDir(PAGES.indexOf(p) >= PAGES.indexOf(page) ? 1 : -1);
+    setPage(p);
+  };
+
+  const onTouchStart = (e) => {
+    const tag = e.target.tagName;
+    if (["INPUT", "TEXTAREA", "SELECT"].includes(tag)) {
+      touchRef.current = null;
+      return;
+    }
+    touchRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  };
+
+  const onTouchEnd = (e) => {
+    if (!touchRef.current) return;
+    const dx = e.changedTouches[0].clientX - touchRef.current.x;
+    const dy = e.changedTouches[0].clientY - touchRef.current.y;
+    touchRef.current = null;
+    // harus jelas horizontal & cukup jauh — biar gak ketuker sama scroll
+    if (Math.abs(dx) < 64 || Math.abs(dx) < Math.abs(dy) * 2) return;
+    const i = PAGES.indexOf(page);
+    if (dx < 0 && i < PAGES.length - 1) goPage(PAGES[i + 1]);
+    if (dx > 0 && i > 0) goPage(PAGES[i - 1]);
+  };
   const [dark, setDark] = useState(() => {
     try {
       const s = localStorage.getItem(THEME_KEY);
@@ -460,7 +489,11 @@ export default function LifeHack() {
   });
 
   return (
-    <div style={{ ...S.page, ...themeVars }}>
+    <div
+      style={{ ...S.page, ...themeVars }}
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
+    >
       <style>{FIRE_CSS}</style>
       <div className="lh-wrap">
         {/* header */}
@@ -518,14 +551,16 @@ export default function LifeHack() {
         <GlassNav
           items={[["home", "Home"], ["tugas", "Tugas"], ["barang", "Barang"], ["duit", "Duit"], ["diri", "Diri"]]}
           value={page}
-          onChange={setPage}
+          onChange={goPage}
           style={{ marginBottom: 20 }}
         />
+
+        <div key={page} className={navDir > 0 ? "page-slide-l" : "page-slide-r"}>
 
         {page === "barang" && <BarangPage session={session} />}
         {page === "duit" && <DuitPage session={session} />}
         {page === "diri" && <DiriPage session={session} />}
-        {page === "home" && <HomePage session={session} go={setPage} />}
+        {page === "home" && <HomePage session={session} go={goPage} />}
 
         {page === "tugas" && showPassForm && (
           <div style={{ ...S.promBox, background: "var(--card)", border: "1px solid var(--border)" }}>
@@ -868,6 +903,7 @@ export default function LifeHack() {
 
         </>
         )}
+        </div>
       </div>
     </div>
   );
@@ -914,6 +950,10 @@ html, body, #root { margin: 0; padding: 0; }
   text-overflow: ellipsis;
 }
 .glass-tab:active { transform: scale(0.94); }
+@keyframes pageFromRight { from { opacity: 0.35; transform: translateX(28px); } to { opacity: 1; transform: none; } }
+@keyframes pageFromLeft  { from { opacity: 0.35; transform: translateX(-28px); } to { opacity: 1; transform: none; } }
+.page-slide-l { animation: pageFromRight 0.28s cubic-bezier(0.25, 0.9, 0.35, 1); }
+.page-slide-r { animation: pageFromLeft 0.28s cubic-bezier(0.25, 0.9, 0.35, 1); }
 .lh-wrap { max-width: 560px; margin: 0 auto; }
 @media (min-width: 900px)  { .lh-wrap { max-width: 720px; } }
 @media (min-width: 1280px) { .lh-wrap { max-width: 820px; } }
