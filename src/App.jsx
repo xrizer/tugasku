@@ -950,6 +950,15 @@ html, body, #root { margin: 0; padding: 0; }
   text-overflow: ellipsis;
 }
 .glass-tab:active { transform: scale(0.94); }
+.glass-pill.dragging {
+  transition: none;
+  transform: scale(1.18);
+  z-index: 2;
+  opacity: 0.93;
+  box-shadow: 0 8px 26px rgba(0,0,0,0.30), inset 0 1px 0 var(--glass-hi), 0 0 0 1px var(--glass-border);
+  backdrop-filter: blur(6px) saturate(1.8);
+  -webkit-backdrop-filter: blur(6px) saturate(1.8);
+}
 @keyframes pageFromRight { from { opacity: 0.35; transform: translateX(28px); } to { opacity: 1; transform: none; } }
 @keyframes pageFromLeft  { from { opacity: 0.35; transform: translateX(-28px); } to { opacity: 1; transform: none; } }
 .page-slide-l { animation: pageFromRight 0.28s cubic-bezier(0.25, 0.9, 0.35, 1); }
@@ -1027,15 +1036,65 @@ function Flame() {
 }
 
 function GlassNav({ items, value, onChange, small, style }) {
-  const idx = Math.max(0, items.findIndex(([k]) => k === value));
+  const ref = useRef(null);
+  const drag = useRef(null);
+  const [dragX, setDragX] = useState(null); // posisi pill (px) pas di-drag
   const n = items.length;
+  const idx = Math.max(0, items.findIndex(([k]) => k === value));
+
+  const onPointerDown = (e) => {
+    const rect = ref.current.getBoundingClientRect();
+    drag.current = { rect, startX: e.clientX, moved: false, lastX: null };
+    ref.current.setPointerCapture?.(e.pointerId);
+  };
+
+  const onPointerMove = (e) => {
+    const d = drag.current;
+    if (!d) return;
+    if (!d.moved && Math.abs(e.clientX - d.startX) < 7) return;
+    d.moved = true;
+    const segW = d.rect.width / n;
+    const pillW = segW - 5;
+    let x = e.clientX - d.rect.left - pillW / 2;
+    x = Math.max(2.5, Math.min(d.rect.width - pillW - 2.5, x));
+    d.lastX = x;
+    setDragX(x);
+  };
+
+  const onPointerUp = () => {
+    const d = drag.current;
+    drag.current = null;
+    if (!d || !d.moved || d.lastX == null) {
+      setDragX(null);
+      return; // tap biasa — biar onClick tombol yang jalan
+    }
+    const segW = d.rect.width / n;
+    const pillW = segW - 5;
+    let i = Math.floor((d.lastX + pillW / 2) / segW);
+    i = Math.max(0, Math.min(n - 1, i));
+    setDragX(null);
+    onChange(items[i][0]);
+  };
+
+  const dragging = dragX != null;
+
   return (
-    <div className="glass-nav" style={style}>
+    <div
+      ref={ref}
+      className="glass-nav"
+      style={{ ...style, touchAction: "none" }}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+      onTouchStart={(e) => e.stopPropagation()}
+      onTouchEnd={(e) => e.stopPropagation()}
+    >
       <div
-        className="glass-pill"
+        className={dragging ? "glass-pill dragging" : "glass-pill"}
         style={{
           width: `calc(${100 / n}% - 5px)`,
-          left: `calc(${(idx * 100) / n}% + 2.5px)`,
+          left: dragging ? dragX : `calc(${(idx * 100) / n}% + 2.5px)`,
         }}
       />
       {items.map(([k, label]) => (
@@ -1047,7 +1106,7 @@ function GlassNav({ items, value, onChange, small, style }) {
             fontWeight: 700,
             color: value === k ? "var(--ink)" : "var(--muted2)",
           }}
-          onClick={() => onChange(k)}
+          onClick={() => !dragging && onChange(k)}
         >
           {label}
         </button>
