@@ -4663,6 +4663,7 @@ function DiriPage({ session }) {
   const [newHabit, setNewHabit] = useState("");
   const [showHabitForm, setShowHabitForm] = useState(null); // null | "bad" | "good"
   const [habitErr, setHabitErr] = useState("");
+  const [moodErr, setMoodErr] = useState("");
   const [sub, setSub] = useState("mood");
   const [justLogged, setJustLogged] = useState(null); // habit_id yang baru dicatet
 
@@ -4780,10 +4781,28 @@ function DiriPage({ session }) {
     }
   };
 
+  // strip mood dibagi utuh atau nggak sama sekali — 3 dari 7 lingkaran bolong
+  // gara-gara sebagian privat malah bikin salah baca
+  const moodShared = (moods || []).length > 0 && moods.every((m) => m.is_public);
+
   const checkIn = async (mood) => {
-    const row = { mood, date: today };
+    // check-in baru ngikut status strip, biar hari ini gak diem-diem ilang
+    const row = { mood, date: today, is_public: moodShared };
     const { data, error } = await supabase.from("moods").insert(row).select().single();
     if (!error) setMoods((ms) => [data, ...ms]);
+  };
+
+  const toggleMoodShare = async () => {
+    const v = !moodShared;
+    setMoods((ms) => ms.map((m) => ({ ...m, is_public: v })));
+    setMoodErr("");
+    const { data, error } = await supabase
+      .from("moods")
+      .update({ is_public: v })
+      .eq("user_id", session.user.id)
+      .select("id");
+    if (error) setMoodErr(error.message);
+    else if (!data?.length) setMoodErr("Gak ada yang keupdate — jalanin dulu bagian moods di supabase-setup.sql.");
   };
 
   const addHabit = async (kind) => {
@@ -4913,9 +4932,23 @@ function DiriPage({ session }) {
       <div style={S.dump}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
           <div style={S.dumpTitle}>Lagi ngerasa gimana?</div>
-          {todayMood && (
-            <span style={{ fontSize: 12, fontWeight: 700, color: "var(--green)" }}>tercatat ✓</span>
-          )}
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {todayMood && (
+              <span style={{ fontSize: 12, fontWeight: 700, color: "var(--green)" }}>tercatat ✓</span>
+            )}
+            {(moods || []).length > 0 && (
+              <button
+                style={{
+                  ...S.iconBtn,
+                  ...(moodShared ? { borderColor: "var(--green)", color: "var(--green)" } : {}),
+                }}
+                title={moodShared ? "Strip 7 hari keliatan di link publik" : "Mood cuma buat lu"}
+                onClick={toggleMoodShare}
+              >
+                <Eye off={!moodShared} />
+              </button>
+            )}
+          </div>
         </div>
         <div
           style={{
@@ -4987,6 +5020,11 @@ function DiriPage({ session }) {
         <div style={{ ...S.dumpHint, textAlign: "center", marginTop: 6 }}>
           7 hari terakhir · tap sekali sehari
         </div>
+        {moodErr && (
+          <div style={{ color: "var(--red)", fontSize: 12, marginTop: 6, textAlign: "center" }}>
+            {moodErr}
+          </div>
+        )}
 
         <div style={{ textAlign: "center", marginTop: 10 }}>
           <button
@@ -5365,6 +5403,7 @@ function HomePage({ session, go }) {
 function PublicView({ userId, themeVars }) {
   const [tasks, setTasks] = useState(null);
   const [blocks, setBlocks] = useState([]);
+  const [moods, setMoods] = useState([]);
 
   useEffect(() => {
     supabase
@@ -5381,10 +5420,27 @@ function PublicView({ userId, themeVars }) {
       .eq("is_public", true)
       .order("hours", { ascending: false })
       .then(({ data, error }) => setBlocks(error ? [] : data || []));
+
+    supabase
+      .from("moods")
+      .select("mood,date")
+      .eq("user_id", userId)
+      .eq("is_public", true)
+      .order("created_at", { ascending: false })
+      .then(({ data, error }) => setMoods(error ? [] : data || []));
   }, [userId]);
 
   const used = blocks.reduce((s, b) => s + Number(b.hours), 0);
   const free = Math.max(0, 24 - used);
+
+  // 7 hari terakhir — hari ini paling kanan
+  const last7 = [...Array(7)].map((_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (6 - i));
+    const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    return { ds, mood: moods.find((x) => x.date === ds)?.mood };
+  });
+  const hasMood = last7.some((d) => d.mood);
 
   const byStatus = (s) =>
     (tasks || []).filter((t) => t.status === s).sort((a, b) => a.priority - b.priority);
@@ -5411,9 +5467,38 @@ function PublicView({ userId, themeVars }) {
           <div style={S.empty}>Memuat…</div>
         )}
 
-        {tasks !== null && tasks.length === 0 && blocks.length === 0 && (
+        {tasks !== null && tasks.length === 0 && blocks.length === 0 && !hasMood && (
           <div style={{ ...S.focusCard }}>
             <div style={S.focusTitle}>Belum ada yang di-share di sini.</div>
+          </div>
+        )}
+
+        {hasMood && (
+          <div style={{ marginTop: 26 }}>
+            <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+              {last7.map((d) => (
+                <div
+                  key={d.ds}
+                  title={d.ds}
+                  style={{
+                    width: 26,
+                    height: 26,
+                    borderRadius: "50%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 14,
+                    background: d.mood ? "var(--card2)" : "transparent",
+                    border: "1px dashed var(--border2)",
+                  }}
+                >
+                  {d.mood ? moodEmoji(d.mood) : ""}
+                </div>
+              ))}
+            </div>
+            <div style={{ ...S.dumpHint, textAlign: "center", marginTop: 6 }}>
+              mood 7 hari terakhir
+            </div>
           </div>
         )}
 

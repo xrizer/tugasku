@@ -56,6 +56,19 @@ create policy "public read time blocks" on public.time_blocks
   for select using (is_public = true);
 
 -- ---------------------------------------------------------------------
+-- Strip mood 7 hari ikut ke link publik.
+--
+-- Bedanya sama time_blocks: policy-nya dibatesin tanggal juga. Jadi walau
+-- semua baris ditandain publik, yang kebaca dari luar tetep cuma 7 hari
+-- terakhir — riwayat mood setahun ke belakang gak ikut kebuka cuma gara-gara
+-- saklarnya nyala.
+alter table public.moods
+  add column if not exists is_public boolean not null default false;
+
+create policy "public read recent moods" on public.moods
+  for select using (is_public = true and date >= current_date - 6);
+
+-- ---------------------------------------------------------------------
 -- Tiap "bikin cape" punya solusinya sendiri: satu buat nahan sekarang,
 -- satu buat ngeberesin akarnya.
 alter table public.drains
