@@ -1933,6 +1933,25 @@ function GrupView({ session }) {
     if (!error) setExpenses((xs) => [data, ...xs]);
   };
 
+  const leaveGroup = async () => {
+    if (!window.confirm(`Keluar dari "${g.name}"? Catatan pengeluaran grup tetap kesimpen buat anggota lain.`))
+      return;
+    setErr("");
+    const { data, error } = await supabase
+      .from("group_members")
+      .delete()
+      .eq("group_id", gid)
+      .eq("user_id", session.user.id)
+      .select();
+    if (error) { setErr(error.message); return; }
+    // nol baris = kehapus policy, bukan sukses diem-diem
+    if (!data || data.length === 0) { setErr("Gagal keluar dari grup."); return; }
+    const rest = (groups || []).filter((x) => x.id !== gid);
+    setGroups(rest);
+    setGid(rest[0]?.id || null);
+    setMode(null);
+  };
+
   const addPersonalExpense = async () => {
     const amount = parseInt(pAmt.replace(/\D/g, ""), 10);
     if (!amount) return;
@@ -2002,7 +2021,7 @@ function GrupView({ session }) {
           <div style={{ marginTop: 10 }}>
             <input
               style={{ ...S.input, width: "100%", boxSizing: "border-box", marginBottom: 6 }}
-              placeholder="Nama grup (misal: Trip Karimun Jawa)"
+              placeholder="Nama grup"
               value={cForm.name}
               onChange={(e) => setCForm({ ...cForm, name: e.target.value })}
             />
@@ -2030,7 +2049,7 @@ function GrupView({ session }) {
           <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
             <input
               style={{ ...S.input, flex: 1, minWidth: 0, textTransform: "uppercase" }}
-              placeholder="Kode grup dari temen"
+              placeholder="Kode grup"
               value={jCode}
               onChange={(e) => setJCode(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && joinGroup()}
@@ -2042,7 +2061,7 @@ function GrupView({ session }) {
         {err && <div style={{ color: "var(--red)", fontSize: 13, marginTop: 8 }}>{err}</div>}
         {!g && !mode && (
           <div style={{ ...S.empty, marginTop: 10 }}>
-            Buat patungan trip, kosan bareng, apapun — semua anggota bisa mantau pengeluaran bersama.
+            Buat patungan trip, kosan, apa aja.
           </div>
         )}
       </>
@@ -2095,7 +2114,7 @@ function GrupView({ session }) {
           </div>
         )}
         <button style={{ ...S.btnGhost, fontSize: 13, marginTop: 8 }} onClick={askAI} disabled={advice === "..."}>
-          ✨ {advice === "..." ? "AI lagi ngitung…" : "Duitnya cukup gak?"}
+          ✨ {advice === "..." ? "lagi ngitung…" : "Duitnya cukup gak?"}
         </button>
         {advice && advice !== "..." && (
           <div style={{ ...S.aiBubble, marginTop: 8, textAlign: "left", whiteSpace: "pre-wrap" }}>{advice}</div>
@@ -2106,14 +2125,14 @@ function GrupView({ session }) {
       <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
         <input
           style={{ ...S.input, flex: 1, minWidth: 0 }}
-          placeholder="Pengeluaran grup — berapa?"
+          placeholder="Berapa?"
           inputMode="numeric"
           value={gAmt}
           onChange={(e) => setGAmt(e.target.value)}
         />
         <input
           style={{ ...S.input, flex: 1.2, minWidth: 0 }}
-          placeholder="Buat apa? (penginapan, bensin…)"
+          placeholder="Buat apa?"
           value={gNote}
           onChange={(e) => setGNote(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && addGroupExpense()}
@@ -2138,13 +2157,13 @@ function GrupView({ session }) {
 
       {/* pribadi — cuma lu yang liat */}
       <div style={{ ...S.sectionHead, marginTop: 24, marginBottom: 6 }}>
-        <span>Pribadi lu (privat)</span>
+        <span>Pribadi (privat)</span>
         <span style={{ ...S.count, fontWeight: 400 }}>
           {myPersonalLeft != null ? `sisa ${rupiah(myPersonalLeft)}` : rupiah(myPersonalSpent) + " kepake"}
         </span>
       </div>
       <div style={{ ...S.dumpHint, marginBottom: 6 }}>
-        budget pribadi:{" "}
+        budget:{" "}
         <EditableText
           value={myMember?.personal_budget != null ? rupiah(Number(myMember.personal_budget)) : ""}
           onSave={async (v) => {
@@ -2154,14 +2173,14 @@ function GrupView({ session }) {
             await supabase.from("group_members").update({ personal_budget: n })
               .eq("group_id", gid).eq("user_id", session.user.id);
           }}
-          placeholder="tap buat set (misal buat oleh-oleh)"
+          placeholder="tap buat set"
           style={{ display: "inline-block", fontSize: 13, fontWeight: 700 }}
         />
       </div>
       <div style={{ display: "flex", gap: 6 }}>
         <input
           style={{ ...S.input, flex: 1, minWidth: 0 }}
-          placeholder="Jajan pribadi — berapa?"
+          placeholder="Berapa?"
           inputMode="numeric"
           value={pAmt}
           onChange={(e) => setPAmt(e.target.value)}
@@ -2188,9 +2207,19 @@ function GrupView({ session }) {
         </div>
       ))}
 
-      <div style={S.footer}>
-        Pengeluaran grup keliatan semua anggota. Bagian "Pribadi lu" cuma lu yang bisa liat.
+      <div style={{ textAlign: "center", marginTop: 26 }}>
+        <button
+          style={{ ...S.btnGhost, fontSize: 13, color: "var(--red)" }}
+          onClick={leaveGroup}
+        >
+          Keluar dari grup
+        </button>
       </div>
+      {err && (
+        <div style={{ color: "var(--red)", fontSize: 13, marginTop: 8, textAlign: "center" }}>
+          {err}
+        </div>
+      )}
     </>
   );
 }
