@@ -38,6 +38,7 @@ const THEMES = {
     "--janji-bg": "#FBF6E9",
     "--janji-border": "#E6D9B8",
     "--janji-ink": "#7A5C1E",
+    "--on-janji": "#FFFFFF",
     "--red": "#C0392B",
     "--red-bg": "#FDF1EF",
     "--ember-soft": "rgba(228,87,46,0.18)",
@@ -87,6 +88,7 @@ const THEMES = {
     "--janji-bg": "#2A2314",
     "--janji-border": "#544927",
     "--janji-ink": "#D4AF5E",
+    "--on-janji": "#241F12",
     "--red": "#DB6552",
     "--red-bg": "#331A14",
     "--ember-soft": "rgba(233,114,63,0.12)",
@@ -1038,6 +1040,9 @@ input::placeholder, textarea::placeholder { color: var(--faint); opacity: 1; }
   100% { transform: scale(1); }
 }
 .keypad-key:active { transform: scale(0.94); }
+.tap-tile { transition: transform 0.15s, border-color 0.15s, background 0.15s; }
+.tap-tile:active { transform: scale(0.92); }
+.shelf { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; }
 .submit-key:active { transform: translateY(2px); }
 @keyframes sparkRise {
   0%   { transform: translateY(0)    scale(1);   opacity: 0.9; }
@@ -3707,7 +3712,10 @@ function WaktuSection({ session }) {
   );
 }
 
-function EnergiSection({ session }) {
+// `children` disisipin di antara Mimpi sama Yang-nyedot-energi — biar urutan
+// section-nya sama kayak desain tanpa mecah komponen ini jadi dua (dan bikin
+// query-nya jalan dua kali)
+function EnergiSection({ session, children }) {
   const [drains, setDrains] = useState([]);
   const [drainEvents, setDrainEvents] = useState([]);
   const [dreams, setDreams] = useState([]);
@@ -3717,6 +3725,7 @@ function EnergiSection({ session }) {
   const [newDream, setNewDream] = useState("");
   const [showDrainForm, setShowDrainForm] = useState(false);
   const [showDreamForm, setShowDreamForm] = useState(false);
+  const [drainsOpen, setDrainsOpen] = useState(true);
 
   const today = localToday();
 
@@ -3812,72 +3821,25 @@ function EnergiSection({ session }) {
     new Set(touches.filter((t) => t.dream_id === id).map((t) => t.date)).size;
   const touchedToday = (id) =>
     touches.some((t) => t.dream_id === id && t.date === today);
+  const touchedTodayCount = dreams.filter((d) => touchedToday(d.id)).length;
 
   return (
     <>
-      {/* ===== yang nyedot energi ===== */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 26 }}>
-        <div style={S.sectionHead}><span>Yang nyedot energi</span></div>
-        <button style={S.promAddLink} onClick={() => setShowDrainForm((v) => !v)}>
-          {showDrainForm ? "batal" : "+ tambah"}
-        </button>
-      </div>
-
-      {showDrainForm && (
-        <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-          <input
-            style={{ ...S.input, flex: 1, minWidth: 0 }}
-            placeholder="Apa yang nyedot?"
-            value={newDrain}
-            onChange={(e) => setNewDrain(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && addDrain()}
-          />
-          <button style={{ ...S.addBtn, width: 60 }} onClick={addDrain}>OK</button>
+      {/* ===== mimpi yang dikejar — paling atas, ini yang mau disentuh tiap hari ===== */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 26, gap: 10 }}>
+        <div style={{ ...S.sectionHead, color: "var(--janji-ink)" }}>
+          <span>✨ Mimpi</span>
         </div>
-      )}
-
-      {drains.length === 0 && !showDrainForm && (
-        <div style={S.empty}>Belum ada.</div>
-      )}
-
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-        {drains.map((d) => {
-          const n = drainToday(d.id);
-          return (
-            <button
-              key={d.id}
-              style={{ ...S.btnGhost, fontSize: 13 }}
-              title="Tap tiap kejadian"
-              onClick={() => logDrain(d)}
-            >
-              ⚡ {d.name}{n > 0 ? ` ·${n}` : ""}
-            </button>
-          );
-        })}
-      </div>
-
-      {topDrains.length > 0 && (
-        <div style={{ ...S.dumpHint, marginTop: 8 }}>
-          paling nyedot:{" "}
-          {topDrains.map((d, i) => (
-            <span key={d.id}>
-              {i > 0 && " · "}
-              <b>{d.name} ×{d.n}</b>
-              <span
-                style={{ cursor: "pointer", marginLeft: 3, color: "var(--faint)" }}
-                onClick={() => removeDrain(d.id)}
-              >✕</span>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexShrink: 0 }}>
+          {dreams.length > 0 && (
+            <span style={{ fontSize: 12, color: "var(--muted)" }}>
+              {touchedTodayCount}/{dreams.length} hari ini
             </span>
-          ))}
+          )}
+          <button style={S.promAddLink} onClick={() => setShowDreamForm((v) => !v)}>
+            {showDreamForm ? "batal" : "+ mimpi"}
+          </button>
         </div>
-      )}
-
-      {/* ===== mimpi yang dikejar ===== */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 26 }}>
-        <div style={S.sectionHead}><span>Mimpi yang dikejar</span></div>
-        <button style={S.promAddLink} onClick={() => setShowDreamForm((v) => !v)}>
-          {showDreamForm ? "batal" : "+ mimpi"}
-        </button>
       </div>
 
       {showDreamForm && (
@@ -3901,36 +3863,59 @@ function EnergiSection({ session }) {
         const days = touchedDays(dr.id);
         const doneToday = touchedToday(dr.id);
         return (
-          <div key={dr.id} style={{ ...S.card, display: "block" }}>
-            <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+          <div
+            key={dr.id}
+            style={{
+              ...S.card,
+              display: "block",
+              ...(doneToday ? { borderColor: "var(--janji-border)" } : {}),
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={S.cardTitle}>{dr.name}</div>
-                <div style={{ marginTop: 3 }}>
-                  <EditableText
-                    value={dr.why || ""}
-                    onSave={(v) => patchDream(dr.id, { why: v })}
-                    placeholder="kenapa ini penting?"
-                    style={{ fontSize: 12, color: "var(--muted2)", fontStyle: "italic", lineHeight: 1.4 }}
-                  />
+                <div style={{ fontSize: 14, fontWeight: 700, lineHeight: 1.35 }}>{dr.name}</div>
+                <div style={{ display: "flex", gap: 4, alignItems: "center", marginTop: 6, flexWrap: "wrap" }}>
+                  {[...Array(7)].map((_, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        width: 9,
+                        height: 9,
+                        borderRadius: "50%",
+                        background: i < days ? "var(--janji-ink)" : "transparent",
+                        border: `1px solid ${i < days ? "var(--janji-ink)" : "var(--border2)"}`,
+                      }}
+                    />
+                  ))}
+                  <span style={{ fontSize: 11, color: "var(--muted)", marginLeft: 4 }}>
+                    {days}/7 minggu ini
+                  </span>
                 </div>
               </div>
-              <div style={S.cardBtns}>
-                {doneToday ? (
-                  <span style={{ ...S.tag, color: "var(--green)", borderColor: "var(--green-border)" }}>
-                    ✓ hari ini
-                  </span>
-                ) : (
-                  <button
-                    style={S.btnGreen}
-                    onClick={() => touchDream(dr)}
-                  >
-                    Sentuh ✓
-                  </button>
-                )}
-                <button style={S.btnGhost} onClick={() => removeDream(dr.id)}>✕</button>
-              </div>
+              <button
+                className="tap-tile"
+                style={{
+                  border: "none",
+                  borderRadius: 999,
+                  padding: "9px 14px",
+                  fontFamily: "inherit",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                  flexShrink: 0,
+                  background: doneToday ? "var(--janji-bg)" : "var(--janji-ink)",
+                  color: doneToday ? "var(--janji-ink)" : "var(--on-janji)",
+                  boxShadow: doneToday ? "inset 0 0 0 1px var(--janji-border)" : "none",
+                }}
+                title={doneToday ? "Batal sentuh hari ini" : "Sentuh hari ini"}
+                onClick={() => touchDream(dr)}
+              >
+                {doneToday ? "beres ✓" : "Sentuh"}
+              </button>
+              <button style={S.btnGhost} onClick={() => removeDream(dr.id)}>✕</button>
             </div>
-            <div style={{ marginTop: 6 }}>
+            <div style={{ marginTop: 8 }}>
               <EditableText
                 value={dr.next_step || ""}
                 onSave={(v) => patchDream(dr.id, { next_step: v })}
@@ -3938,12 +3923,100 @@ function EnergiSection({ session }) {
                 style={{ fontSize: 14, lineHeight: 1.4 }}
               />
             </div>
-            <div style={{ ...S.dumpHint, marginBottom: 0, marginTop: 6 }}>
-              kesentuh <b>{days}/7 hari</b>
+            <div style={{ marginTop: 3 }}>
+              <EditableText
+                value={dr.why || ""}
+                onSave={(v) => patchDream(dr.id, { why: v })}
+                placeholder="kenapa ini penting?"
+                style={{ fontSize: 12, color: "var(--muted2)", fontStyle: "italic", lineHeight: 1.4 }}
+              />
             </div>
           </div>
         );
       })}
+
+      {children}
+
+      {/* ===== yang nyedot energi ===== */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 26, gap: 10 }}>
+        <div
+          style={{ ...S.sectionHead, cursor: "pointer", userSelect: "none" }}
+          onClick={() => setDrainsOpen((v) => !v)}
+        >
+          <span>
+            <span style={S.chev}>{drainsOpen ? "▾" : "▸"}</span> ⚡ Yang nyedot energi
+          </span>
+        </div>
+        {drainsOpen && (
+          <button style={S.promAddLink} onClick={() => setShowDrainForm((v) => !v)}>
+            {showDrainForm ? "batal" : "+ tambah"}
+          </button>
+        )}
+      </div>
+
+      {drainsOpen && (
+        <>
+          {showDrainForm && (
+            <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+              <input
+                style={{ ...S.input, flex: 1, minWidth: 0 }}
+                placeholder="Apa yang nyedot?"
+                value={newDrain}
+                onChange={(e) => setNewDrain(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && addDrain()}
+              />
+              <button style={{ ...S.addBtn, width: 60 }} onClick={addDrain}>OK</button>
+            </div>
+          )}
+
+          {drains.length === 0 && !showDrainForm && <div style={S.empty}>Belum ada.</div>}
+
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+            {drains.map((d) => {
+              const n = drainToday(d.id);
+              return (
+                <button
+                  key={d.id}
+                  className="tap-tile"
+                  style={{
+                    ...S.btnGhost,
+                    borderRadius: 999,
+                    fontSize: 12,
+                    ...(n > 0
+                      ? {
+                          background: "var(--red-bg)",
+                          borderColor: "var(--red)",
+                          color: "var(--red)",
+                          fontWeight: 700,
+                        }
+                      : {}),
+                  }}
+                  title="Tap tiap kejadian"
+                  onClick={() => logDrain(d)}
+                >
+                  {d.name}{n > 0 ? ` ·${n}` : ""}
+                </button>
+              );
+            })}
+          </div>
+
+          {topDrains.length > 0 && (
+            <div style={{ ...S.dumpHint, marginTop: 8 }}>
+              paling nyedot:{" "}
+              {topDrains.map((d, i) => (
+                <span key={d.id}>
+                  {i > 0 && " · "}
+                  <b>{d.name} ×{d.n}</b>
+                  <span
+                    style={{ cursor: "pointer", marginLeft: 3, color: "var(--faint)" }}
+                    onClick={() => removeDrain(d.id)}
+                  >✕</span>
+                </span>
+              ))}
+            </div>
+          )}
+        </>
+      )}
 
       {/* ===== wajib harian tetep jalan ===== */}
       {dailyStat && (
@@ -4003,7 +4076,7 @@ function PencapaianSection({ session }) {
     <>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 26 }}>
         <div style={S.sectionHead}>
-          <span>🏆 Pencapaian</span>
+          <span>🏆 Rak pencapaian</span>
           {items.length > 0 && <span style={S.count}>{items.length}</span>}
         </div>
         <button style={S.promAddLink} onClick={() => setShowForm((v) => !v)}>
@@ -4035,23 +4108,54 @@ function PencapaianSection({ session }) {
         <div style={S.empty}>Belum ada.</div>
       )}
 
-      {items.map((a) => (
-        <div key={a.id} style={{ ...S.card, background: "var(--janji-bg)", border: "1px solid var(--janji-border)" }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
+      <div className="shelf">
+        {items.map((a) => (
+          <div
+            key={a.id}
+            style={{
+              minWidth: 142,
+              maxWidth: 142,
+              flexShrink: 0,
+              background: "linear-gradient(160deg, var(--janji-bg), var(--card))",
+              border: "1px solid var(--janji-border)",
+              borderRadius: 14,
+              padding: 12,
+              display: "flex",
+              flexDirection: "column",
+              gap: 6,
+              position: "relative",
+            }}
+          >
+            <div style={{ fontSize: 18, lineHeight: 1 }}>🏅</div>
             <EditableText
               value={a.text}
               onSave={(v) => patchItem(a.id, { text: v })}
-              style={{ fontSize: 15, fontWeight: 500, lineHeight: 1.4 }}
+              style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.3 }}
             />
+            <div style={{ fontSize: 11, color: "var(--janji-ink)", fontWeight: 700, fontFamily: MONO }}>
+              {a.year || ""}
+            </div>
+            <button
+              style={{
+                position: "absolute",
+                top: 4,
+                right: 4,
+                border: "none",
+                background: "none",
+                cursor: "pointer",
+                color: "var(--faint)",
+                fontSize: 12,
+                padding: 4,
+                lineHeight: 1,
+              }}
+              title="Hapus"
+              onClick={() => removeItem(a.id)}
+            >
+              ✕
+            </button>
           </div>
-          {a.year && (
-            <span style={{ ...S.tag, color: "var(--janji-ink)", borderColor: "var(--janji-border)" }}>
-              {a.year}
-            </span>
-          )}
-          <button style={S.btnGhost} onClick={() => removeItem(a.id)}>✕</button>
-        </div>
-      ))}
+        ))}
+      </div>
     </>
   );
 }
@@ -4236,36 +4340,66 @@ function DiriPage({ session }) {
     <>
       {/* ===== mood check-in ===== */}
       <div style={S.dump}>
-        <div style={{ ...S.dumpTitle, marginBottom: 10 }}>
-          {todayMood
-            ? `Hari ini lu lagi ${todayMood.mood} ${moodEmoji(todayMood.mood)}`
-            : "Lagi ngerasa gimana?"}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <div style={S.dumpTitle}>Lagi ngerasa gimana?</div>
+          {todayMood && (
+            <span style={{ fontSize: 12, fontWeight: 700, color: "var(--green)" }}>tercatat ✓</span>
+          )}
         </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-          {MOODS.map(([m, e]) => (
-            <button
-              key={m}
-              style={{
-                ...S.btnGhost,
-                fontSize: 13,
-                ...(todayMood?.mood === m
-                  ? { borderColor: "var(--accent)", color: "var(--accent)" }
-                  : {}),
-              }}
-              onClick={() => checkIn(m)}
-            >
-              {e} {m}
-            </button>
-          ))}
+        <div style={{ display: "flex", gap: 6 }}>
+          {MOODS.map(([m, e]) => {
+            const on = todayMood?.mood === m;
+            return (
+              <button
+                key={m}
+                className="tap-tile"
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 4,
+                  background: on ? "var(--accent-bg)" : "var(--card)",
+                  border: `1px solid ${on ? "var(--accent)" : "var(--border)"}`,
+                  borderRadius: 14,
+                  padding: "9px 2px",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  color: "var(--ink)",
+                }}
+                onClick={() => checkIn(m)}
+              >
+                <span style={{ fontSize: 20, lineHeight: 1.1 }}>{e}</span>
+                <span style={{ fontSize: 10, color: on ? "var(--accent)" : "var(--muted)" }}>{m}</span>
+              </button>
+            );
+          })}
         </div>
-        <div style={{ display: "flex", gap: 8, marginTop: 12, justifyContent: "center" }}>
+        <div style={{ display: "flex", gap: 8, marginTop: 14, justifyContent: "center" }}>
           {last7.map((d) => (
-            <div key={d.ds} style={{ textAlign: "center", fontSize: 16 }} title={d.ds}>
-              {d.mood ? moodEmoji(d.mood) : "·"}
+            <div
+              key={d.ds}
+              title={d.ds}
+              style={{
+                width: 26,
+                height: 26,
+                borderRadius: "50%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 14,
+                background: d.mood ? "var(--card2)" : "transparent",
+                border: `1px dashed ${d.ds === today ? "var(--accent)" : "var(--border2)"}`,
+              }}
+            >
+              {d.mood ? moodEmoji(d.mood) : ""}
             </div>
           ))}
         </div>
-        <div style={{ ...S.dumpHint, textAlign: "center", marginTop: 2 }}>7 hari terakhir</div>
+        <div style={{ ...S.dumpHint, textAlign: "center", marginTop: 6 }}>
+          7 hari terakhir · tap sekali sehari
+        </div>
 
         <div style={{ textAlign: "center", marginTop: 10 }}>
           <button
@@ -4288,66 +4422,81 @@ function DiriPage({ session }) {
         )}
       </div>
 
-      {/* ===== kebiasaan ===== */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 22 }}>
-        <div style={S.sectionHead}>
-          <span>Yang lagi dikurangin</span>
+
+      <EnergiSection session={session}>
+        {/* ===== kebiasaan ===== */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 22 }}>
+          <div style={S.sectionHead}>
+            <span>Yang lagi dikurangin</span>
+          </div>
+          <button style={S.promAddLink} onClick={() => setShowHabitForm((v) => !v)}>
+            {showHabitForm ? "batal" : "+ tambah"}
+          </button>
         </div>
-        <button style={S.promAddLink} onClick={() => setShowHabitForm((v) => !v)}>
-          {showHabitForm ? "batal" : "+ tambah"}
-        </button>
-      </div>
 
-      {showHabitForm && (
-        <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
-          <input
-            style={{ ...S.input, flex: 1, minWidth: 0 }}
-            placeholder="Apa yang mau dikurangin?"
-            value={newHabit}
-            onChange={(e) => setNewHabit(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && addHabit()}
-          />
-          <button style={{ ...S.addBtn, width: 60 }} onClick={addHabit}>OK</button>
-        </div>
-      )}
+        {showHabitForm && (
+          <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+            <input
+              style={{ ...S.input, flex: 1, minWidth: 0 }}
+              placeholder="Apa yang mau dikurangin?"
+              value={newHabit}
+              onChange={(e) => setNewHabit(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && addHabit()}
+            />
+            <button style={{ ...S.addBtn, width: 60 }} onClick={addHabit}>OK</button>
+          </div>
+        )}
 
-      {habits === null && <div style={S.empty}>Memuat…</div>}
-      {habits !== null && habits.length === 0 && !showHabitForm && (
-        <div style={S.empty}>Belum ada.</div>
-      )}
+        {habits === null && <div style={S.empty}>Memuat…</div>}
+        {habits !== null && habits.length === 0 && !showHabitForm && (
+          <div style={S.empty}>Belum ada.</div>
+        )}
 
-      {(habits || []).map((h) => {
-        const days = cleanDays(h);
-        const tm = topMood(h);
-        return (
-          <div key={h.id} style={{ ...S.card, display: "block" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={S.cardTitle}>{h.name}</div>
-                <div style={{ ...S.dumpHint, marginBottom: 0, marginTop: 3 }}>
-                  <span style={{ color: "var(--green)", fontWeight: 700 }}>
-                    {days === 0 ? "mulai lagi hari ini" : `bersih ${days} hari`}
-                  </span>
-                  {tm && <> · biasanya kejadian pas lagi {tm} {moodEmoji(tm)}</>}
+        {(habits || []).map((h) => {
+          const days = cleanDays(h);
+          const tm = topMood(h);
+          return (
+            <div key={h.id} style={{ ...S.card, display: "block" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                <div
+                  style={{
+                    fontFamily: MONO,
+                    fontSize: 34,
+                    fontWeight: 700,
+                    color: "var(--green)",
+                    lineHeight: 1,
+                    flexShrink: 0,
+                  }}
+                >
+                  {days}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={S.cardTitle}>{h.name}</div>
+                  <div style={{ ...S.dumpHint, marginBottom: 0, marginTop: 3 }}>
+                    {days === 0 ? "mulai lagi hari ini" : "hari bersih"}
+                    {tm && <> · biasanya pas {tm} {moodEmoji(tm)}</>}
+                  </div>
+                </div>
+                <div style={S.cardBtns}>
+                  <button
+                    className="tap-tile"
+                    style={{ ...S.btnGhost, borderRadius: 999, fontSize: 12 }}
+                    onClick={() => logEvent(h)}
+                  >
+                    kejadian lagi
+                  </button>
+                  <button style={S.btnGhost} onClick={() => removeHabit(h.id)}>✕</button>
                 </div>
               </div>
-              <div style={S.cardBtns}>
-                <button style={S.btnGhost} onClick={() => logEvent(h)}>
-                  kejadian lagi
-                </button>
-                <button style={S.btnGhost} onClick={() => removeHabit(h.id)}>✕</button>
-              </div>
+              {justLogged === h.id && (
+                <div style={{ ...S.aiBubble, marginTop: 8 }}>
+                  Kecatet. Hitungannya mulai lagi dari sekarang.
+                </div>
+              )}
             </div>
-            {justLogged === h.id && (
-              <div style={{ ...S.aiBubble, marginTop: 8 }}>
-                Kecatet. Hitungannya mulai lagi dari sekarang.
-              </div>
-            )}
-          </div>
-        );
-      })}
-
-      <EnergiSection session={session} />
+          );
+        })}
+      </EnergiSection>
 
       <PencapaianSection session={session} />
 
