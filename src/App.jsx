@@ -4518,26 +4518,34 @@ function PencapaianSection({ session }) {
         <div style={S.empty}>Belum ada.</div>
       )}
 
-      <div>
+      {/* trofi tetep pakai kartu — di sini kartunya emang jadi medali */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))",
+          gap: 10,
+        }}
+      >
         {items.map((a) => (
           <div
             key={a.id}
             style={{
-              borderBottom: "1px solid var(--border)",
-              padding: "13px 2px",
+              background: "linear-gradient(160deg, var(--janji-bg), var(--card))",
+              border: "1px solid var(--janji-border)",
+              borderRadius: 14,
+              padding: 12,
               display: "flex",
-              alignItems: "center",
-              gap: 10,
+              flexDirection: "column",
+              gap: 6,
+              position: "relative",
             }}
           >
-            <span style={{ fontSize: 16, lineHeight: 1, flexShrink: 0 }}>🏅</span>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <EditableText
-                value={a.text}
-                onSave={(v) => patchItem(a.id, { text: v })}
-                style={{ fontSize: 15, fontWeight: 600, lineHeight: 1.35 }}
-              />
-            </div>
+            <div style={{ fontSize: 18, lineHeight: 1 }}>🏅</div>
+            <EditableText
+              value={a.text}
+              onSave={(v) => patchItem(a.id, { text: v })}
+              style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.3 }}
+            />
             <EditableText
               value={a.year ? String(a.year) : ""}
               onSave={(v) => {
@@ -4545,15 +4553,24 @@ function PencapaianSection({ session }) {
                 patchItem(a.id, { year: y >= 1900 && y <= 2100 ? y : null });
               }}
               placeholder="tahun"
-              style={{
-                fontSize: 12,
-                color: "var(--janji-ink)",
-                fontWeight: 700,
-                fontFamily: MONO,
-                flexShrink: 0,
-              }}
+              style={{ fontSize: 11, color: "var(--janji-ink)", fontWeight: 700, fontFamily: MONO }}
             />
-            <button style={S.btnGhost} title="Hapus" onClick={() => removeItem(a.id)}>
+            <button
+              style={{
+                position: "absolute",
+                top: 4,
+                right: 4,
+                border: "none",
+                background: "none",
+                cursor: "pointer",
+                color: "var(--faint)",
+                fontSize: 12,
+                padding: 4,
+                lineHeight: 1,
+              }}
+              title="Hapus"
+              onClick={() => removeItem(a.id)}
+            >
               ✕
             </button>
           </div>
