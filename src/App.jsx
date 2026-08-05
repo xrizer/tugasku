@@ -3494,9 +3494,13 @@ function DuitPage({ session }) {
   );
 }
 
+// urut dari yang paling berat ke yang paling enak — biar gampang nyarinya.
+// kolom `mood` di database cuma text, jadi nambah pilihan gak perlu migrasi.
 const MOODS = [
-  ["lelah", "😴"], ["sedih", "😢"], ["frustasi", "😤"],
-  ["cemas", "😰"], ["biasa", "😐"], ["oke", "🙂"],
+  ["lelah", "😴"], ["bosan", "🥱"], ["sedih", "😢"], ["kesepian", "😔"],
+  ["cemas", "😰"], ["frustasi", "😤"], ["marah", "😠"], ["kewalahan", "😵‍💫"],
+  ["biasa", "😐"], ["lega", "😮‍💨"], ["tenang", "😌"], ["oke", "🙂"],
+  ["seneng", "😄"], ["bersyukur", "🙏"],
 ];
 const moodEmoji = (m) => (MOODS.find((x) => x[0] === m) || ["", "·"])[1];
 
@@ -4821,7 +4825,13 @@ function DiriPage({ session }) {
             <span style={{ fontSize: 12, fontWeight: 700, color: "var(--green)" }}>tercatat ✓</span>
           )}
         </div>
-        <div style={{ display: "flex", gap: 6 }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(62px, 1fr))",
+            gap: 6,
+          }}
+        >
           {MOODS.map(([m, e]) => {
             const on = todayMood?.mood === m;
             return (
@@ -4829,7 +4839,6 @@ function DiriPage({ session }) {
                 key={m}
                 className="tap-tile"
                 style={{
-                  flex: 1,
                   minWidth: 0,
                   display: "flex",
                   flexDirection: "column",
@@ -4846,7 +4855,18 @@ function DiriPage({ session }) {
                 onClick={() => checkIn(m)}
               >
                 <span style={{ fontSize: 20, lineHeight: 1.1 }}>{e}</span>
-                <span style={{ fontSize: 10, color: on ? "var(--accent)" : "var(--muted)" }}>{m}</span>
+                <span
+                  style={{
+                    fontSize: 10,
+                    color: on ? "var(--accent)" : "var(--muted)",
+                    maxWidth: "100%",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {m}
+                </span>
               </button>
             );
           })}
