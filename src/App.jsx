@@ -216,6 +216,23 @@ export default function LifeHack() {
   const [showPassForm, setShowPassForm] = useState(false);
   const [newPass, setNewPass] = useState("");
   const [passMsg, setPassMsg] = useState("");
+  const [menu, setMenu] = useState(false);
+  const menuRef = useRef(null);
+
+  // tutup menu kalau nyentuh di luar atau pencet Esc
+  useEffect(() => {
+    if (!menu) return;
+    const away = (e) => {
+      if (!menuRef.current?.contains(e.target)) setMenu(false);
+    };
+    const esc = (e) => e.key === "Escape" && setMenu(false);
+    document.addEventListener("pointerdown", away);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("pointerdown", away);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [menu]);
 
   const changePassword = async () => {
     if (newPass.length < 6) {
@@ -560,41 +577,55 @@ export default function LifeHack() {
             <h1 style={S.h1}>LifeHack</h1>
             <div style={{ fontSize: 12, color: "var(--faint)", marginTop: 2 }}>by afifi</div>
           </div>
-          <div style={{ display: "flex", gap: 6 }}>
+          <div ref={menuRef} style={{ position: "relative" }}>
             <button
-              style={S.themeBtn}
-              onClick={toggleTheme}
-              title={dark ? "Mode terang" : "Mode gelap"}
+              style={{ ...S.themeBtn, ...(menu ? { borderColor: "var(--accent)" } : {}) }}
+              onClick={() => setMenu((v) => !v)}
+              title="Pengaturan"
+              aria-expanded={menu}
             >
-              {dark ? "☀️" : "🌙"}
+              <Gear />
             </button>
-            <button
-              style={{ ...S.themeBtn, fontSize: 13 }}
-              onClick={() => {
-                const url = `${window.location.origin}?share=${session.user.id}`;
-                navigator.clipboard
-                  .writeText(url)
-                  .then(() => alert("Link publik kecopy ✓\n" + url))
-                  .catch(() => prompt("Copy link ini:", url));
-              }}
-              title="Copy link papan publik"
-            >
-              🔗
-            </button>
-            <button
-              style={{ ...S.themeBtn, fontSize: 13, color: "var(--muted)" }}
-              onClick={() => setShowPassForm((v) => !v)}
-              title="Ganti password"
-            >
-              🔑
-            </button>
-            <button
-              style={{ ...S.themeBtn, fontSize: 13, color: "var(--muted)" }}
-              onClick={() => supabase.auth.signOut()}
-              title="Keluar"
-            >
-              keluar
-            </button>
+
+            {menu && (
+              <div style={S.menu}>
+                <button
+                  style={S.menuItem}
+                  onClick={() => { toggleTheme(); setMenu(false); }}
+                >
+                  <span style={S.menuIcon}>{dark ? "☀️" : "🌙"}</span>
+                  {dark ? "Mode terang" : "Mode gelap"}
+                </button>
+                <button
+                  style={S.menuItem}
+                  onClick={() => {
+                    setMenu(false);
+                    const url = `${window.location.origin}?share=${session.user.id}`;
+                    navigator.clipboard
+                      .writeText(url)
+                      .then(() => alert("Link publik kecopy ✓\n" + url))
+                      .catch(() => prompt("Copy link ini:", url));
+                  }}
+                >
+                  <span style={S.menuIcon}>🔗</span>
+                  Copy link publik
+                </button>
+                <button
+                  style={S.menuItem}
+                  onClick={() => { setShowPassForm((v) => !v); setMenu(false); }}
+                >
+                  <span style={S.menuIcon}>🔑</span>
+                  Ganti password
+                </button>
+                <button
+                  style={{ ...S.menuItem, color: "var(--red)" }}
+                  onClick={() => supabase.auth.signOut()}
+                >
+                  <span style={S.menuIcon}>↩</span>
+                  Keluar
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -605,15 +636,9 @@ export default function LifeHack() {
           style={{ marginBottom: 20 }}
         />
 
-        <div key={page} className={navDir > 0 ? "page-slide-l" : "page-slide-r"}>
-
-        {page === "barang" && <BarangPage session={session} />}
-        {page === "duit" && <DuitPage session={session} />}
-        {page === "diri" && <DiriPage session={session} />}
-        {page === "home" && <HomePage session={session} go={goPage} />}
-
-        {page === "tugas" && showPassForm && (
-          <div style={S.promBox}>
+        {/* di luar `page` — dibuka dari menu gigi, jadi harus muncul di tab mana pun */}
+        {showPassForm && (
+          <div style={{ ...S.promBox, marginBottom: 20 }}>
             <div style={{ ...S.dumpTitle, marginBottom: 8 }}>Ganti password</div>
             <div style={{ display: "flex", gap: 6 }}>
               <input
@@ -633,6 +658,13 @@ export default function LifeHack() {
             )}
           </div>
         )}
+
+        <div key={page} className={navDir > 0 ? "page-slide-l" : "page-slide-r"}>
+
+        {page === "barang" && <BarangPage session={session} />}
+        {page === "duit" && <DuitPage session={session} />}
+        {page === "diri" && <DiriPage session={session} />}
+        {page === "home" && <HomePage session={session} go={goPage} />}
 
         {page === "tugas" && (
         <>
@@ -1048,6 +1080,26 @@ function Flame() {
 
 // mata buat toggle "keliatan / disembunyiin" — ikut warna teks tombolnya,
 // jadi konsisten di light & dark (emoji dulu warnanya ngikut font sistem)
+function Gear() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{ display: "block" }}
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="3.2" />
+      <path d="M12 2.4v2.6M12 19v2.6M21.6 12H19M5 12H2.4M18.8 5.2l-1.9 1.9M7.1 16.9l-1.9 1.9M18.8 18.8l-1.9-1.9M7.1 7.1 5.2 5.2" />
+    </svg>
+  );
+}
+
 function Eye({ off }) {
   return (
     <svg
@@ -5988,7 +6040,39 @@ const S = {
     fontSize: 16,
     cursor: "pointer",
     lineHeight: 1,
+    color: "var(--ink)",
   },
+  menu: {
+    position: "absolute",
+    top: "calc(100% + 6px)",
+    right: 0,
+    zIndex: 50,
+    minWidth: 186,
+    padding: 6,
+    borderRadius: 14,
+    border: "1px solid var(--border)",
+    background: "var(--bg)",
+    boxShadow: "var(--glass-shadow)",
+    display: "flex",
+    flexDirection: "column",
+  },
+  menuItem: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    width: "100%",
+    padding: "10px 10px",
+    background: "transparent",
+    border: "none",
+    borderRadius: 9,
+    color: "var(--ink)",
+    font: "inherit",
+    fontSize: 14,
+    textAlign: "left",
+    whiteSpace: "nowrap",
+    cursor: "pointer",
+  },
+  menuIcon: { fontSize: 14, width: 18, textAlign: "center", flexShrink: 0 },
   chev: { display: "inline-block", width: 14, fontSize: 11, color: "var(--faint)" },
   miniCount: {
     marginLeft: 8,
