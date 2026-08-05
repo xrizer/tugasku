@@ -1553,18 +1553,18 @@ function RutinView({ session, sources, onLogExpense }) {
   return (
     <>
       <div style={{ marginTop: 6, textAlign: "center" }}>
-        <div style={S.eyebrow}>Total rutin per bulan</div>
+        <div style={S.eyebrow}>Keluar rutin</div>
         <div style={{ fontSize: 26, fontWeight: 700 }}>{rupiah(total)}</div>
         <div style={{ ...S.dumpHint, marginTop: 2 }}>
           {unpaid.length === 0
-            ? "semua udah kebayar bulan ini ✓"
-            : `${unpaid.length} belum dibayar bulan ini`}
+            ? "semua kebayar ✓"
+            : `${unpaid.length} belum dibayar`}
         </div>
       </div>
 
       <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
         <button style={S.promAddLink} onClick={() => setShowForm((v) => !v)}>
-          {showForm ? "batal" : "+ biaya rutin"}
+          {showForm ? "batal" : "+ tambah"}
         </button>
       </div>
 
@@ -1622,8 +1622,8 @@ function RutinView({ session, sources, onLogExpense }) {
                     }}
                     style={{ display: "inline-block", fontSize: 13 }}
                   />
-                  {it.due_day ? ` · tiap tgl ${it.due_day}` : ""}
-                  {` · dari ${it.source || sources[0] || "cash"}`}
+                  {it.due_day ? ` · tgl ${it.due_day}` : ""}
+                  {` · ${it.source || sources[0] || "cash"}`}
                 </div>
               </div>
               <div style={S.cardBtns}>
@@ -1648,7 +1648,7 @@ function RutinView({ session, sources, onLogExpense }) {
 
       {/* ===== pemasukan rutin ===== */}
       <div style={{ marginTop: 26, textAlign: "center" }}>
-        <div style={S.eyebrow}>Pemasukan rutin per bulan</div>
+        <div style={S.eyebrow}>Masuk rutin</div>
         <div style={{ fontSize: 26, fontWeight: 700, color: "var(--green)" }}>
           {rupiah(incomes.reduce((s, x) => s + Number(x.amount), 0))}
         </div>
@@ -1656,7 +1656,7 @@ function RutinView({ session, sources, onLogExpense }) {
 
       <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
         <button style={S.promAddLink} onClick={() => setShowInForm((v) => !v)}>
-          {showInForm ? "batal" : "+ pemasukan rutin"}
+          {showInForm ? "batal" : "+ tambah"}
         </button>
       </div>
 
@@ -1722,9 +1722,6 @@ function RutinView({ session, sources, onLogExpense }) {
         })}
       </div>
 
-      <div style={S.footer}>
-        "Bayar ✓" / "Terima ✓" otomatis nyatet ke Catet — sekali tap, dua urusan kelar.
-      </div>
     </>
   );
 }
