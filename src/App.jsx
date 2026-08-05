@@ -3804,17 +3804,6 @@ function WaktuSection({ session }) {
       {blocks.some((b) => b.start_min != null && b.end_min != null) && (
         <div style={{ ...S.card, display: "block", padding: 14, marginBottom: 8 }}>
           <JamAnalog blocks={blocks} />
-          <div
-            style={{
-              fontFamily: MONO,
-              fontSize: 10,
-              color: "var(--faint)",
-              textAlign: "center",
-              marginTop: 6,
-            }}
-          >
-            jarum = jam sekarang · yang gak diatur jamnya gak nongol di sini
-          </div>
         </div>
       )}
 
