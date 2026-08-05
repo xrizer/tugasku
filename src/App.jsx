@@ -3505,6 +3505,27 @@ const MOODS = [
 ];
 const moodEmoji = (m) => (MOODS.find((x) => x[0] === m) || ["", "·"])[1];
 
+// Poin streak "yang lagi dikurangin". Makin lama makin gede lompatannya —
+// dihitung dari lamanya bersih, jadi gak ada yang perlu disimpen di database.
+const STREAK_TIERS = [
+  { days: 1, pts: 1, label: "hari pertama" },
+  { days: 3, pts: 3, label: "3 hari" },
+  { days: 7, pts: 10, label: "1 minggu" },
+  { days: 14, pts: 25, label: "2 minggu" },
+  { days: 30, pts: 60, label: "1 bulan" },
+  { days: 60, pts: 150, label: "2 bulan" },
+  { days: 90, pts: 250, label: "3 bulan" },
+  { days: 180, pts: 600, label: "6 bulan" },
+  { days: 365, pts: 1500, label: "1 tahun" },
+];
+const streakPoints = (days) =>
+  STREAK_TIERS.filter((t) => days >= t.days).reduce((s, t) => s + t.pts, 0);
+const nextTier = (days) => STREAK_TIERS.find((t) => days < t.days) || null;
+const lastTierDays = (days) => {
+  const passed = STREAK_TIERS.filter((t) => days >= t.days);
+  return passed.length ? passed[passed.length - 1].days : 0;
+};
+
 const PALETTE = [
   "#E4572E", "#3E7A46", "#B8860B", "#4A6FA5",
   "#8E5BA6", "#C0392B", "#2A9D8F", "#8A8578",
@@ -4301,7 +4322,7 @@ function DrainSection({ session }) {
   };
 
   const removeDrain = async (id) => {
-    if (!window.confirm("Hapus beserta riwayatnya?")) return;
+    if (!window.confirm("Delete this and its history?")) return;
     setDrains((xs) => xs.filter((x) => x.id !== id));
     await supabase.from("drains").delete().eq("id", id);
   };
@@ -4319,10 +4340,10 @@ function DrainSection({ session }) {
     <>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 26, gap: 10 }}>
         <div style={S.sectionHead}>
-          <span>⚡ Yang nyedot energi</span>
+          <span>⚡ Energy drains</span>
         </div>
         <button style={S.promAddLink} onClick={() => setShowDrainForm((v) => !v)}>
-          {showDrainForm ? "batal" : "+ tambah"}
+          {showDrainForm ? "cancel" : "+ add"}
         </button>
       </div>
 
@@ -4330,7 +4351,7 @@ function DrainSection({ session }) {
         <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
           <input
             style={{ ...S.input, flex: 1, minWidth: 0 }}
-            placeholder="Apa yang nyedot?"
+            placeholder="What drains you?"
             value={newDrain}
             onChange={(e) => setNewDrain(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && addDrain()}
@@ -4339,7 +4360,7 @@ function DrainSection({ session }) {
         </div>
       )}
 
-      {drains.length === 0 && !showDrainForm && <div style={S.empty}>Belum ada.</div>}
+      {drains.length === 0 && !showDrainForm && <div style={S.empty}>Nothing yet.</div>}
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
         {drains.map((d) => {
@@ -4361,7 +4382,7 @@ function DrainSection({ session }) {
                     }
                   : {}),
               }}
-              title="Tap tiap kejadian"
+              title="Tap each time it happens"
               onClick={() => logDrain(d)}
             >
               {d.name}{n > 0 ? ` ·${n}` : ""}
@@ -4372,7 +4393,7 @@ function DrainSection({ session }) {
 
       {topDrains.length > 0 && (
         <div style={{ ...S.dumpHint, marginTop: 8 }}>
-          paling nyedot:{" "}
+          biggest drains:{" "}
           {topDrains.map((d, i) => (
             <span key={d.id}>
               {i > 0 && " · "}
@@ -4388,9 +4409,9 @@ function DrainSection({ session }) {
 
       {dailyStat && (
         <div style={{ ...S.dumpHint, marginTop: 14, textAlign: "center" }}>
-          Wajib harian hari ini:{" "}
+          Daily musts today:{" "}
           <b style={{ color: dailyStat.done === dailyStat.total ? "var(--green)" : "var(--ink)" }}>
-            {dailyStat.done}/{dailyStat.total} kelar
+            {dailyStat.done}/{dailyStat.total} done
           </b>
         </div>
       )}
@@ -4690,6 +4711,11 @@ function DiriPage({ session }) {
     return Math.floor((Date.now() - new Date(last)) / 86400000);
   };
 
+  const totalPoints = (habits || []).reduce(
+    (s, h) => s + streakPoints(cleanDays(h)),
+    0
+  );
+
   const topMood = (h) => {
     const withMood = events.filter((e) => e.habit_id === h.id && e.mood);
     if (withMood.length < 2) return null;
@@ -4819,6 +4845,18 @@ function DiriPage({ session }) {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 22 }}>
           <div style={S.sectionHead}>
             <span>Yang lagi dikurangin</span>
+            {totalPoints > 0 && (
+              <span
+                style={{
+                  ...S.count,
+                  fontFamily: MONO,
+                  fontWeight: 700,
+                  color: "var(--janji-ink)",
+                }}
+              >
+                🏅 {totalPoints}
+              </span>
+            )}
           </div>
           <button style={S.promAddLink} onClick={() => setShowHabitForm((v) => !v)}>
             {showHabitForm ? "batal" : "+ tambah"}
@@ -4846,6 +4884,12 @@ function DiriPage({ session }) {
         {(habits || []).map((h) => {
           const days = cleanDays(h);
           const tm = topMood(h);
+          const pts = streakPoints(days);
+          const next = nextTier(days);
+          const from = lastTierDays(days);
+          const pct = next
+            ? Math.round(((days - from) / (next.days - from)) * 100)
+            : 100;
           return (
             <div key={h.id} style={{ ...S.card, display: "block" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
@@ -4879,6 +4923,48 @@ function DiriPage({ session }) {
                   <button style={S.btnGhost} onClick={() => removeHabit(h.id)}>✕</button>
                 </div>
               </div>
+
+              {/* poin streak + jarak ke tingkat berikutnya */}
+              <div style={{ marginTop: 10 }}>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "baseline",
+                    gap: 8,
+                    fontFamily: MONO,
+                    fontSize: 11,
+                  }}
+                >
+                  <span style={{ color: "var(--janji-ink)", fontWeight: 700, whiteSpace: "nowrap" }}>
+                    🏅 {pts} poin
+                  </span>
+                  <span style={{ color: "var(--muted)", textAlign: "right" }}>
+                    {next
+                      ? `${next.days - days} hari lagi → ${next.label} (+${next.pts})`
+                      : "level maksimal 🎉"}
+                  </span>
+                </div>
+                <div
+                  style={{
+                    height: 6,
+                    borderRadius: 99,
+                    background: "var(--badge)",
+                    marginTop: 4,
+                    overflow: "hidden",
+                  }}
+                >
+                  <div
+                    style={{
+                      height: "100%",
+                      width: `${Math.max(2, pct)}%`,
+                      background: "var(--janji-ink)",
+                      borderRadius: 99,
+                    }}
+                  />
+                </div>
+              </div>
+
               {justLogged === h.id && (
                 <div style={{ ...S.aiBubble, marginTop: 8 }}>
                   Kecatet. Hitungannya mulai lagi dari sekarang.
