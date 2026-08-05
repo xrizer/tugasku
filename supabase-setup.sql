@@ -28,6 +28,21 @@ create policy "allow all" on tasks
 create policy "self leave" on public.group_members
   for delete using (user_id = auth.uid());
 
+-- ---------------------------------------------------------------------
+-- Peta 24 jam: jam mulai & jam selesai per kegiatan.
+--
+-- Disimpen sebagai menit dari tengah malam (0–1439) biar gampang dihitung
+-- dan gak kena urusan timezone. Boleh null — kegiatan yang gak punya jam
+-- pasti (misal "scroll 2 jam") tetep cuma nyimpen durasinya di `hours`.
+-- Kalau end_min < start_min berarti kegiatannya lewat tengah malam.
+alter table public.time_blocks
+  add column if not exists start_min int,
+  add column if not exists end_min int;
+
+alter table public.time_blocks
+  add constraint time_blocks_start_min_range check (start_min between 0 and 1439) not valid,
+  add constraint time_blocks_end_min_range   check (end_min   between 0 and 1439) not valid;
+
 -- Seed tugas awal
 insert into tasks (title, priority, daily, status) values
   ('Masukkan baju kotor ke keranjang laundry', 1, true,  'todo'),

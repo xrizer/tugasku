@@ -3511,10 +3511,160 @@ const PALETTE = [
   "#8E5BA6", "#C0392B", "#2A9D8F", "#8A8578",
 ];
 
+// ---------- jam: menit dari tengah malam ----------
+const toMin = (s) => {
+  const m = /^\s*(\d{1,2})[:.]?(\d{2})\s*$/.exec(String(s ?? ""));
+  if (!m) return null;
+  const h = +m[1];
+  const mi = +m[2];
+  if (h > 23 || mi > 59) return null;
+  return h * 60 + mi;
+};
+const fromMin = (v) =>
+  v == null
+    ? ""
+    : `${String(Math.floor(v / 60)).padStart(2, "0")}:${String(v % 60).padStart(2, "0")}`;
+// durasi start→end, lewat tengah malam ikut kehitung; sama persis = sehari penuh
+const spanMin = (s, e) => (e - s + 1440) % 1440 || 1440;
+const parseRange = (txt) => {
+  const parts = String(txt).split(/[-–—]/);
+  if (parts.length !== 2) return null;
+  const s = toMin(parts[0]);
+  const e = toMin(parts[1]);
+  if (s == null || e == null) return null;
+  return {
+    start_min: s,
+    end_min: e,
+    hours: Math.round((spanMin(s, e) / 60) * 100) / 100,
+  };
+};
+
+// Jam analog 24 jam — tengah malam di atas, jalan searah jarum jam.
+function JamAnalog({ blocks }) {
+  const timed = blocks.filter((b) => b.start_min != null && b.end_min != null);
+  const now = new Date();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const pt = (min, r) => {
+    const a = ((min / 1440) * 360 - 90) * (Math.PI / 180);
+    return [100 + r * Math.cos(a), 100 + r * Math.sin(a)];
+  };
+  const arc = (s, e, r) => {
+    const sweep = Math.min(spanMin(s, e), 1439.9);
+    const [x1, y1] = pt(s, r);
+    const [x2, y2] = pt(s + sweep, r);
+    return `M ${x1} ${y1} A ${r} ${r} 0 ${sweep > 720 ? 1 : 0} 1 ${x2} ${y2}`;
+  };
+  const [hx, hy] = pt(nowMin, 52);
+
+  return (
+    <svg
+      viewBox="0 0 200 200"
+      style={{ width: "100%", maxWidth: 250, display: "block", margin: "2px auto 0" }}
+    >
+      {/* bezel bergerigi */}
+      <circle cx="100" cy="100" r="96" fill="var(--janji-bg)" />
+      {[...Array(72)].map((_, i) => {
+        const [x1, y1] = pt((i / 72) * 1440, 89.5);
+        const [x2, y2] = pt((i / 72) * 1440, 96);
+        return (
+          <line
+            key={i}
+            x1={x1} y1={y1} x2={x2} y2={y2}
+            stroke="var(--janji-ink)"
+            strokeWidth="1.1"
+            opacity={i % 3 === 0 ? 0.95 : 0.4}
+          />
+        );
+      })}
+      <circle cx="100" cy="100" r="96" fill="none" stroke="var(--janji-ink)" strokeWidth="1.5" />
+      <circle cx="100" cy="100" r="89" fill="var(--card)" stroke="var(--janji-border)" strokeWidth="1" />
+
+      {/* cincin kegiatan */}
+      <circle cx="100" cy="100" r="64" fill="none" stroke="var(--badge)" strokeWidth="12" />
+      {timed.map((b) => (
+        <path
+          key={b.id}
+          d={arc(b.start_min, b.end_min, 64)}
+          stroke={b.color || "var(--muted)"}
+          strokeWidth="12"
+          fill="none"
+        >
+          <title>{`${b.name} · ${fromMin(b.start_min)}–${fromMin(b.end_min)}`}</title>
+        </path>
+      ))}
+
+      {/* indeks tiap jam */}
+      {[...Array(24)].map((_, h) => {
+        const major = h % 6 === 0;
+        const [x1, y1] = pt(h * 60, major ? 79 : 82);
+        const [x2, y2] = pt(h * 60, 86);
+        return (
+          <line
+            key={h}
+            x1={x1} y1={y1} x2={x2} y2={y2}
+            stroke={major ? "var(--janji-ink)" : "var(--muted)"}
+            strokeWidth={major ? 2.6 : 1.2}
+            strokeLinecap="round"
+          />
+        );
+      })}
+      {[0, 6, 12, 18].map((h) => {
+        const [x, y] = pt(h * 60, 75);
+        return (
+          <text
+            key={h}
+            x={x} y={y}
+            textAnchor="middle"
+            dominantBaseline="central"
+            fontFamily={MONO}
+            fontSize="9"
+            fontWeight="700"
+            fill="var(--janji-ink)"
+          >
+            {h}
+          </text>
+        );
+      })}
+
+      <text
+        x="100" y="127"
+        textAnchor="middle"
+        fontFamily={MONO}
+        fontSize="6.5"
+        letterSpacing="1.6"
+        fill="var(--muted)"
+      >
+        LIFEHACK
+      </text>
+      <text
+        x="100" y="137"
+        textAnchor="middle"
+        fontFamily={MONO}
+        fontSize="5.5"
+        letterSpacing="1.2"
+        fill="var(--faint)"
+      >
+        24 JAM
+      </text>
+
+      {/* jarum "sekarang" */}
+      <line
+        x1="100" y1="100" x2={hx} y2={hy}
+        stroke="var(--accent)"
+        strokeWidth="2.6"
+        strokeLinecap="round"
+      />
+      <circle cx="100" cy="100" r="4.5" fill="var(--janji-ink)" />
+      <circle cx="100" cy="100" r="1.8" fill="var(--card)" />
+    </svg>
+  );
+}
+
 function WaktuSection({ session }) {
   const [blocks, setBlocks] = useState(null);
-  const [form, setForm] = useState({ name: "", hours: "", wajib: false });
+  const [form, setForm] = useState({ name: "", hours: "", start: "", end: "", wajib: false });
   const [showForm, setShowForm] = useState(false);
+  const [err, setErr] = useState("");
 
   useEffect(() => {
     supabase
@@ -3525,9 +3675,19 @@ function WaktuSection({ session }) {
       .then(({ data, error }) => setBlocks(error ? [] : data));
   }, [session]);
 
+  // jam mulai/selesai diisi dua-duanya = durasinya ngikut, gak usah ngetik lagi
+  const formSpan = (() => {
+    const s = toMin(form.start);
+    const e = toMin(form.end);
+    if (s == null || e == null) return null;
+    return { start_min: s, end_min: e, hours: Math.round((spanMin(s, e) / 60) * 100) / 100 };
+  })();
+
   const addBlock = async () => {
     const name = form.name.trim();
-    const hours = parseFloat(String(form.hours).replace(",", "."));
+    const hours = formSpan
+      ? formSpan.hours
+      : parseFloat(String(form.hours).replace(",", "."));
     if (!name || isNaN(hours) || hours <= 0) return;
     const used = (blocks || []).length;
     const row = {
@@ -3535,13 +3695,15 @@ function WaktuSection({ session }) {
       hours,
       wajib: form.wajib,
       color: PALETTE[used % PALETTE.length],
+      ...(formSpan ? { start_min: formSpan.start_min, end_min: formSpan.end_min } : {}),
     };
-    setForm({ name: "", hours: "", wajib: false });
+    setErr("");
+    setForm({ name: "", hours: "", start: "", end: "", wajib: false });
     setShowForm(false);
     const { data, error } = await supabase
       .from("time_blocks").insert(row).select().single();
-    if (!error)
-      setBlocks((xs) => [...xs, data].sort((a, b) => b.hours - a.hours));
+    if (error) { setErr(error.message); return; }
+    setBlocks((xs) => [...xs, data].sort((a, b) => b.hours - a.hours));
   };
 
   const patchBlock = async (id, patch) => {
@@ -3550,7 +3712,8 @@ function WaktuSection({ session }) {
         .map((x) => (x.id === id ? { ...x, ...patch } : x))
         .sort((a, b) => b.hours - a.hours)
     );
-    await supabase.from("time_blocks").update(patch).eq("id", id);
+    const { error } = await supabase.from("time_blocks").update(patch).eq("id", id);
+    if (error) setErr(error.message);
   };
 
   const removeBlock = async (id) => {
@@ -3637,24 +3800,68 @@ function WaktuSection({ session }) {
         </div>
       </div>
 
+      {/* jam analog — cuma kegiatan yang punya jam mulai & selesai */}
+      {blocks.some((b) => b.start_min != null && b.end_min != null) && (
+        <div style={{ ...S.card, display: "block", padding: 14, marginBottom: 8 }}>
+          <JamAnalog blocks={blocks} />
+          <div
+            style={{
+              fontFamily: MONO,
+              fontSize: 10,
+              color: "var(--faint)",
+              textAlign: "center",
+              marginTop: 6,
+            }}
+          >
+            jarum = jam sekarang · yang gak diatur jamnya gak nongol di sini
+          </div>
+        </div>
+      )}
+
       {showForm && (
         <div style={{ marginBottom: 8 }}>
           <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
             <input
-              style={{ ...S.input, flex: 2, minWidth: 0 }}
+              style={{ ...S.input, flex: 1, minWidth: 0 }}
               placeholder="Kegiatan"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
             />
+            <button style={{ ...S.addBtn, width: 60 }} onClick={addBlock}>OK</button>
+          </div>
+          <div style={{ display: "flex", gap: 6, marginBottom: 6, alignItems: "center" }}>
             <input
-              style={{ ...S.input, flex: 1, minWidth: 0 }}
-              placeholder="Jam"
+              type="time"
+              style={{ ...S.input, flex: 1, minWidth: 0, fontSize: 14 }}
+              title="Jam mulai"
+              value={form.start}
+              onChange={(e) => setForm({ ...form, start: e.target.value })}
+            />
+            <span style={{ color: "var(--faint)", fontSize: 13 }}>–</span>
+            <input
+              type="time"
+              style={{ ...S.input, flex: 1, minWidth: 0, fontSize: 14 }}
+              title="Jam selesai"
+              value={form.end}
+              onChange={(e) => setForm({ ...form, end: e.target.value })}
+            />
+            <input
+              style={{
+                ...S.input,
+                width: 74,
+                flexShrink: 0,
+                fontFamily: MONO,
+                fontSize: 14,
+                ...(formSpan ? { color: "var(--faint)" } : {}),
+              }}
+              placeholder="jam"
               inputMode="decimal"
-              value={form.hours}
+              title={formSpan ? "Ikut jam mulai & selesai" : "Durasi (kalau jamnya gak pasti)"}
+              disabled={!!formSpan}
+              value={formSpan ? String(formSpan.hours) : form.hours}
               onChange={(e) => setForm({ ...form, hours: e.target.value })}
               onKeyDown={(e) => e.key === "Enter" && addBlock()}
             />
-            <button style={{ ...S.addBtn, width: 60 }} onClick={addBlock}>OK</button>
           </div>
           <label style={S.optLabel}>
             <input
@@ -3693,6 +3900,21 @@ function WaktuSection({ session }) {
               onSave={(v) => patchBlock(b.id, { name: v })}
               style={{ fontSize: 15, fontWeight: 500 }}
             />
+            <EditableText
+              value={
+                b.start_min != null && b.end_min != null
+                  ? `${fromMin(b.start_min)}–${fromMin(b.end_min)}`
+                  : ""
+              }
+              onSave={(v) => {
+                const r = parseRange(v);
+                if (r) patchBlock(b.id, r);
+                else if (!v.trim())
+                  patchBlock(b.id, { start_min: null, end_min: null });
+              }}
+              placeholder="atur jam…"
+              style={{ fontFamily: MONO, fontSize: 11, color: "var(--muted)", marginTop: 2 }}
+            />
           </div>
           {b.wajib && (
             <span style={{ ...S.tag, color: "var(--janji-ink)", borderColor: "var(--janji-border)" }}>
@@ -3724,6 +3946,15 @@ function WaktuSection({ session }) {
           <button style={S.btnGhost} onClick={() => removeBlock(b.id)}>✕</button>
         </div>
       ))}
+
+      {err && (
+        <div style={{ color: "var(--red)", fontSize: 12, marginTop: 8 }}>
+          {err}
+          {/[Cc]olumn|start_min/.test(err) && (
+            <> — jalanin dulu bagian <code>time_blocks</code> di supabase-setup.sql.</>
+          )}
+        </div>
+      )}
     </>
   );
 }
