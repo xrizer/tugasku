@@ -532,14 +532,6 @@ export default function LifeHack() {
   const doing = byStatus("inprogress");
   const done = byStatus("done");
 
-  // the single most important thing right now
-  const focus = doing[0] || todo[0] || null;
-
-  // yang lagi difokusin udah punya kartunya sendiri di atas — jangan diulang
-  const notFocus = (t) => !focus || t.id !== focus.id;
-  const todoList = todo.filter(notFocus);
-  const doingList = doing.filter(notFocus);
-
   const dateLabel = new Date().toLocaleDateString("id-ID", {
     weekday: "long",
     day: "numeric",
@@ -654,43 +646,7 @@ export default function LifeHack() {
 
         {tugasSub === "board" && (
         <>
-        {/* focus card — one thing at a time */}
-        {focus && (
-          <div
-            style={{
-              ...S.focusCard,
-              ...(focus.status === "inprogress"
-                ? { borderColor: "var(--accent)" }
-                : {}),
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              {focus.status === "inprogress" && <Flame />}
-              <div style={{ ...S.focusLabel, marginBottom: 0 }}>
-                {focus.status === "inprogress" ? "Lagi dikerjain" : "Fokus"}
-              </div>
-            </div>
-            <div style={{ height: 6 }} />
-            <div style={S.focusTitle}>{focus.title}</div>
-            {focus.status === "todo" ? (
-              <button style={S.focusBtn} onClick={() => move(focus.id, "inprogress")}>
-                Mulai →
-              </button>
-            ) : (
-              <button style={S.focusBtn} onClick={() => move(focus.id, "done")}>
-                Selesai ✓
-              </button>
-            )}
-          </div>
-        )}
-        {!focus && (
-          <div style={{ ...S.focusCard, background: "var(--green-bg)", borderColor: "var(--green-border)" }}>
-            <div style={{ ...S.focusTitle, color: "var(--green)" }}>
-              Semua beres 🎉
-            </div>
-          </div>
-        )}
-        <div style={{ marginTop: 14 }}>
+        <div>
             <div style={S.inputCard}>
               <div style={S.cardEyebrow}>Tugas baru</div>
               <div style={S.addRow}>
@@ -726,8 +682,8 @@ export default function LifeHack() {
             </div>
         </div>
         {/* sections */}
-        <Section title="Todo" count={todoList.length} collapsed={!!collapsed.todo} onToggle={() => toggleCollapsed("todo")}>
-          {todoList.map((t) => (
+        <Section title="Todo" count={todo.length} collapsed={!!collapsed.todo} onToggle={() => toggleCollapsed("todo")}>
+          {todo.map((t) => (
             <Card key={t.id} t={t} onEdit={editTask} onTogglePublic={togglePublic}>
               <button style={S.btn} onClick={() => move(t.id, "inprogress")}>
                 Terima
@@ -737,8 +693,8 @@ export default function LifeHack() {
           ))}
         </Section>
 
-        <Section title="In Progress" count={doingList.length} collapsed={!!collapsed.doing} onToggle={() => toggleCollapsed("doing")}>
-          {doingList.map((t) => (
+        <Section title="In Progress" count={doing.length} collapsed={!!collapsed.doing} onToggle={() => toggleCollapsed("doing")}>
+          {doing.map((t) => (
             <Card key={t.id} t={t} active onEdit={editTask} onTogglePublic={togglePublic}>
               <button style={S.btnGreen} onClick={() => move(t.id, "done")}>
                 Selesai
