@@ -4665,6 +4665,7 @@ function DiriPage({ session }) {
   const [habitErr, setHabitErr] = useState("");
   const [moodErr, setMoodErr] = useState("");
   const [sub, setSub] = useState("mood");
+  const [habitSub, setHabitSub] = useState("bad"); // bad | good | skor
   const [justLogged, setJustLogged] = useState(null); // habit_id yang baru dicatet
 
   useEffect(() => {
@@ -4892,8 +4893,9 @@ function DiriPage({ session }) {
 
   return (
     <>
-      {/* poin habit — keliatan di semua sub-tab */}
-      {totalPoints > 0 && (
+      {/* poin habit — keliatan di semua sub-tab, kecuali tab Skor yang
+          udah nampilin angkanya gede-gede */}
+      {totalPoints > 0 && !(sub === "habit" && habitSub === "skor") && (
         <div
           style={{
             display: "flex",
@@ -5053,9 +5055,19 @@ function DiriPage({ session }) {
 
       {sub === "habit" && (
       <>
+        <GlassNav
+          small
+          items={[["bad", "Bad habit"], ["good", "Good habit"], ["skor", "Skor"]]}
+          value={habitSub}
+          onChange={setHabitSub}
+          style={{ marginBottom: 14 }}
+        />
+
         {/* ===== bad habit ===== */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 4, gap: 10 }}>
-          <div style={S.sectionHead}><span>Bad habit</span></div>
+        {habitSub === "bad" && (
+        <>
+        {/* judulnya udah kebaca dari tab, sisain tombol tambahnya doang */}
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
           <button
             style={S.promAddLink}
             onClick={() => setShowHabitForm((v) => (v === "bad" ? null : "bad"))}
@@ -5150,9 +5162,13 @@ function DiriPage({ session }) {
           );
         })}
 
+        </>
+        )}
+
         {/* ===== good habit ===== */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 44, gap: 10 }}>
-          <div style={S.sectionHead}><span>Good habit</span></div>
+        {habitSub === "good" && (
+        <>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
           <button
             style={S.promAddLink}
             onClick={() => setShowHabitForm((v) => (v === "good" ? null : "good"))}
@@ -5175,6 +5191,7 @@ function DiriPage({ session }) {
           </div>
         )}
 
+        {habits === null && <div style={S.empty}>Memuat…</div>}
         {habits !== null && goodHabits.length === 0 && showHabitForm !== "good" && (
           <div style={S.empty}>Belum ada.</div>
         )}
@@ -5233,6 +5250,86 @@ function DiriPage({ session }) {
             </div>
           );
         })}
+        </>
+        )}
+
+        {/* ===== skor ===== */}
+        {habitSub === "skor" && (
+        <>
+          <div style={{ textAlign: "center", marginTop: 10, marginBottom: 30 }}>
+            <div style={{ fontFamily: MONO, fontSize: 40, fontWeight: 700, color: "var(--janji-ink)", lineHeight: 1 }}>
+              🏅 {totalPoints.toLocaleString("id-ID")}
+            </div>
+            <div style={{ ...S.dumpHint, marginTop: 6 }}>poin kekumpul</div>
+          </div>
+
+          {habits === null && <div style={S.empty}>Memuat…</div>}
+
+          {badHabits.length > 0 && (
+            <div style={{ marginTop: 26 }}>
+              <div style={S.sectionHead}><span>Bad habit</span></div>
+              {badHabits.map((h) => {
+                const days = cleanDays(h);
+                const next = nextTier(days);
+                return (
+                  <div key={h.id} style={{ ...S.card, marginBottom: 14 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 15, fontWeight: 600 }}>{h.name}</div>
+                      <div style={{ ...S.dumpHint, marginBottom: 0, marginTop: 3 }}>
+                        {days} hari bersih{next ? ` · ${next.label} lagi +${next.pts}` : " · maks 🎉"}
+                      </div>
+                    </div>
+                    <span style={S.scoreNum}>{streakPoints(days)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {goodHabits.length > 0 && (
+            <div style={{ marginTop: 26 }}>
+              <div style={S.sectionHead}><span>Good habit</span></div>
+              {goodHabits.map((h) => (
+                <div key={h.id} style={{ ...S.card, marginBottom: 14 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 15, fontWeight: 600 }}>{h.name}</div>
+                    <div style={{ ...S.dumpHint, marginBottom: 0, marginTop: 3 }}>
+                      {doneDates(h).size} hari · +{GOOD_POINT} tiap hari
+                    </div>
+                  </div>
+                  <span style={S.scoreNum}>{goodPoints(h)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* tangga poinnya dibuka biar keliatan sisa berapa hari lagi */}
+          <div style={{ marginTop: 26 }}>
+            <div style={S.sectionHead}><span>Tangga bad habit</span></div>
+            {STREAK_TIERS.map((t) => {
+              const got = badHabits.some((h) => cleanDays(h) >= t.days);
+              return (
+                <div
+                  key={t.days}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    fontFamily: MONO,
+                    fontSize: 12,
+                    padding: "7px 2px",
+                    color: got ? "var(--ink)" : "var(--faint)",
+                  }}
+                >
+                  <span>{got ? "✓" : "·"} {t.label}</span>
+                  <span style={{ fontWeight: 700, ...(got ? { color: "var(--janji-ink)" } : {}) }}>
+                    +{t.pts}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </>
+        )}
 
         {habitErr && (
           <div style={{ color: "var(--red)", fontSize: 12, marginTop: 8 }}>
@@ -6158,6 +6255,14 @@ const S = {
     cursor: "pointer",
   },
   menuIcon: { fontSize: 14, width: 18, textAlign: "center", flexShrink: 0 },
+  scoreNum: {
+    fontFamily: MONO,
+    fontSize: 17,
+    fontWeight: 700,
+    color: "var(--janji-ink)",
+    whiteSpace: "nowrap",
+    flexShrink: 0,
+  },
   chev: { display: "inline-block", width: 14, fontSize: 11, color: "var(--faint)" },
   miniCount: {
     marginLeft: 8,
