@@ -4017,13 +4017,13 @@ function WaktuSection({ session }) {
           />
           <span style={{ fontSize: 12, color: "var(--faint)" }}>jam</span>
           <button
-            style={{ ...S.btnGhost, padding: "4px 8px", fontSize: 11 }}
+            style={S.iconBtn}
             title={b.wajib ? "Jadiin fleksibel" : "Tandain wajib"}
             onClick={() => patchBlock(b.id, { wajib: !b.wajib })}
           >
             {b.wajib ? "☑" : "☐"}
           </button>
-          <button style={S.btnGhost} onClick={() => removeBlock(b.id)}>✕</button>
+          <button style={S.iconBtn} onClick={() => removeBlock(b.id)}>✕</button>
         </div>
       ))}
 
@@ -5737,6 +5737,24 @@ const S = {
     borderRadius: 8,
     padding: "7px 10px",
     fontSize: 13,
+    cursor: "pointer",
+  },
+  // tombol ikon: kotak beneran, biar ☑ dan ✕ gak beda ukuran gara-gara
+  // lebar glifnya sendiri yang beda.
+  iconBtn: {
+    background: "transparent",
+    color: "var(--muted)",
+    border: "1px solid var(--border)",
+    borderRadius: 8,
+    width: 32,
+    height: 32,
+    padding: 0,
+    fontSize: 13,
+    lineHeight: 1,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
     cursor: "pointer",
   },
   empty: {
