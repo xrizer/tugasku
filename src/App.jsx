@@ -3613,34 +3613,45 @@ function JamAnalog({ blocks, onCommit }) {
       onPointerUp={endDrag}
       onPointerCancel={endDrag}
     >
-      {/* bezel bergerigi */}
-      <circle cx="100" cy="100" r="96" fill="var(--janji-bg)" />
-      {[...Array(72)].map((_, i) => {
-        const [x1, y1] = pt((i / 72) * 1440, 89.5);
-        const [x2, y2] = pt((i / 72) * 1440, 96);
+      {/* jam & angkanya */}
+      {[...Array(24)].map((_, h) => {
+        const major = h % 6 === 0;
+        const [x1, y1] = pt(h * 60, 78);
+        const [x2, y2] = pt(h * 60, major ? 85 : 83);
+        const [tx, ty] = pt(h * 60, 93);
         return (
-          <line
-            key={i}
-            x1={x1} y1={y1} x2={x2} y2={y2}
-            stroke="var(--janji-ink)"
-            strokeWidth="1.1"
-            opacity={i % 3 === 0 ? 0.95 : 0.4}
-          />
+          <g key={h}>
+            <line
+              x1={x1} y1={y1} x2={x2} y2={y2}
+              stroke={major ? "var(--muted2)" : "var(--border2)"}
+              strokeWidth={major ? 1.6 : 1}
+              strokeLinecap="round"
+            />
+            <text
+              x={tx} y={ty}
+              textAnchor="middle"
+              dominantBaseline="central"
+              fontFamily={MONO}
+              fontSize="7.5"
+              fontWeight={major ? 700 : 400}
+              fill={major ? "var(--muted2)" : "var(--faint)"}
+            >
+              {h}
+            </text>
+          </g>
         );
       })}
-      <circle cx="100" cy="100" r="96" fill="none" stroke="var(--janji-ink)" strokeWidth="1.5" />
-      <circle cx="100" cy="100" r="89" fill="var(--card)" stroke="var(--janji-border)" strokeWidth="1" />
 
       {/* cincin kegiatan */}
-      <circle cx="100" cy="100" r="64" fill="none" stroke="var(--badge)" strokeWidth="12" />
+      <circle cx="100" cy="100" r="62" fill="none" stroke="var(--badge)" strokeWidth="12" />
       {timed.map((b) => (
         <path
           key={b.id}
-          d={arc(b.start_min, b.end_min, 64)}
+          d={arc(b.start_min, b.end_min, 62)}
           stroke={b.color || "var(--muted)"}
           strokeWidth="12"
           fill="none"
-          opacity={draft && draft.id !== b.id ? 0.45 : 1}
+          opacity={draft && draft.id !== b.id ? 0.4 : 1}
         >
           <title>{`${b.name} · ${fromMin(b.start_min)}–${fromMin(b.end_min)}`}</title>
         </path>
@@ -3649,7 +3660,7 @@ function JamAnalog({ blocks, onCommit }) {
       {/* pegangan tiap ujung — ditarik buat ganti jamnya */}
       {timed.map((b) =>
         ["start", "end"].map((which) => {
-          const [x, y] = pt(which === "start" ? b.start_min : b.end_min, 64);
+          const [x, y] = pt(which === "start" ? b.start_min : b.end_min, 62);
           const on = draft?.id === b.id && dragRef.current?.which === which;
           return (
             <g
@@ -3657,69 +3668,34 @@ function JamAnalog({ blocks, onCommit }) {
               onPointerDown={startDrag(b, which)}
               style={{ cursor: "grab", touchAction: "none" }}
             >
-              {/* target jari, gak keliatan */}
               <circle cx={x} cy={y} r="13" fill="transparent" />
               <circle
                 cx={x}
                 cy={y}
-                r={on ? 7 : 5.6}
+                r={on ? 6.5 : 5}
                 fill={b.color || "var(--muted)"}
-                stroke="var(--card)"
+                stroke="var(--bg)"
                 strokeWidth="2"
               />
-              <circle cx={x} cy={y} r="1.6" fill="var(--card)" />
             </g>
           );
         })
       )}
 
-      {/* indeks tiap jam */}
-      {[...Array(24)].map((_, h) => {
-        const major = h % 6 === 0;
-        const [x1, y1] = pt(h * 60, major ? 79 : 82);
-        const [x2, y2] = pt(h * 60, 86);
-        return (
-          <line
-            key={h}
-            x1={x1} y1={y1} x2={x2} y2={y2}
-            stroke={major ? "var(--janji-ink)" : "var(--muted)"}
-            strokeWidth={major ? 2.6 : 1.2}
-            strokeLinecap="round"
-          />
-        );
-      })}
-      {[0, 6, 12, 18].map((h) => {
-        const [x, y] = pt(h * 60, 75);
-        return (
-          <text
-            key={h}
-            x={x} y={y}
-            textAnchor="middle"
-            dominantBaseline="central"
-            fontFamily={MONO}
-            fontSize="9"
-            fontWeight="700"
-            fill="var(--janji-ink)"
-          >
-            {h}
-          </text>
-        );
-      })}
-
       {/* jarum "sekarang" */}
       <line
         x1="100" y1="100" x2={hx} y2={hy}
         stroke="var(--accent)"
-        strokeWidth="2.6"
+        strokeWidth="2"
         strokeLinecap="round"
       />
-      <circle cx="100" cy="100" r="4.5" fill="var(--janji-ink)" />
-      <circle cx="100" cy="100" r="1.8" fill="var(--card)" />
-      {/* pas ditarik, tulisan dial-nya ganti jadi jam yang lagi diatur */}
-      {dragging ? (
+      <circle cx="100" cy="100" r="2.6" fill="var(--accent)" />
+
+      {/* pas ditarik, jamnya muncul di tengah */}
+      {dragging && (
         <>
           <text
-            x="100" y="126"
+            x="100" y="124"
             textAnchor="middle"
             fontFamily={MONO}
             fontSize="9"
@@ -3729,41 +3705,17 @@ function JamAnalog({ blocks, onCommit }) {
             {fromMin(dragging.start_min)}–{fromMin(dragging.end_min)}
           </text>
           <text
-            x="100" y="137"
+            x="100" y="134"
             textAnchor="middle"
             fontFamily={MONO}
-            fontSize="5.5"
+            fontSize="6"
             letterSpacing="1.2"
             fill="var(--faint)"
           >
             {(spanMin(dragging.start_min, dragging.end_min) / 60).toFixed(1)} JAM
           </text>
         </>
-      ) : (
-        <>
-          <text
-            x="100" y="127"
-            textAnchor="middle"
-            fontFamily={MONO}
-            fontSize="6.5"
-            letterSpacing="1.6"
-            fill="var(--muted)"
-          >
-            LIFEHACK
-          </text>
-          <text
-            x="100" y="137"
-            textAnchor="middle"
-            fontFamily={MONO}
-            fontSize="5.5"
-            letterSpacing="1.2"
-            fill="var(--faint)"
-          >
-            24 JAM
-          </text>
-        </>
       )}
-
     </svg>
   );
 }
