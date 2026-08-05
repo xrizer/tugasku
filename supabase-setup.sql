@@ -44,6 +44,18 @@ alter table public.time_blocks
   add constraint time_blocks_end_min_range   check (end_min   between 0 and 1439) not valid;
 
 -- ---------------------------------------------------------------------
+-- Peta 24 jam ikut ke link publik (?share=<user_id>).
+--
+-- Sama polanya kayak tasks.is_public: defaultnya privat, jadi gak ada yang
+-- bocor sampe tombol matanya dinyalain. Policy SELECT di RLS itu di-OR,
+-- jadi policy ini nempel di sebelah policy pemiliknya — bukan gantiin.
+alter table public.time_blocks
+  add column if not exists is_public boolean not null default false;
+
+create policy "public read time blocks" on public.time_blocks
+  for select using (is_public = true);
+
+-- ---------------------------------------------------------------------
 -- Tiap "bikin cape" punya solusinya sendiri: satu buat nahan sekarang,
 -- satu buat ngeberesin akarnya.
 alter table public.drains

@@ -3547,7 +3547,7 @@ const SNAP = 5; // menit — biar gampang pas ditarik pakai jari
 
 // Jam analog 24 jam — tengah malam di atas, jalan searah jarum jam.
 // Ujung tiap busur bisa ditarik buat ganti jam mulai / selesai.
-function JamAnalog({ blocks, onCommit }) {
+function JamAnalog({ blocks, onCommit, readOnly }) {
   const svgRef = useRef(null);
   const dragRef = useRef(null); // { id, which: 'start' | 'end' }
   const [draft, setDraft] = useState(null); // { id, start_min, end_min }
@@ -3686,7 +3686,7 @@ function JamAnalog({ blocks, onCommit }) {
       ))}
 
       {/* pegangan tiap ujung — ditarik buat ganti jamnya */}
-      {timed.map((b) =>
+      {!readOnly && timed.map((b) =>
         ["start", "end"].map((which) => {
           const [x, y] = pt(which === "start" ? b.start_min : b.end_min, 62);
           const on = draft?.id === b.id && dragRef.current?.which === which;
@@ -3771,6 +3771,10 @@ function WaktuSection({ session }) {
     return { start_min: s, end_min: e, hours: Math.round((spanMin(s, e) / 60) * 100) / 100 };
   })();
 
+  // peta dianggep kebagi kalau semua kegiatannya publik — satu saklar, bukan
+  // per baris, soalnya yang dibaca orang itu petanya utuh
+  const allPublic = (xs) => xs.length > 0 && xs.every((x) => x.is_public);
+
   const addBlock = async () => {
     const name = form.name.trim();
     const hours = formSpan
@@ -3783,6 +3787,8 @@ function WaktuSection({ session }) {
       hours,
       wajib: form.wajib,
       color: PALETTE[used % PALETTE.length],
+      // kegiatan baru ngikut status petanya, biar gak diam-diam ilang dari link
+      is_public: allPublic(blocks || []),
       ...(formSpan ? { start_min: formSpan.start_min, end_min: formSpan.end_min } : {}),
     };
     setErr("");
@@ -3814,7 +3820,23 @@ function WaktuSection({ session }) {
     patchBlock(b.id, { color: PALETTE[(i + 1) % PALETTE.length] });
   };
 
+  const toggleShare = async () => {
+    const v = !allPublic(blocks || []);
+    setBlocks((xs) => xs.map((x) => ({ ...x, is_public: v })));
+    setErr("");
+    // .select() biar RLS yang nolak diem-diem (0 baris, tanpa error) ketahuan
+    const { data, error } = await supabase
+      .from("time_blocks")
+      .update({ is_public: v })
+      .eq("user_id", session.user.id)
+      .select("id");
+    if (error) setErr(error.message);
+    else if (!data?.length) setErr("Gak ada yang keupdate — jalanin dulu bagian time_blocks di supabase-setup.sql.");
+  };
+
   if (blocks === null) return null;
+
+  const shared = allPublic(blocks);
 
   const used = blocks.reduce((s, b) => s + Number(b.hours), 0);
   const free = Math.max(0, 24 - used);
@@ -3827,9 +3849,23 @@ function WaktuSection({ session }) {
     <>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 26, gap: 10 }}>
         <div style={S.sectionHead}><span>🕒 Peta 24 jam</span></div>
-        <button style={S.promAddLink} onClick={() => setShowForm((v) => !v)}>
-          {showForm ? "batal" : "+ kegiatan"}
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {blocks.length > 0 && (
+            <button
+              style={{
+                ...S.iconBtn,
+                ...(shared ? { borderColor: "var(--green)", color: "var(--green)" } : {}),
+              }}
+              title={shared ? "Peta keliatan di link publik" : "Peta cuma buat lu"}
+              onClick={toggleShare}
+            >
+              <Eye off={!shared} />
+            </button>
+          )}
+          <button style={S.promAddLink} onClick={() => setShowForm((v) => !v)}>
+            {showForm ? "batal" : "+ kegiatan"}
+          </button>
+        </div>
       </div>
 
       <div style={{ ...S.card, display: "block", padding: 14, marginBottom: 8 }}>
@@ -5276,6 +5312,7 @@ function HomePage({ session, go }) {
 
 function PublicView({ userId, themeVars }) {
   const [tasks, setTasks] = useState(null);
+  const [blocks, setBlocks] = useState([]);
 
   useEffect(() => {
     supabase
@@ -5284,7 +5321,18 @@ function PublicView({ userId, themeVars }) {
       .eq("user_id", userId)
       .eq("is_public", true)
       .then(({ data, error }) => setTasks(error ? [] : data));
+
+    supabase
+      .from("time_blocks")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("is_public", true)
+      .order("hours", { ascending: false })
+      .then(({ data, error }) => setBlocks(error ? [] : data || []));
   }, [userId]);
+
+  const used = blocks.reduce((s, b) => s + Number(b.hours), 0);
+  const free = Math.max(0, 24 - used);
 
   const byStatus = (s) =>
     (tasks || []).filter((t) => t.status === s).sort((a, b) => a.priority - b.priority);
@@ -5311,7 +5359,7 @@ function PublicView({ userId, themeVars }) {
           <div style={S.empty}>Memuat…</div>
         )}
 
-        {tasks !== null && tasks.length === 0 && (
+        {tasks !== null && tasks.length === 0 && blocks.length === 0 && (
           <div style={{ ...S.focusCard }}>
             <div style={S.focusTitle}>Belum ada yang di-share di sini.</div>
           </div>
@@ -5350,6 +5398,92 @@ function PublicView({ userId, themeVars }) {
                 <div style={{ ...S.cardTitle, textDecoration: "line-through" }}>{t.title}</div>
               </div>
             ))}
+          </div>
+        )}
+
+        {blocks.length > 0 && (
+          <div style={{ marginTop: 38 }}>
+            <div style={S.sectionHead}><span>🕒 Peta 24 jam</span></div>
+
+            {/* stacked bar — sama kayak punya yang punya, cuma gak bisa disentuh */}
+            <div
+              style={{
+                display: "flex",
+                height: 34,
+                borderRadius: 10,
+                overflow: "hidden",
+                border: "1px solid var(--border)",
+                marginTop: 14,
+              }}
+            >
+              {blocks.map((b) => (
+                <div
+                  key={b.id}
+                  title={`${b.name} — ${b.hours} jam`}
+                  style={{
+                    width: `${(Number(b.hours) / 24) * 100}%`,
+                    background: b.color || "var(--muted)",
+                    minWidth: 2,
+                  }}
+                />
+              ))}
+              {free > 0 && (
+                <div
+                  style={{
+                    width: `${(free / 24) * 100}%`,
+                    background:
+                      "repeating-linear-gradient(45deg, transparent, transparent 4px, var(--border) 4px, var(--border) 6px)",
+                  }}
+                />
+              )}
+            </div>
+
+            <div
+              style={{
+                fontFamily: MONO,
+                fontSize: 11,
+                color: "var(--muted)",
+                marginTop: 8,
+                textAlign: "center",
+              }}
+            >
+              kepake {used.toFixed(1)} · {free.toFixed(1)} jam bebas
+            </div>
+
+            {blocks.some((b) => b.start_min != null && b.end_min != null) && (
+              <div style={{ marginTop: 14 }}>
+                <JamAnalog blocks={blocks} readOnly />
+              </div>
+            )}
+
+            <div style={{ marginTop: 18 }}>
+              {blocks.map((b) => (
+                <div key={b.id} style={S.card}>
+                  <span
+                    style={{
+                      width: 20,
+                      height: 20,
+                      borderRadius: 7,
+                      background: b.color || "var(--muted)",
+                      flexShrink: 0,
+                    }}
+                  />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 15, fontWeight: 500 }}>{b.name}</div>
+                    {b.start_min != null && b.end_min != null && (
+                      <div style={{ fontFamily: MONO, fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
+                        {fromMin(b.start_min)}–{fromMin(b.end_min)}
+                      </div>
+                    )}
+                  </div>
+                  {b.wajib && (
+                    <span style={{ ...S.tag, color: "var(--janji-ink)" }}>wajib</span>
+                  )}
+                  <span style={{ fontFamily: MONO, fontSize: 14, fontWeight: 700 }}>{b.hours}</span>
+                  <span style={{ fontSize: 12, color: "var(--faint)" }}>jam</span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
