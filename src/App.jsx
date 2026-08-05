@@ -4210,7 +4210,11 @@ function MimpiSection({ session }) {
           >
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, lineHeight: 1.35 }}>{dr.name}</div>
+                <EditableText
+                  value={dr.name}
+                  onSave={(v) => patchDream(dr.id, { name: v })}
+                  style={{ fontSize: 14, fontWeight: 700, lineHeight: 1.35 }}
+                />
                 <div style={{ display: "flex", gap: 4, alignItems: "center", marginTop: 6, flexWrap: "wrap" }}>
                   {[...Array(7)].map((_, i) => (
                     <div
@@ -4402,7 +4406,11 @@ function DrainSection({ session }) {
           >
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 15, fontWeight: 600, lineHeight: 1.35 }}>{d.name}</div>
+                <EditableText
+                  value={d.name}
+                  onSave={(v) => patchDrain(d.id, { name: v })}
+                  style={{ fontSize: 15, fontWeight: 600, lineHeight: 1.35 }}
+                />
                 {week > 0 && (
                   <div style={{ ...S.dumpHint, marginBottom: 0, marginTop: 2 }}>
                     {week}× minggu ini{n > 0 ? ` · ${n}× hari ini` : ""}
@@ -4590,9 +4598,15 @@ function PencapaianSection({ session }) {
               onSave={(v) => patchItem(a.id, { text: v })}
               style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.3 }}
             />
-            <div style={{ fontSize: 11, color: "var(--janji-ink)", fontWeight: 700, fontFamily: MONO }}>
-              {a.year || ""}
-            </div>
+            <EditableText
+              value={a.year ? String(a.year) : ""}
+              onSave={(v) => {
+                const y = parseInt(String(v).replace(/\D/g, ""), 10);
+                patchItem(a.id, { year: y >= 1900 && y <= 2100 ? y : null });
+              }}
+              placeholder="tahun"
+              style={{ fontSize: 11, color: "var(--janji-ink)", fontWeight: 700, fontFamily: MONO }}
+            />
             <button
               style={{
                 position: "absolute",
@@ -4758,6 +4772,12 @@ function DiriPage({ session }) {
       .from("habits").insert({ name, kind }).select().single();
     if (error) { setHabitErr(error.message); return; }
     setHabits((hs) => [...hs, data]);
+  };
+
+  const patchHabit = async (id, patch) => {
+    setHabits((hs) => hs.map((h) => (h.id === id ? { ...h, ...patch } : h)));
+    const { error } = await supabase.from("habits").update(patch).eq("id", id);
+    if (error) setHabitErr(error.message);
   };
 
   const removeHabit = async (id) => {
@@ -5018,7 +5038,11 @@ function DiriPage({ session }) {
                   <div style={{ fontFamily: MONO, fontSize: 9, color: "var(--faint)" }}>hari</div>
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={S.cardTitle}>{h.name}</div>
+                  <EditableText
+                    value={h.name}
+                    onSave={(v) => patchHabit(h.id, { name: v })}
+                    style={S.cardTitle}
+                  />
                   {tm && (
                     <div style={{ ...S.dumpHint, marginBottom: 0, marginTop: 3 }}>
                       biasanya pas {tm} {moodEmoji(tm)}
@@ -5111,7 +5135,11 @@ function DiriPage({ session }) {
                 <div style={{ fontFamily: MONO, fontSize: 9, color: "var(--faint)" }}>hari</div>
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={S.cardTitle}>{h.name}</div>
+                <EditableText
+                  value={h.name}
+                  onSave={(v) => patchHabit(h.id, { name: v })}
+                  style={S.cardTitle}
+                />
               </div>
               {total > 0 && (
                 <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 700, color: "var(--janji-ink)", whiteSpace: "nowrap" }}>
