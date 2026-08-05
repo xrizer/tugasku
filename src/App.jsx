@@ -1629,7 +1629,7 @@ function RutinView({ session, sources, onLogExpense }) {
               </div>
               <div style={S.cardBtns}>
                 {paid ? (
-                  <span style={{ ...S.tag, color: "var(--green)", borderColor: "var(--green-border)" }}>
+                  <span style={{ ...S.tag, color: "var(--green)" }}>
                     ✓ bulan ini
                   </span>
                 ) : (
@@ -1705,7 +1705,7 @@ function RutinView({ session, sources, onLogExpense }) {
               </div>
               <div style={S.cardBtns}>
                 {received ? (
-                  <span style={{ ...S.tag, color: "var(--green)", borderColor: "var(--green-border)" }}>
+                  <span style={{ ...S.tag, color: "var(--green)" }}>
                     ✓ bulan ini
                   </span>
                 ) : (
@@ -4018,7 +4018,7 @@ function WaktuSection({ session }) {
             />
           </div>
           {b.wajib && (
-            <span style={{ ...S.tag, color: "var(--janji-ink)", borderColor: "var(--janji-border)" }}>
+            <span style={{ ...S.tag, color: "var(--janji-ink)" }}>
               wajib
             </span>
           )}
@@ -5554,11 +5554,12 @@ function Card({ t, children, active, done, onEdit, onTogglePublic }) {
         ...S.card,
         borderRadius: 18,
         padding: "14px 16px",
+        // yang lagi jalan cukup ditandain warna latar, gak usah digaris tebel
         ...(active
-          ? { background: "var(--accent-bg)", border: "2px solid var(--accent)" }
+          ? { background: "var(--accent-bg)", borderColor: "var(--accent-border)" }
           : {}),
         ...(done
-          ? { background: "var(--badge)", opacity: 0.75 }
+          ? { background: "transparent", borderColor: "transparent", opacity: 0.55 }
           : {}),
       }}
     >
@@ -5577,13 +5578,13 @@ function Card({ t, children, active, done, onEdit, onTogglePublic }) {
         />
         <div style={S.tags}>
           {t.priority === 0 && (
-            <span style={{ ...S.tag, color: "var(--accent)", borderColor: "var(--accent-border)" }}>
+            <span style={{ ...S.tag, color: "var(--accent)" }}>
               penting
             </span>
           )}
           {t.daily && <span style={S.tag}>harian</span>}
           {t.is_public && (
-            <span style={{ ...S.tag, color: "var(--green)", borderColor: "var(--green-border)" }}>
+            <span style={{ ...S.tag, color: "var(--green)" }}>
               publik
             </span>
           )}
@@ -5674,7 +5675,7 @@ const S = {
   addRow: { display: "flex", gap: 8 },
   inputCard: {
     background: "var(--card)",
-    border: "1px solid var(--border2)",
+    border: "1px solid var(--border)",
     borderRadius: 18,
     padding: "14px 16px",
     display: "flex",
@@ -5733,7 +5734,7 @@ const S = {
     border: "1px solid var(--border)",
     borderRadius: 12,
     padding: "12px 14px",
-    marginBottom: 8,
+    marginBottom: 10,
     display: "flex",
     alignItems: "center",
     gap: 10,
@@ -5746,9 +5747,6 @@ const S = {
     letterSpacing: "0.1em",
     textTransform: "uppercase",
     color: "var(--muted)",
-    border: "1px solid var(--border)",
-    borderRadius: 999,
-    padding: "2px 9px",
   },
   cardBtns: { display: "flex", gap: 6, flexShrink: 0 },
   btn: {
