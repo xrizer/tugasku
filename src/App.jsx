@@ -152,6 +152,7 @@ export default function LifeHack() {
   const [promForm, setPromForm] = useState({ text: "", to_whom: "", due_date: "" });
   const [showPromForm, setShowPromForm] = useState(false);
   const [collapsed, toggleCollapsed] = useCollapsed();
+  const [tugasSub, setTugasSub] = useState("board");
   const [page, setPage] = useState("home");
   const [navDir, setNavDir] = useState(1);
   const touchRef = useRef(null);
@@ -643,6 +644,16 @@ export default function LifeHack() {
 
         {page === "tugas" && (
         <>
+        <GlassNav
+          small
+          items={[["board", "Tugas"], ["janji", "Janji"], ["resah", "Resah"]]}
+          value={tugasSub}
+          onChange={setTugasSub}
+          style={{ marginBottom: 14 }}
+        />
+
+        {tugasSub === "board" && (
+        <>
         {/* focus card — one thing at a time */}
         {focus && (
           <div
@@ -679,35 +690,95 @@ export default function LifeHack() {
             </div>
           </div>
         )}
+        <div style={{ marginTop: 14 }}>
+            <div style={S.inputCard}>
+              <div style={S.cardEyebrow}>Tugas baru</div>
+              <div style={S.addRow}>
+                <input
+                  style={S.input}
+                  placeholder="Tulis di sini…"
+                  value={newTitle}
+                  onChange={(e) => setNewTitle(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && addTask()}
+                />
+                <button style={S.addBtn} onClick={addTask}>+</button>
+              </div>
+              {newTitle.trim() !== "" && (
+                <div style={S.addOpts}>
+                  <label style={S.optLabel}>
+                    <input
+                      type="checkbox"
+                      checked={newDaily}
+                      onChange={(e) => setNewDaily(e.target.checked)}
+                    />{" "}
+                    Harian
+                  </label>
+                  <label style={S.optLabel}>
+                    <input
+                      type="checkbox"
+                      checked={newPriority === 0}
+                      onChange={(e) => setNewPriority(e.target.checked ? 0 : 1)}
+                    />{" "}
+                    Penting
+                  </label>
+                </div>
+              )}
+            </div>
+        </div>
+        {/* sections */}
+        <Section title="Todo" count={todoList.length} collapsed={!!collapsed.todo} onToggle={() => toggleCollapsed("todo")}>
+          {todoList.map((t) => (
+            <Card key={t.id} t={t} onEdit={editTask} onTogglePublic={togglePublic}>
+              <button style={S.btn} onClick={() => move(t.id, "inprogress")}>
+                Terima
+              </button>
+              <button style={S.btnGhost} onClick={() => remove(t.id)}>✕</button>
+            </Card>
+          ))}
+        </Section>
 
+        <Section title="In Progress" count={doingList.length} collapsed={!!collapsed.doing} onToggle={() => toggleCollapsed("doing")}>
+          {doingList.map((t) => (
+            <Card key={t.id} t={t} active onEdit={editTask} onTogglePublic={togglePublic}>
+              <button style={S.btnGreen} onClick={() => move(t.id, "done")}>
+                Selesai
+              </button>
+              <button style={S.btnGhost} onClick={() => move(t.id, "todo")}>↩</button>
+            </Card>
+          ))}
+        </Section>
+
+        <Section title="Completed" count={done.length} collapsed={!!collapsed.done} onToggle={() => toggleCollapsed("done")}>
+          {done.map((t) => (
+            <Card key={t.id} t={t} done onEdit={editTask} onTogglePublic={togglePublic}>
+              <button style={S.btnGhost} onClick={() => move(t.id, "todo")}>↩</button>
+              {!t.daily && (
+                <button style={S.btnGhost} onClick={() => remove(t.id)}>✕</button>
+              )}
+            </Card>
+          ))}
+        </Section>
+        </>
+        )}
+
+        {tugasSub === "janji" && (
+        <>
         {/* janji — hal yang gak boleh kelupaan */}
-        <div
-          style={
-            collapsed.janji
-              ? { marginBottom: 10, padding: "4px 2px" }
-              : S.promBox
-          }
-        >
-          <div style={{ ...S.dumpHead, cursor: "pointer", userSelect: "none" }}>
-            <span
-              style={{ ...S.cardEyebrow, color: "var(--janji-ink)" }}
-              onClick={() => toggleCollapsed("janji")}
-            >
-              <span style={S.chev}>{collapsed.janji ? "▸" : "▾"}</span> Janji
-              {collapsed.janji && promises.length > 0 && (
+        <div style={S.promBox}>
+          <div style={S.dumpHead}>
+            <span style={{ ...S.cardEyebrow, color: "var(--janji-ink)" }}>
+              Janji
+              {promises.length > 0 && (
                 <span style={S.miniCount}>{promises.length}</span>
               )}
             </span>
-            {!collapsed.janji && (
-              <button
-                style={S.promAddLink}
-                onClick={() => setShowPromForm((v) => !v)}
-              >
-                {showPromForm ? "batal" : "+ baru"}
-              </button>
-            )}
+            <button
+              style={S.promAddLink}
+              onClick={() => setShowPromForm((v) => !v)}
+            >
+              {showPromForm ? "batal" : "+ baru"}
+            </button>
           </div>
-          {!collapsed.janji && (
           <>
 
           {showPromForm && (
@@ -806,86 +877,42 @@ export default function LifeHack() {
             );
           })}
           </>
-          )}
         </div>
+        </>
+        )}
 
-        {/* tugas baru + resah — dua kartu sebelahan, numpuk sendiri pas sempit */}
+        {tugasSub === "resah" && (
+        <>
         <div
           style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-            gap: 14,
+            ...S.inputCard,
+            background: "var(--dump-bg)",
+            borderColor: "var(--dump-border)",
           }}
         >
-          <div style={S.inputCard}>
-            <div style={S.cardEyebrow}>Tugas baru</div>
-            <div style={S.addRow}>
-              <input
-                style={S.input}
-                placeholder="Tulis di sini…"
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && addTask()}
-              />
-              <button style={S.addBtn} onClick={addTask}>+</button>
-            </div>
-            {newTitle.trim() !== "" && (
-              <div style={S.addOpts}>
-                <label style={S.optLabel}>
-                  <input
-                    type="checkbox"
-                    checked={newDaily}
-                    onChange={(e) => setNewDaily(e.target.checked)}
-                  />{" "}
-                  Harian
-                </label>
-                <label style={S.optLabel}>
-                  <input
-                    type="checkbox"
-                    checked={newPriority === 0}
-                    onChange={(e) => setNewPriority(e.target.checked ? 0 : 1)}
-                  />{" "}
-                  Penting
-                </label>
-              </div>
-            )}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+            <span style={{ ...S.cardEyebrow, marginBottom: 0 }}>
+              Resah
+              {worries.length > 0 && <span style={S.miniCount}>{worries.length}</span>}
+            </span>
+            {released > 0 && <span style={S.dumpReleased}>{released} dilepas</span>}
           </div>
-
-          <div
-            style={{
-              ...S.inputCard,
-              background: "var(--dump-bg)",
-              borderColor: "var(--dump-border)",
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-              <span
-                style={{ ...S.cardEyebrow, marginBottom: 0, cursor: "pointer", userSelect: "none" }}
-                onClick={() => toggleCollapsed("dump")}
-                title={collapsed.dump ? "Liat daftar resah" : "Sembunyiin daftar resah"}
-              >
-                <span style={S.chev}>{collapsed.dump ? "▸" : "▾"}</span> Resah
-                {collapsed.dump && worries.length > 0 && (
-                  <span style={S.miniCount}>{worries.length}</span>
-                )}
-              </span>
-              {released > 0 && <span style={S.dumpReleased}>{released} dilepas</span>}
-            </div>
-            <div style={S.addRow}>
-              <input
-                style={{ ...S.input, background: "var(--card)" }}
-                placeholder="Tumpahin di sini…"
-                value={worryText}
-                onChange={(e) => setWorryText(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && addWorry()}
-              />
-              <button style={S.addBtn} onClick={addWorry}>+</button>
-            </div>
+          <div style={S.addRow}>
+            <input
+              style={{ ...S.input, background: "var(--card)" }}
+              placeholder="Tumpahin di sini…"
+              value={worryText}
+              onChange={(e) => setWorryText(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && addWorry()}
+            />
+            <button style={S.addBtn} onClick={addWorry}>+</button>
           </div>
         </div>
 
-        {/* daftar resah — full width di bawah grid */}
-        {!collapsed.dump && worries.length > 0 && (
+        {worries.length === 0 && (
+          <div style={{ ...S.empty, textAlign: "center", marginTop: 12 }}>Kosong.</div>
+        )}
+        {worries.length > 0 && (
           <div style={{ marginTop: 12 }}>
             {worries.map((w) => (
               <div key={w.id} style={S.worryCard}>
@@ -916,40 +943,8 @@ export default function LifeHack() {
             ))}
           </div>
         )}
-
-        {/* sections */}
-        <Section title="Todo" count={todoList.length} collapsed={!!collapsed.todo} onToggle={() => toggleCollapsed("todo")}>
-          {todoList.map((t) => (
-            <Card key={t.id} t={t} onEdit={editTask} onTogglePublic={togglePublic}>
-              <button style={S.btn} onClick={() => move(t.id, "inprogress")}>
-                Terima
-              </button>
-              <button style={S.btnGhost} onClick={() => remove(t.id)}>✕</button>
-            </Card>
-          ))}
-        </Section>
-
-        <Section title="In Progress" count={doingList.length} collapsed={!!collapsed.doing} onToggle={() => toggleCollapsed("doing")}>
-          {doingList.map((t) => (
-            <Card key={t.id} t={t} active onEdit={editTask} onTogglePublic={togglePublic}>
-              <button style={S.btnGreen} onClick={() => move(t.id, "done")}>
-                Selesai
-              </button>
-              <button style={S.btnGhost} onClick={() => move(t.id, "todo")}>↩</button>
-            </Card>
-          ))}
-        </Section>
-
-        <Section title="Completed" count={done.length} collapsed={!!collapsed.done} onToggle={() => toggleCollapsed("done")}>
-          {done.map((t) => (
-            <Card key={t.id} t={t} done onEdit={editTask} onTogglePublic={togglePublic}>
-              <button style={S.btnGhost} onClick={() => move(t.id, "todo")}>↩</button>
-              {!t.daily && (
-                <button style={S.btnGhost} onClick={() => remove(t.id)}>✕</button>
-              )}
-            </Card>
-          ))}
-        </Section>
+        </>
+        )}
 
 
         </>
