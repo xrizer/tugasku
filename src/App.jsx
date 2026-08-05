@@ -3539,11 +3539,31 @@ const parseRange = (txt) => {
   };
 };
 
+const SNAP = 5; // menit — biar gampang pas ditarik pakai jari
+
 // Jam analog 24 jam — tengah malam di atas, jalan searah jarum jam.
-function JamAnalog({ blocks }) {
-  const timed = blocks.filter((b) => b.start_min != null && b.end_min != null);
-  const now = new Date();
-  const nowMin = now.getHours() * 60 + now.getMinutes();
+// Ujung tiap busur bisa ditarik buat ganti jam mulai / selesai.
+function JamAnalog({ blocks, onCommit }) {
+  const svgRef = useRef(null);
+  const dragRef = useRef(null); // { id, which: 'start' | 'end' }
+  const [draft, setDraft] = useState(null); // { id, start_min, end_min }
+  const [nowMin, setNowMin] = useState(() => {
+    const d = new Date();
+    return d.getHours() * 60 + d.getMinutes();
+  });
+
+  useEffect(() => {
+    const t = setInterval(() => {
+      const d = new Date();
+      setNowMin(d.getHours() * 60 + d.getMinutes());
+    }, 60000);
+    return () => clearInterval(t);
+  }, []);
+
+  const timed = blocks
+    .filter((b) => b.start_min != null && b.end_min != null)
+    .map((b) => (draft && draft.id === b.id ? { ...b, ...draft } : b));
+
   const pt = (min, r) => {
     const a = ((min / 1440) * 360 - 90) * (Math.PI / 180);
     return [100 + r * Math.cos(a), 100 + r * Math.sin(a)];
@@ -3556,10 +3576,66 @@ function JamAnalog({ blocks }) {
   };
   const [hx, hy] = pt(nowMin, 52);
 
+  // posisi jari -> menit, dibulatin ke kelipatan SNAP
+  const minutesAt = (e) => {
+    const box = svgRef.current?.getBoundingClientRect();
+    if (!box) return null;
+    const dx = e.clientX - (box.left + box.width / 2);
+    const dy = e.clientY - (box.top + box.height / 2);
+    const deg = (Math.atan2(dy, dx) * 180) / Math.PI + 90;
+    const min = ((deg + 360) % 360) * 4; // 360 derajat = 1440 menit
+    return (Math.round(min / SNAP) * SNAP) % 1440;
+  };
+
+  const startDrag = (b, which) => (e) => {
+    e.preventDefault();
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    dragRef.current = { id: b.id, which };
+    setDraft({ id: b.id, start_min: b.start_min, end_min: b.end_min });
+  };
+
+  const onMove = (e) => {
+    const d = dragRef.current;
+    if (!d) return;
+    const m = minutesAt(e);
+    if (m == null) return;
+    setDraft((prev) => {
+      if (!prev) return prev;
+      const next =
+        d.which === "start" ? { ...prev, start_min: m } : { ...prev, end_min: m };
+      // jangan sampai busurnya ilang
+      return spanMin(next.start_min, next.end_min) < 15 ? prev : next;
+    });
+  };
+
+  const endDrag = () => {
+    const d = dragRef.current;
+    dragRef.current = null;
+    if (!d || !draft) return;
+    const before = blocks.find((b) => b.id === d.id);
+    if (
+      before &&
+      (before.start_min !== draft.start_min || before.end_min !== draft.end_min)
+    ) {
+      onCommit(d.id, {
+        start_min: draft.start_min,
+        end_min: draft.end_min,
+        hours: Math.round((spanMin(draft.start_min, draft.end_min) / 60) * 100) / 100,
+      });
+    }
+    setDraft(null);
+  };
+
+  const dragging = draft && timed.find((b) => b.id === draft.id);
+
   return (
     <svg
+      ref={svgRef}
       viewBox="0 0 200 200"
       style={{ width: "100%", maxWidth: 250, display: "block", margin: "2px auto 0" }}
+      onPointerMove={onMove}
+      onPointerUp={endDrag}
+      onPointerCancel={endDrag}
     >
       {/* bezel bergerigi */}
       <circle cx="100" cy="100" r="96" fill="var(--janji-bg)" />
@@ -3588,10 +3664,38 @@ function JamAnalog({ blocks }) {
           stroke={b.color || "var(--muted)"}
           strokeWidth="12"
           fill="none"
+          opacity={draft && draft.id !== b.id ? 0.45 : 1}
         >
           <title>{`${b.name} · ${fromMin(b.start_min)}–${fromMin(b.end_min)}`}</title>
         </path>
       ))}
+
+      {/* pegangan tiap ujung — ditarik buat ganti jamnya */}
+      {timed.map((b) =>
+        ["start", "end"].map((which) => {
+          const [x, y] = pt(which === "start" ? b.start_min : b.end_min, 64);
+          const on = draft?.id === b.id && dragRef.current?.which === which;
+          return (
+            <g
+              key={`${b.id}-${which}`}
+              onPointerDown={startDrag(b, which)}
+              style={{ cursor: "grab", touchAction: "none" }}
+            >
+              {/* target jari, gak keliatan */}
+              <circle cx={x} cy={y} r="13" fill="transparent" />
+              <circle
+                cx={x}
+                cy={y}
+                r={on ? 7 : 5.6}
+                fill={b.color || "var(--muted)"}
+                stroke="var(--card)"
+                strokeWidth="2"
+              />
+              <circle cx={x} cy={y} r="1.6" fill="var(--card)" />
+            </g>
+          );
+        })
+      )}
 
       {/* indeks tiap jam */}
       {[...Array(24)].map((_, h) => {
@@ -3626,27 +3730,6 @@ function JamAnalog({ blocks }) {
         );
       })}
 
-      <text
-        x="100" y="127"
-        textAnchor="middle"
-        fontFamily={MONO}
-        fontSize="6.5"
-        letterSpacing="1.6"
-        fill="var(--muted)"
-      >
-        LIFEHACK
-      </text>
-      <text
-        x="100" y="137"
-        textAnchor="middle"
-        fontFamily={MONO}
-        fontSize="5.5"
-        letterSpacing="1.2"
-        fill="var(--faint)"
-      >
-        24 JAM
-      </text>
-
       {/* jarum "sekarang" */}
       <line
         x1="100" y1="100" x2={hx} y2={hy}
@@ -3656,6 +3739,55 @@ function JamAnalog({ blocks }) {
       />
       <circle cx="100" cy="100" r="4.5" fill="var(--janji-ink)" />
       <circle cx="100" cy="100" r="1.8" fill="var(--card)" />
+      {/* pas ditarik, tulisan dial-nya ganti jadi jam yang lagi diatur */}
+      {dragging ? (
+        <>
+          <text
+            x="100" y="126"
+            textAnchor="middle"
+            fontFamily={MONO}
+            fontSize="9"
+            fontWeight="700"
+            fill="var(--ink)"
+          >
+            {fromMin(dragging.start_min)}–{fromMin(dragging.end_min)}
+          </text>
+          <text
+            x="100" y="137"
+            textAnchor="middle"
+            fontFamily={MONO}
+            fontSize="5.5"
+            letterSpacing="1.2"
+            fill="var(--faint)"
+          >
+            {(spanMin(dragging.start_min, dragging.end_min) / 60).toFixed(1)} JAM
+          </text>
+        </>
+      ) : (
+        <>
+          <text
+            x="100" y="127"
+            textAnchor="middle"
+            fontFamily={MONO}
+            fontSize="6.5"
+            letterSpacing="1.6"
+            fill="var(--muted)"
+          >
+            LIFEHACK
+          </text>
+          <text
+            x="100" y="137"
+            textAnchor="middle"
+            fontFamily={MONO}
+            fontSize="5.5"
+            letterSpacing="1.2"
+            fill="var(--faint)"
+          >
+            24 JAM
+          </text>
+        </>
+      )}
+
     </svg>
   );
 }
@@ -3803,7 +3935,10 @@ function WaktuSection({ session }) {
       {/* jam analog — cuma kegiatan yang punya jam mulai & selesai */}
       {blocks.some((b) => b.start_min != null && b.end_min != null) && (
         <div style={{ ...S.card, display: "block", padding: 14, marginBottom: 8 }}>
-          <JamAnalog blocks={blocks} />
+          <JamAnalog
+            blocks={blocks}
+            onCommit={(id, patch) => patchBlock(id, patch)}
+          />
         </div>
       )}
 
