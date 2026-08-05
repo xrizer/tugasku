@@ -2747,6 +2747,7 @@ function DuitPage({ session }) {
   });
   const [analysis, setAnalysis] = useState(null); // null | "..." | text
   const [calMonth, setCalMonth] = useState(() => localToday().slice(0, 7)); // 'YYYY-MM'
+  const [catetSub, setCatetSub] = useState("catet");
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [totalKey, setTotalKey] = useState(0); // ganti = total-nya ngedenyut
   const toastRef = useRef(null);
@@ -2962,84 +2963,34 @@ function DuitPage({ session }) {
 
       {sub === "keluar" && (
       <>
-      {/* ===== struk: total hari yang lagi diliat ===== */}
-      <div style={S.receipt}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
-          <div style={S.receiptEyebrow}>Keluar {dayLabel}</div>
-          <div style={{ fontFamily: MONO, fontSize: 11, color: "var(--muted)", whiteSpace: "nowrap" }}>
-            {todayRows.length} catatan
-          </div>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 4 }}>
-          <div
-            key={totalKey}
-            style={{
-              fontFamily: MONO,
-              fontSize: 34,
-              fontWeight: 700,
-              letterSpacing: showTotal ? "-0.02em" : "0.12em",
-              animation: "popTotal 0.35s ease",
-            }}
-          >
-            {showTotal ? rupiah(todayTotal) : "Rp ••••••"}
-          </div>
-          <button
-            style={{ ...S.btnGhost, padding: "6px 8px", lineHeight: 0 }}
-            title={showTotal ? "Sembunyiin total" : "Liat total"}
-            onClick={toggleTotal}
-          >
-            <Eye off={showTotal} />
-          </button>
-        </div>
+      <GlassNav
+        small
+        items={[["catet", "Catet"], ["struk", "Struk"], ["kalender", "Kalender"]]}
+        value={catetSub}
+        onChange={setCatetSub}
+        style={{ marginBottom: 14 }}
+      />
 
-        {/* 7 hari terakhir — batang terakhir = hari yang lagi diliat */}
-        <div style={{ display: "flex", alignItems: "flex-end", gap: 5, height: 40, marginTop: 12 }}>
-          {spark.map((d) => (
-            <div
-              key={d.ds}
-              style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}
-            >
-              <div
-                title={showTotal && d.v ? `${d.ds} · ${rupiah(d.v)}` : d.ds}
-                style={{
-                  width: "100%",
-                  borderRadius: "4px 4px 0 0",
-                  background: d.now ? "var(--accent)" : "var(--border2)",
-                  height: Math.max(3, Math.round((d.v / sparkMax) * 24)),
-                }}
-              />
-              <div
-                style={{
-                  fontFamily: MONO,
-                  fontSize: 9,
-                  color: d.now ? "var(--accent)" : "var(--faint)",
-                }}
-              >
-                {d.label}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {showTotal && (
-          <div style={{ fontFamily: MONO, fontSize: 11, color: "var(--muted)", marginTop: 10 }}>
-            {rupiah(avg)}/hari · minggu {rupiah(thisWeek)} · bulan {rupiah(thisMonth)}
-          </div>
-        )}
-        {showTotal && todayIn > 0 && (
-          <div style={{ fontFamily: MONO, fontSize: 11, color: "var(--green)", marginTop: 3 }}>
-            masuk +{rupiah(todayIn)}
-          </div>
-        )}
-        {showTotal && monthIn > 0 && (
-          <div style={{ fontFamily: MONO, fontSize: 11, color: "var(--green)", marginTop: 3 }}>
-            masuk bulan ini +{rupiah(monthIn)}
-          </div>
-        )}
-      </div>
-
+      {catetSub === "catet" && (
+      <>
       {/* ===== kartu catet ===== */}
       <div style={{ ...S.receipt, marginTop: 14, display: "flex", flexDirection: "column", gap: 12 }}>
+        {/* kalendernya pindah tab — jangan sampai nyatet ke tanggal lain tanpa sadar */}
+        {!isToday && (
+          <button
+            style={{
+              ...S.btnGhost,
+              fontFamily: MONO,
+              fontSize: 11,
+              borderColor: "var(--janji-border)",
+              color: "var(--janji-ink)",
+            }}
+            title="Balikin ke hari ini"
+            onClick={() => setSpentDate(today)}
+          >
+            nyatet buat {dayLabel} · balik ke hari ini ✕
+          </button>
+        )}
         <div style={{ display: "flex", gap: 6, background: "var(--badge)", borderRadius: 12, padding: 4 }}>
           {[["out", "− Keluar"], ["in", "+ Masuk"]].map(([k, label]) => (
             <button key={k} style={segBtn(kind === k, k === "in")} onClick={() => setKind(k)}>
@@ -3150,91 +3101,86 @@ function DuitPage({ session }) {
         </button>
       </div>
 
-      {(() => {
-        // total keluar per tanggal (dari data yang keload, ~40 hari)
-        const perDay = {};
-        rows.forEach((r) => {
-          if ((r.kind || "out") === "out")
-            perDay[r.spent_date] = (perDay[r.spent_date] || 0) + r.amount;
-        });
-        const vals = Object.values(perDay).filter((v) => v > 0);
-        const avgDay = vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : 0;
+      </>
+      )}
 
-        const colorOf = (d) => {
-          if (!showTotal) return null; // mata ketutup = polos
-          const v = perDay[d];
-          if (!v) return null;
-          if (avgDay === 0) return null;
-          if (v < avgDay * 0.5) return "var(--green)";
-          if (v <= avgDay * 1.5) return "var(--janji-ink)";
-          return "var(--red)";
-        };
-
-        const [yy, mm] = calMonth.split("-").map(Number);
-        const first = new Date(yy, mm - 1, 1);
-        const daysIn = new Date(yy, mm, 0).getDate();
-        const startDow = first.getDay(); // Minggu = 0
-        const cells = [
-          ...Array(startDow).fill(null),
-          ...Array.from({ length: daysIn }, (_, i) => i + 1),
-        ];
-        const prevM = () => {
-          const d = new Date(yy, mm - 2, 1);
-          setCalMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
-        };
-        const nextM = () => {
-          const d = new Date(yy, mm, 1);
-          setCalMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
-        };
-        const monthLabel = first.toLocaleDateString("id-ID", { month: "long", year: "numeric" });
-
-        return (
-          <div style={{ ...S.dump, marginTop: 8 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-              <button style={S.btnGhost} onClick={prevM}>‹</button>
-              <span style={{ fontSize: 13, fontWeight: 700 }}>{monthLabel}</span>
-              <button style={S.btnGhost} onClick={nextM}>›</button>
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 }}>
-              {["M", "S", "S", "R", "K", "J", "S"].map((d, i) => (
-                <div key={i} style={{ textAlign: "center", fontSize: 10, color: "var(--faint)" }}>{d}</div>
-              ))}
-              {cells.map((day, i) => {
-                if (!day) return <div key={i} />;
-                const ds = `${calMonth}-${String(day).padStart(2, "0")}`;
-                const c = colorOf(ds);
-                const sel = ds === (spentDate || localToday());
-                const future = ds > localToday();
-                return (
-                  <button
-                    key={i}
-                    disabled={future}
-                    onClick={() => setSpentDate(ds)}
-                    title={showTotal && perDay[ds] ? rupiah(perDay[ds]) : ds}
-                    style={{
-                      padding: "7px 0",
-                      borderRadius: 8,
-                      fontSize: 13,
-                      cursor: future ? "default" : "pointer",
-                      background: sel ? "var(--badge)" : "transparent",
-                      border: sel
-                        ? "1.5px solid var(--accent)"
-                        : c
-                        ? `1.5px solid ${c}`
-                        : "1px solid var(--border)",
-                      color: future ? "var(--faint)" : c || "var(--ink)",
-                      fontWeight: sel || c ? 700 : 400,
-                      opacity: future ? 0.35 : 1,
-                    }}
-                  >
-                    {day}
-                  </button>
-                );
-              })}
-            </div>
+      {catetSub === "struk" && (
+      <>
+      {/* ===== struk: total hari yang lagi diliat ===== */}
+      <div style={S.receipt}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+          <div style={S.receiptEyebrow}>Keluar {dayLabel}</div>
+          <div style={{ fontFamily: MONO, fontSize: 11, color: "var(--muted)", whiteSpace: "nowrap" }}>
+            {todayRows.length} catatan
           </div>
-        );
-      })()}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 4 }}>
+          <div
+            key={totalKey}
+            style={{
+              fontFamily: MONO,
+              fontSize: 34,
+              fontWeight: 700,
+              letterSpacing: showTotal ? "-0.02em" : "0.12em",
+              animation: "popTotal 0.35s ease",
+            }}
+          >
+            {showTotal ? rupiah(todayTotal) : "Rp ••••••"}
+          </div>
+          <button
+            style={{ ...S.btnGhost, padding: "6px 8px", lineHeight: 0 }}
+            title={showTotal ? "Sembunyiin total" : "Liat total"}
+            onClick={toggleTotal}
+          >
+            <Eye off={showTotal} />
+          </button>
+        </div>
+
+        {/* 7 hari terakhir — batang terakhir = hari yang lagi diliat */}
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 5, height: 40, marginTop: 12 }}>
+          {spark.map((d) => (
+            <div
+              key={d.ds}
+              style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}
+            >
+              <div
+                title={showTotal && d.v ? `${d.ds} · ${rupiah(d.v)}` : d.ds}
+                style={{
+                  width: "100%",
+                  borderRadius: "4px 4px 0 0",
+                  background: d.now ? "var(--accent)" : "var(--border2)",
+                  height: Math.max(3, Math.round((d.v / sparkMax) * 24)),
+                }}
+              />
+              <div
+                style={{
+                  fontFamily: MONO,
+                  fontSize: 9,
+                  color: d.now ? "var(--accent)" : "var(--faint)",
+                }}
+              >
+                {d.label}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {showTotal && (
+          <div style={{ fontFamily: MONO, fontSize: 11, color: "var(--muted)", marginTop: 10 }}>
+            {rupiah(avg)}/hari · minggu {rupiah(thisWeek)} · bulan {rupiah(thisMonth)}
+          </div>
+        )}
+        {showTotal && todayIn > 0 && (
+          <div style={{ fontFamily: MONO, fontSize: 11, color: "var(--green)", marginTop: 3 }}>
+            masuk +{rupiah(todayIn)}
+          </div>
+        )}
+        {showTotal && monthIn > 0 && (
+          <div style={{ fontFamily: MONO, fontSize: 11, color: "var(--green)", marginTop: 3 }}>
+            masuk bulan ini +{rupiah(monthIn)}
+          </div>
+        )}
+      </div>
 
       {/* ===== struk hari ini ===== */}
       <div style={S.receiptList}>
@@ -3439,6 +3385,100 @@ function DuitPage({ session }) {
         <div style={{ ...S.aiBubble, marginTop: 10, whiteSpace: "pre-wrap" }}>
           {analysis}
         </div>
+      )}
+
+      </>
+      )}
+
+      {catetSub === "kalender" && (
+      <>
+      {(() => {
+        // total keluar per tanggal (dari data yang keload, ~40 hari)
+        const perDay = {};
+        rows.forEach((r) => {
+          if ((r.kind || "out") === "out")
+            perDay[r.spent_date] = (perDay[r.spent_date] || 0) + r.amount;
+        });
+        const vals = Object.values(perDay).filter((v) => v > 0);
+        const avgDay = vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : 0;
+
+        const colorOf = (d) => {
+          if (!showTotal) return null; // mata ketutup = polos
+          const v = perDay[d];
+          if (!v) return null;
+          if (avgDay === 0) return null;
+          if (v < avgDay * 0.5) return "var(--green)";
+          if (v <= avgDay * 1.5) return "var(--janji-ink)";
+          return "var(--red)";
+        };
+
+        const [yy, mm] = calMonth.split("-").map(Number);
+        const first = new Date(yy, mm - 1, 1);
+        const daysIn = new Date(yy, mm, 0).getDate();
+        const startDow = first.getDay(); // Minggu = 0
+        const cells = [
+          ...Array(startDow).fill(null),
+          ...Array.from({ length: daysIn }, (_, i) => i + 1),
+        ];
+        const prevM = () => {
+          const d = new Date(yy, mm - 2, 1);
+          setCalMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+        };
+        const nextM = () => {
+          const d = new Date(yy, mm, 1);
+          setCalMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+        };
+        const monthLabel = first.toLocaleDateString("id-ID", { month: "long", year: "numeric" });
+
+        return (
+          <div style={{ ...S.dump, marginTop: 8 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <button style={S.btnGhost} onClick={prevM}>‹</button>
+              <span style={{ fontSize: 13, fontWeight: 700 }}>{monthLabel}</span>
+              <button style={S.btnGhost} onClick={nextM}>›</button>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 }}>
+              {["M", "S", "S", "R", "K", "J", "S"].map((d, i) => (
+                <div key={i} style={{ textAlign: "center", fontSize: 10, color: "var(--faint)" }}>{d}</div>
+              ))}
+              {cells.map((day, i) => {
+                if (!day) return <div key={i} />;
+                const ds = `${calMonth}-${String(day).padStart(2, "0")}`;
+                const c = colorOf(ds);
+                const sel = ds === (spentDate || localToday());
+                const future = ds > localToday();
+                return (
+                  <button
+                    key={i}
+                    disabled={future}
+                    onClick={() => setSpentDate(ds)}
+                    title={showTotal && perDay[ds] ? rupiah(perDay[ds]) : ds}
+                    style={{
+                      padding: "7px 0",
+                      borderRadius: 8,
+                      fontSize: 13,
+                      cursor: future ? "default" : "pointer",
+                      background: sel ? "var(--badge)" : "transparent",
+                      border: sel
+                        ? "1.5px solid var(--accent)"
+                        : c
+                        ? `1.5px solid ${c}`
+                        : "1px solid var(--border)",
+                      color: future ? "var(--faint)" : c || "var(--ink)",
+                      fontWeight: sel || c ? 700 : 400,
+                      opacity: future ? 0.35 : 1,
+                    }}
+                  >
+                    {day}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
+      </>
       )}
 
       {addedMsg && <div style={S.toast}>{addedMsg}</div>}
