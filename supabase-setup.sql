@@ -43,6 +43,15 @@ alter table public.time_blocks
   add constraint time_blocks_start_min_range check (start_min between 0 and 1439) not valid,
   add constraint time_blocks_end_min_range   check (end_min   between 0 and 1439) not valid;
 
+-- ---------------------------------------------------------------------
+-- "Bikin cape" + solusinya numpang di tabel yang sama, dibedain lewat kind:
+--   'cape'      -> yang bikin cape (yang di-tap tiap kejadian)
+--   'sementara' -> solusi sementara
+--   'panjang'   -> solusi jangka panjang
+-- Baris lama otomatis jadi 'cape' lewat default-nya.
+alter table public.drains
+  add column if not exists kind text not null default 'cape';
+
 -- Seed tugas awal
 insert into tasks (title, priority, daily, status) values
   ('Masukkan baju kotor ke keranjang laundry', 1, true,  'todo'),

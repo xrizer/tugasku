@@ -4278,8 +4278,8 @@ function DrainSection({ session }) {
   const [drains, setDrains] = useState([]);
   const [drainEvents, setDrainEvents] = useState([]);
   const [dailyStat, setDailyStat] = useState(null);
-  const [newDrain, setNewDrain] = useState("");
-  const [showDrainForm, setShowDrainForm] = useState(false);
+  const [form, setForm] = useState({ kind: null, text: "" }); // kind aktif = form kebuka
+  const [err, setErr] = useState("");
 
   const today = localToday();
 
@@ -4306,13 +4306,19 @@ function DrainSection({ session }) {
       });
   }, [session]);
 
-  const addDrain = async () => {
-    const name = newDrain.trim();
+  // baris lama belum punya kind — anggep aja "cape"
+  const kindOf = (d) => d.kind || "cape";
+  const listOf = (k) => drains.filter((d) => kindOf(d) === k);
+
+  const addItem = async (kind) => {
+    const name = form.text.trim();
     if (!name) return;
-    setNewDrain("");
-    setShowDrainForm(false);
-    const { data, error } = await supabase.from("drains").insert({ name }).select().single();
-    if (!error) setDrains((xs) => [...xs, data]);
+    setErr("");
+    setForm({ kind: null, text: "" });
+    const { data, error } = await supabase
+      .from("drains").insert({ name, kind }).select().single();
+    if (error) { setErr(error.message); return; }
+    setDrains((xs) => [...xs, data]);
   };
 
   const logDrain = async (d) => {
@@ -4321,97 +4327,179 @@ function DrainSection({ session }) {
     if (!error) setDrainEvents((es) => [...es, data]);
   };
 
-  const removeDrain = async (id) => {
-    if (!window.confirm("Delete this and its history?")) return;
-    setDrains((xs) => xs.filter((x) => x.id !== id));
-    await supabase.from("drains").delete().eq("id", id);
+  const removeDrain = async (d) => {
+    if (!window.confirm(`Hapus "${d.name}"?`)) return;
+    setDrains((xs) => xs.filter((x) => x.id !== d.id));
+    setDrainEvents((es) => es.filter((e) => e.drain_id !== d.id));
+    await supabase.from("drains").delete().eq("id", d.id);
   };
 
   const drainCount = (id) => drainEvents.filter((e) => e.drain_id === id).length;
   const drainToday = (id) =>
     drainEvents.filter((e) => e.drain_id === id && e.date === today).length;
-  const topDrains = drains
+  const topDrains = listOf("cape")
     .map((d) => ({ ...d, n: drainCount(d.id) }))
     .filter((d) => d.n > 0)
     .sort((a, b) => b.n - a.n)
     .slice(0, 3);
 
+  const addForm = (kind, placeholder) =>
+    form.kind === kind && (
+      <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+        <input
+          style={{ ...S.input, flex: 1, minWidth: 0 }}
+          placeholder={placeholder}
+          autoFocus
+          value={form.text}
+          onChange={(e) => setForm({ kind, text: e.target.value })}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") addItem(kind);
+            if (e.key === "Escape") setForm({ kind: null, text: "" });
+          }}
+        />
+        <button style={{ ...S.addBtn, width: 60 }} onClick={() => addItem(kind)}>OK</button>
+      </div>
+    );
+
+  const header = (kind, title, marginTop) => (
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "baseline",
+        marginTop,
+        marginBottom: 8,
+        gap: 10,
+      }}
+    >
+      <div style={S.sectionHead}><span>{title}</span></div>
+      <button
+        style={S.promAddLink}
+        onClick={() =>
+          setForm((f) => (f.kind === kind ? { kind: null, text: "" } : { kind, text: "" }))
+        }
+      >
+        {form.kind === kind ? "batal" : "+ tambah"}
+      </button>
+    </div>
+  );
+
+  // solusi cuma daftar teks — gak ada yang perlu di-tap tiap hari
+  const solusiList = (kind, kosong) => {
+    const items = listOf(kind);
+    return (
+      <>
+        {items.length === 0 && form.kind !== kind && (
+          <div style={S.empty}>{kosong}</div>
+        )}
+        {items.map((d) => (
+          <div key={d.id} style={{ ...S.card, padding: "10px 14px" }}>
+            <div style={{ flex: 1, minWidth: 0, fontSize: 14, lineHeight: 1.4 }}>
+              {d.name}
+            </div>
+            <button style={S.btnGhost} onClick={() => removeDrain(d)}>✕</button>
+          </div>
+        ))}
+      </>
+    );
+  };
+
   return (
     <>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 26, gap: 10 }}>
-        <div style={S.sectionHead}>
-          <span>⚡ Energy drains</span>
-        </div>
-        <button style={S.promAddLink} onClick={() => setShowDrainForm((v) => !v)}>
-          {showDrainForm ? "cancel" : "+ add"}
-        </button>
-      </div>
+      {header("cape", "⚡ Bikin cape", 26)}
+      {addForm("cape", "Apa yang bikin cape?")}
 
-      {showDrainForm && (
-        <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-          <input
-            style={{ ...S.input, flex: 1, minWidth: 0 }}
-            placeholder="What drains you?"
-            value={newDrain}
-            onChange={(e) => setNewDrain(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && addDrain()}
-          />
-          <button style={{ ...S.addBtn, width: 60 }} onClick={addDrain}>OK</button>
-        </div>
+      {listOf("cape").length === 0 && form.kind !== "cape" && (
+        <div style={S.empty}>Belum ada.</div>
       )}
 
-      {drains.length === 0 && !showDrainForm && <div style={S.empty}>Nothing yet.</div>}
-
       <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
-        {drains.map((d) => {
+        {listOf("cape").map((d) => {
           const n = drainToday(d.id);
+          const on = n > 0;
           return (
-            <button
+            <span
               key={d.id}
-              className="tap-tile"
               style={{
-                ...S.btnGhost,
+                display: "inline-flex",
+                alignItems: "center",
                 borderRadius: 999,
-                fontSize: 12,
-                ...(n > 0
-                  ? {
-                      background: "var(--red-bg)",
-                      borderColor: "var(--red)",
-                      color: "var(--red)",
-                      fontWeight: 700,
-                    }
-                  : {}),
+                border: `1px solid ${on ? "var(--red)" : "var(--border)"}`,
+                background: on ? "var(--red-bg)" : "transparent",
+                overflow: "hidden",
               }}
-              title="Tap each time it happens"
-              onClick={() => logDrain(d)}
             >
-              {d.name}{n > 0 ? ` ·${n}` : ""}
-            </button>
+              <button
+                className="tap-tile"
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  padding: "7px 4px 7px 12px",
+                  fontSize: 12,
+                  fontFamily: "inherit",
+                  cursor: "pointer",
+                  color: on ? "var(--red)" : "var(--muted)",
+                  fontWeight: on ? 700 : 400,
+                }}
+                title="Tap tiap kejadian"
+                onClick={() => logDrain(d)}
+              >
+                {d.name}{on ? ` ·${n}` : ""}
+              </button>
+              <button
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  padding: "7px 10px 7px 4px",
+                  fontSize: 11,
+                  fontFamily: "inherit",
+                  cursor: "pointer",
+                  color: "var(--faint)",
+                }}
+                title={`Hapus "${d.name}"`}
+                onClick={() => removeDrain(d)}
+              >
+                ✕
+              </button>
+            </span>
           );
         })}
       </div>
 
       {topDrains.length > 0 && (
         <div style={{ ...S.dumpHint, marginTop: 8 }}>
-          biggest drains:{" "}
+          paling bikin cape:{" "}
           {topDrains.map((d, i) => (
             <span key={d.id}>
               {i > 0 && " · "}
               <b>{d.name} ×{d.n}</b>
-              <span
-                style={{ cursor: "pointer", marginLeft: 3, color: "var(--faint)" }}
-                onClick={() => removeDrain(d.id)}
-              >✕</span>
             </span>
           ))}
         </div>
       )}
 
+      {header("sementara", "🩹 Solusi sementara", 26)}
+      {addForm("sementara", "Biar nggak kebablasan sekarang…")}
+      {solusiList("sementara", "Belum ada.")}
+
+      {header("panjang", "🌱 Solusi jangka panjang", 26)}
+      {addForm("panjang", "Biar akarnya beres…")}
+      {solusiList("panjang", "Belum ada.")}
+
+      {err && (
+        <div style={{ color: "var(--red)", fontSize: 12, marginTop: 8 }}>
+          {err}
+          {/kind|[Cc]olumn/.test(err) && (
+            <> — jalanin dulu bagian <code>drains</code> di supabase-setup.sql.</>
+          )}
+        </div>
+      )}
+
       {dailyStat && (
         <div style={{ ...S.dumpHint, marginTop: 14, textAlign: "center" }}>
-          Daily musts today:{" "}
+          Wajib harian hari ini:{" "}
           <b style={{ color: dailyStat.done === dailyStat.total ? "var(--green)" : "var(--ink)" }}>
-            {dailyStat.done}/{dailyStat.total} done
+            {dailyStat.done}/{dailyStat.total} kelar
           </b>
         </div>
       )}
