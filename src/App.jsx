@@ -4975,26 +4975,44 @@ function DiriPage({ session }) {
           return (
             <div key={h.id} style={{ ...S.card, display: "block" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                <div
-                  style={{
-                    fontFamily: MONO,
-                    fontSize: 34,
-                    fontWeight: 700,
-                    color: "var(--green)",
-                    lineHeight: 1,
-                    flexShrink: 0,
-                  }}
-                >
-                  {days}
+                <div style={{ flexShrink: 0, textAlign: "center", minWidth: 30 }}>
+                  <div
+                    style={{
+                      fontFamily: MONO,
+                      fontSize: 34,
+                      fontWeight: 700,
+                      color: "var(--green)",
+                      lineHeight: 1,
+                    }}
+                  >
+                    {days}
+                  </div>
+                  <div style={{ fontFamily: MONO, fontSize: 9, color: "var(--faint)" }}>
+                    hari
+                  </div>
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={S.cardTitle}>{h.name}</div>
-                  <div style={{ ...S.dumpHint, marginBottom: 0, marginTop: 3 }}>
-                    {days === 0 ? "mulai lagi hari ini" : "hari bersih"}
-                    {tm && <> · biasanya pas {tm} {moodEmoji(tm)}</>}
-                  </div>
+                  {tm && (
+                    <div style={{ ...S.dumpHint, marginBottom: 0, marginTop: 3 }}>
+                      biasanya pas {tm} {moodEmoji(tm)}
+                    </div>
+                  )}
                 </div>
                 <div style={S.cardBtns}>
+                  {pts > 0 && (
+                    <span
+                      style={{
+                        fontFamily: MONO,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: "var(--janji-ink)",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      🏅 {pts}
+                    </span>
+                  )}
                   <button
                     className="tap-tile"
                     style={{ ...S.btnGhost, borderRadius: 999, fontSize: 12 }}
@@ -5006,33 +5024,14 @@ function DiriPage({ session }) {
                 </div>
               </div>
 
-              {/* poin streak + jarak ke tingkat berikutnya */}
-              <div style={{ marginTop: 10 }}>
+              {/* jarak ke tingkat berikutnya */}
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
                 <div
                   style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "baseline",
-                    gap: 8,
-                    fontFamily: MONO,
-                    fontSize: 11,
-                  }}
-                >
-                  <span style={{ color: "var(--janji-ink)", fontWeight: 700, whiteSpace: "nowrap" }}>
-                    🏅 {pts} poin
-                  </span>
-                  <span style={{ color: "var(--muted)", textAlign: "right" }}>
-                    {next
-                      ? `${next.days - days} hari lagi → ${next.label} (+${next.pts})`
-                      : "level maksimal 🎉"}
-                  </span>
-                </div>
-                <div
-                  style={{
+                    flex: 1,
                     height: 6,
                     borderRadius: 99,
                     background: "var(--badge)",
-                    marginTop: 4,
                     overflow: "hidden",
                   }}
                 >
@@ -5045,6 +5044,23 @@ function DiriPage({ session }) {
                     }}
                   />
                 </div>
+                <span
+                  style={{
+                    fontFamily: MONO,
+                    fontSize: 10,
+                    color: "var(--muted)",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {next ? (
+                    <>
+                      {next.label}{" "}
+                      <b style={{ color: "var(--janji-ink)" }}>+{next.pts}</b>
+                    </>
+                  ) : (
+                    "maks 🎉"
+                  )}
+                </span>
               </div>
 
               {justLogged === h.id && (
