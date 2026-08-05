@@ -2883,25 +2883,24 @@ function DuitPage({ session }) {
         <button style={{ ...S.addBtn, width: 60 }} onClick={add}>OK</button>
       </div>
       {!editSrc ? (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
-          {sources.map((s) => (
-            <button
-              key={s}
-              style={{
-                ...S.btnGhost,
-                textTransform: "uppercase",
-                fontSize: 12,
-                fontWeight: 700,
-                whiteSpace: "nowrap",
-                ...(source === s
-                  ? { borderColor: "var(--accent)", color: "var(--accent)" }
-                  : {}),
-              }}
-              onClick={() => setSource(s)}
-            >
-              {s}
-            </button>
-          ))}
+        <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+          <select
+            style={{
+              ...S.input,
+              flex: 1,
+              minWidth: 0,
+              textTransform: "uppercase",
+              fontSize: 13,
+              fontWeight: 700,
+              color: "var(--accent)",
+            }}
+            value={source}
+            onChange={(e) => setSource(e.target.value)}
+          >
+            {sources.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
           <button
             style={{ ...S.btnGhost, padding: "7px 10px" }}
             title="Edit daftar sumber"
