@@ -4086,17 +4086,11 @@ function WaktuSection({ session }) {
 // `children` disisipin di antara Mimpi sama Yang-nyedot-energi — biar urutan
 // section-nya sama kayak desain tanpa mecah komponen ini jadi dua (dan bikin
 // query-nya jalan dua kali)
-function EnergiSection({ session, children }) {
-  const [drains, setDrains] = useState([]);
-  const [drainEvents, setDrainEvents] = useState([]);
+function MimpiSection({ session }) {
   const [dreams, setDreams] = useState([]);
   const [touches, setTouches] = useState([]);
-  const [dailyStat, setDailyStat] = useState(null);
-  const [newDrain, setNewDrain] = useState("");
   const [newDream, setNewDream] = useState("");
-  const [showDrainForm, setShowDrainForm] = useState(false);
   const [showDreamForm, setShowDreamForm] = useState(false);
-  const [drainsOpen, setDrainsOpen] = useState(true);
 
   const today = localToday();
 
@@ -4104,13 +4098,6 @@ function EnergiSection({ session, children }) {
     const since = new Date();
     since.setDate(since.getDate() - 7);
     const sinceStr = since.toISOString().slice(0, 10);
-
-    supabase.from("drains").select("*")
-      .eq("user_id", session.user.id)
-      .then(({ data, error }) => setDrains(error ? [] : data));
-    supabase.from("drain_events").select("*")
-      .eq("user_id", session.user.id).gte("date", sinceStr)
-      .then(({ data, error }) => setDrainEvents(error ? [] : data));
     supabase.from("dreams").select("*")
       .eq("user_id", session.user.id)
       .order("created_at", { ascending: true })
@@ -4118,38 +4105,7 @@ function EnergiSection({ session, children }) {
     supabase.from("dream_touches").select("*")
       .eq("user_id", session.user.id).gte("date", sinceStr)
       .then(({ data, error }) => setTouches(error ? [] : data));
-    // wajib harian dari board Tugas
-    supabase.from("tasks").select("status")
-      .eq("user_id", session.user.id).eq("daily", true)
-      .then(({ data, error }) => {
-        if (!error && data.length > 0)
-          setDailyStat({
-            done: data.filter((t) => t.status === "done").length,
-            total: data.length,
-          });
-      });
   }, [session]);
-
-  const addDrain = async () => {
-    const name = newDrain.trim();
-    if (!name) return;
-    setNewDrain("");
-    setShowDrainForm(false);
-    const { data, error } = await supabase.from("drains").insert({ name }).select().single();
-    if (!error) setDrains((xs) => [...xs, data]);
-  };
-
-  const logDrain = async (d) => {
-    const { data, error } = await supabase
-      .from("drain_events").insert({ drain_id: d.id, date: today }).select().single();
-    if (!error) setDrainEvents((es) => [...es, data]);
-  };
-
-  const removeDrain = async (id) => {
-    if (!window.confirm("Hapus beserta riwayatnya?")) return;
-    setDrains((xs) => xs.filter((x) => x.id !== id));
-    await supabase.from("drains").delete().eq("id", id);
-  };
 
   const addDream = async () => {
     const name = newDream.trim();
@@ -4165,7 +4121,8 @@ function EnergiSection({ session, children }) {
       .from("dream_touches")
       .upsert({ dream_id: dr.id, date: today }, { onConflict: "dream_id,date" })
       .select().single();
-    if (!error) setTouches((ts) => [...ts.filter((t) => !(t.dream_id === dr.id && t.date === today)), data]);
+    if (!error)
+      setTouches((ts) => [...ts.filter((t) => !(t.dream_id === dr.id && t.date === today)), data]);
   };
 
   const patchDream = async (id, patch) => {
@@ -4179,15 +4136,6 @@ function EnergiSection({ session, children }) {
     await supabase.from("dreams").delete().eq("id", id);
   };
 
-  // rekap drain 7 hari
-  const drainCount = (id) => drainEvents.filter((e) => e.drain_id === id).length;
-  const drainToday = (id) => drainEvents.filter((e) => e.drain_id === id && e.date === today).length;
-  const topDrains = drains
-    .map((d) => ({ ...d, n: drainCount(d.id) }))
-    .filter((d) => d.n > 0)
-    .sort((a, b) => b.n - a.n)
-    .slice(0, 3);
-
   const touchedDays = (id) =>
     new Set(touches.filter((t) => t.dream_id === id).map((t) => t.date)).size;
   const touchedToday = (id) =>
@@ -4196,8 +4144,7 @@ function EnergiSection({ session, children }) {
 
   return (
     <>
-      {/* ===== mimpi yang dikejar — paling atas, ini yang mau disentuh tiap hari ===== */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 26, gap: 10 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
         <div style={{ ...S.sectionHead, color: "var(--janji-ink)" }}>
           <span>✨ Mimpi</span>
         </div>
@@ -4226,9 +4173,7 @@ function EnergiSection({ session, children }) {
         </div>
       )}
 
-      {dreams.length === 0 && !showDreamForm && (
-        <div style={S.empty}>Belum ada.</div>
-      )}
+      {dreams.length === 0 && !showDreamForm && <div style={S.empty}>Belum ada.</div>}
 
       {dreams.map((dr) => {
         const days = touchedDays(dr.id);
@@ -4305,91 +4250,143 @@ function EnergiSection({ session, children }) {
           </div>
         );
       })}
+    </>
+  );
+}
 
-      {children}
+function DrainSection({ session }) {
+  const [drains, setDrains] = useState([]);
+  const [drainEvents, setDrainEvents] = useState([]);
+  const [dailyStat, setDailyStat] = useState(null);
+  const [newDrain, setNewDrain] = useState("");
+  const [showDrainForm, setShowDrainForm] = useState(false);
 
-      {/* ===== yang nyedot energi ===== */}
+  const today = localToday();
+
+  useEffect(() => {
+    const since = new Date();
+    since.setDate(since.getDate() - 7);
+    const sinceStr = since.toISOString().slice(0, 10);
+
+    supabase.from("drains").select("*")
+      .eq("user_id", session.user.id)
+      .then(({ data, error }) => setDrains(error ? [] : data));
+    supabase.from("drain_events").select("*")
+      .eq("user_id", session.user.id).gte("date", sinceStr)
+      .then(({ data, error }) => setDrainEvents(error ? [] : data));
+    // wajib harian dari board Tugas
+    supabase.from("tasks").select("status")
+      .eq("user_id", session.user.id).eq("daily", true)
+      .then(({ data, error }) => {
+        if (!error && data.length > 0)
+          setDailyStat({
+            done: data.filter((t) => t.status === "done").length,
+            total: data.length,
+          });
+      });
+  }, [session]);
+
+  const addDrain = async () => {
+    const name = newDrain.trim();
+    if (!name) return;
+    setNewDrain("");
+    setShowDrainForm(false);
+    const { data, error } = await supabase.from("drains").insert({ name }).select().single();
+    if (!error) setDrains((xs) => [...xs, data]);
+  };
+
+  const logDrain = async (d) => {
+    const { data, error } = await supabase
+      .from("drain_events").insert({ drain_id: d.id, date: today }).select().single();
+    if (!error) setDrainEvents((es) => [...es, data]);
+  };
+
+  const removeDrain = async (id) => {
+    if (!window.confirm("Hapus beserta riwayatnya?")) return;
+    setDrains((xs) => xs.filter((x) => x.id !== id));
+    await supabase.from("drains").delete().eq("id", id);
+  };
+
+  const drainCount = (id) => drainEvents.filter((e) => e.drain_id === id).length;
+  const drainToday = (id) =>
+    drainEvents.filter((e) => e.drain_id === id && e.date === today).length;
+  const topDrains = drains
+    .map((d) => ({ ...d, n: drainCount(d.id) }))
+    .filter((d) => d.n > 0)
+    .sort((a, b) => b.n - a.n)
+    .slice(0, 3);
+
+  return (
+    <>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 26, gap: 10 }}>
-        <div
-          style={{ ...S.sectionHead, cursor: "pointer", userSelect: "none" }}
-          onClick={() => setDrainsOpen((v) => !v)}
-        >
-          <span>
-            <span style={S.chev}>{drainsOpen ? "▾" : "▸"}</span> ⚡ Yang nyedot energi
-          </span>
+        <div style={S.sectionHead}>
+          <span>⚡ Yang nyedot energi</span>
         </div>
-        {drainsOpen && (
-          <button style={S.promAddLink} onClick={() => setShowDrainForm((v) => !v)}>
-            {showDrainForm ? "batal" : "+ tambah"}
-          </button>
-        )}
+        <button style={S.promAddLink} onClick={() => setShowDrainForm((v) => !v)}>
+          {showDrainForm ? "batal" : "+ tambah"}
+        </button>
       </div>
 
-      {drainsOpen && (
-        <>
-          {showDrainForm && (
-            <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-              <input
-                style={{ ...S.input, flex: 1, minWidth: 0 }}
-                placeholder="Apa yang nyedot?"
-                value={newDrain}
-                onChange={(e) => setNewDrain(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && addDrain()}
-              />
-              <button style={{ ...S.addBtn, width: 60 }} onClick={addDrain}>OK</button>
-            </div>
-          )}
-
-          {drains.length === 0 && !showDrainForm && <div style={S.empty}>Belum ada.</div>}
-
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
-            {drains.map((d) => {
-              const n = drainToday(d.id);
-              return (
-                <button
-                  key={d.id}
-                  className="tap-tile"
-                  style={{
-                    ...S.btnGhost,
-                    borderRadius: 999,
-                    fontSize: 12,
-                    ...(n > 0
-                      ? {
-                          background: "var(--red-bg)",
-                          borderColor: "var(--red)",
-                          color: "var(--red)",
-                          fontWeight: 700,
-                        }
-                      : {}),
-                  }}
-                  title="Tap tiap kejadian"
-                  onClick={() => logDrain(d)}
-                >
-                  {d.name}{n > 0 ? ` ·${n}` : ""}
-                </button>
-              );
-            })}
-          </div>
-
-          {topDrains.length > 0 && (
-            <div style={{ ...S.dumpHint, marginTop: 8 }}>
-              paling nyedot:{" "}
-              {topDrains.map((d, i) => (
-                <span key={d.id}>
-                  {i > 0 && " · "}
-                  <b>{d.name} ×{d.n}</b>
-                  <span
-                    style={{ cursor: "pointer", marginLeft: 3, color: "var(--faint)" }}
-                    onClick={() => removeDrain(d.id)}
-                  >✕</span>
-                </span>
-              ))}
-            </div>
-          )}
-        </>
+      {showDrainForm && (
+        <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+          <input
+            style={{ ...S.input, flex: 1, minWidth: 0 }}
+            placeholder="Apa yang nyedot?"
+            value={newDrain}
+            onChange={(e) => setNewDrain(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && addDrain()}
+          />
+          <button style={{ ...S.addBtn, width: 60 }} onClick={addDrain}>OK</button>
+        </div>
       )}
 
-      {/* ===== wajib harian tetep jalan ===== */}
+      {drains.length === 0 && !showDrainForm && <div style={S.empty}>Belum ada.</div>}
+
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+        {drains.map((d) => {
+          const n = drainToday(d.id);
+          return (
+            <button
+              key={d.id}
+              className="tap-tile"
+              style={{
+                ...S.btnGhost,
+                borderRadius: 999,
+                fontSize: 12,
+                ...(n > 0
+                  ? {
+                      background: "var(--red-bg)",
+                      borderColor: "var(--red)",
+                      color: "var(--red)",
+                      fontWeight: 700,
+                    }
+                  : {}),
+              }}
+              title="Tap tiap kejadian"
+              onClick={() => logDrain(d)}
+            >
+              {d.name}{n > 0 ? ` ·${n}` : ""}
+            </button>
+          );
+        })}
+      </div>
+
+      {topDrains.length > 0 && (
+        <div style={{ ...S.dumpHint, marginTop: 8 }}>
+          paling nyedot:{" "}
+          {topDrains.map((d, i) => (
+            <span key={d.id}>
+              {i > 0 && " · "}
+              <b>{d.name} ×{d.n}</b>
+              <span
+                style={{ cursor: "pointer", marginLeft: 3, color: "var(--faint)" }}
+                onClick={() => removeDrain(d.id)}
+              >✕</span>
+            </span>
+          ))}
+        </div>
+      )}
+
       {dailyStat && (
         <div style={{ ...S.dumpHint, marginTop: 14, textAlign: "center" }}>
           Wajib harian hari ini:{" "}
@@ -4537,6 +4534,7 @@ function DiriPage({ session }) {
   const [events, setEvents] = useState([]);
   const [newHabit, setNewHabit] = useState("");
   const [showHabitForm, setShowHabitForm] = useState(false);
+  const [sub, setSub] = useState("mood");
   const [justLogged, setJustLogged] = useState(null); // habit_id yang baru dicatet
 
   useEffect(() => {
@@ -4709,6 +4707,22 @@ function DiriPage({ session }) {
 
   return (
     <>
+      <GlassNav
+        small
+        items={[
+          ["mood", "Mood"],
+          ["mimpi", "Mimpi"],
+          ["kurangin", "Kurangin"],
+          ["waktu", "Waktu"],
+          ["trofi", "Trofi"],
+        ]}
+        value={sub}
+        onChange={setSub}
+        style={{ marginBottom: 14 }}
+      />
+
+      {sub === "mood" && (
+      <>
       {/* ===== mood check-in ===== */}
       <div style={S.dump}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
@@ -4792,9 +4806,13 @@ function DiriPage({ session }) {
           </>
         )}
       </div>
+      </>
+      )}
 
+      {sub === "mimpi" && <MimpiSection session={session} />}
 
-      <EnergiSection session={session}>
+      {sub === "kurangin" && (
+      <>
         {/* ===== kebiasaan ===== */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 22 }}>
           <div style={S.sectionHead}>
@@ -4867,12 +4885,13 @@ function DiriPage({ session }) {
             </div>
           );
         })}
-      </EnergiSection>
+        <DrainSection session={session} />
+      </>
+      )}
 
-      <PencapaianSection session={session} />
+      {sub === "trofi" && <PencapaianSection session={session} />}
 
-      <WaktuSection session={session} />
-
+      {sub === "waktu" && <WaktuSection session={session} />}
     </>
   );
 }
