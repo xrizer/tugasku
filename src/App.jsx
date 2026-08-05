@@ -1797,27 +1797,27 @@ function UtangView({ session, sources, onLogExpense }) {
     <>
       <GlassNav
         small
-        items={[["piutang", "Ngutang ke gue"], ["utang", "Gue ngutang"]]}
+        items={[["piutang", "Piutang"], ["utang", "Utang"]]}
         value={dir}
         onChange={setDir}
         style={{ marginTop: 4, marginBottom: 12 }}
       />
 
-      <div style={{ marginTop: 6, textAlign: "center" }}>
-        <div style={S.eyebrow}>{isPiutang ? "Total piutang" : "Total utang gue"}</div>
-        <div style={{ fontSize: 26, fontWeight: 700, color: isPiutang ? "var(--green)" : "var(--janji-ink)" }}>
+      {/* nominal doang — label udah kebaca dari sub-tab yang aktif */}
+      <div
+        style={{
+          marginTop: 18,
+          display: "flex",
+          alignItems: "baseline",
+          justifyContent: "space-between",
+          gap: 12,
+        }}
+      >
+        <div style={{ fontSize: 30, fontWeight: 700, color: isPiutang ? "var(--green)" : "var(--janji-ink)" }}>
           {rupiah(total)}
         </div>
-        <div style={{ ...S.dumpHint, marginTop: 2 }}>
-          {active.length === 0
-            ? isPiutang ? "gak ada yang ngutang. bersih." : "lu gak ngutang siapa-siapa. merdeka 🎉"
-            : isPiutang ? `${active.length} orang belum lunas` : `${active.length} utang belum dibayar`}
-        </div>
-      </div>
-
-      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
         <button style={S.promAddLink} onClick={() => setShowForm((v) => !v)}>
-          {showForm ? "batal" : isPiutang ? "+ catat piutang" : "+ catat utang gue"}
+          {showForm ? "batal" : "+ catat"}
         </button>
       </div>
 
@@ -1841,7 +1841,7 @@ function UtangView({ session, sources, onLogExpense }) {
           <div style={{ display: "flex", gap: 6 }}>
             <input
               style={{ ...S.input, flex: 1, minWidth: 0 }}
-              placeholder="Buat apa? (opsional)"
+              placeholder="Buat apa?"
               value={form.note}
               onChange={(e) => setForm({ ...form, note: e.target.value })}
               onKeyDown={(e) => e.key === "Enter" && addDebt()}
@@ -1851,12 +1851,8 @@ function UtangView({ session, sources, onLogExpense }) {
         </div>
       )}
 
-      <div style={{ marginTop: 12 }}>
-        {active.length === 0 && (
-          <div style={{ ...S.empty, textAlign: "center" }}>
-            Kosong. Semoga awet 😄
-          </div>
-        )}
+      <div style={{ marginTop: 22 }}>
+        {active.length === 0 && <div style={S.empty}>Kosong.</div>}
         {active.map((d) => (
           <div key={d.id} style={S.card}>
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -1874,7 +1870,7 @@ function UtangView({ session, sources, onLogExpense }) {
                   }}
                   style={{ display: "inline-block", fontSize: 13, fontWeight: 700 }}
                 />
-                {d.note ? ` · ${d.note}` : ""} · udah {ageOf(d.created_at)}
+                {d.note ? ` · ${d.note}` : ""} · {ageOf(d.created_at)}
               </div>
             </div>
             <div style={S.cardBtns}>
@@ -1896,7 +1892,7 @@ function UtangView({ session, sources, onLogExpense }) {
             style={{ ...S.dumpHint, cursor: "pointer", userSelect: "none" }}
             onClick={() => setShowLunas((v) => !v)}
           >
-            {showLunas ? "▾" : "▸"} riwayat lunas ({lunas.length})
+            {showLunas ? "▾" : "▸"} lunas ({lunas.length})
           </div>
           {showLunas &&
             lunas.map((d) => (
@@ -1912,9 +1908,6 @@ function UtangView({ session, sources, onLogExpense }) {
         </div>
       )}
 
-      <div style={S.footer}>
-        Lunas otomatis kecatet ke Catet (piutang → masuk, utang → keluar). Dibayar sebagian? Tap nominalnya, kurangin.
-      </div>
     </>
   );
 }
