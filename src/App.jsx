@@ -3186,8 +3186,7 @@ function DuitPage({ session }) {
             display: "flex",
             justifyContent: "space-between",
             alignItems: "baseline",
-            padding: "0 18px 10px",
-            borderBottom: "1.5px dashed var(--border2)",
+            padding: "0 2px 14px",
           }}
         >
           <div style={S.receiptEyebrow}>Struk {dayLabel}</div>
@@ -3213,8 +3212,7 @@ function DuitPage({ session }) {
         {showBreakdown && breakdown.length > 0 && (
           <div
             style={{
-              padding: "12px 18px",
-              borderBottom: "1.5px dashed var(--border2)",
+              padding: "4px 2px 18px",
               display: "flex",
               flexDirection: "column",
               gap: 8,
@@ -3262,8 +3260,8 @@ function DuitPage({ session }) {
               display: "flex",
               alignItems: "center",
               gap: 12,
-              padding: "11px 18px",
-              borderBottom: "1px dotted var(--border)",
+              padding: "4px 2px",
+              marginBottom: 18,
             }}
           >
             <div
@@ -5496,15 +5494,16 @@ function Login({ themeVars }) {
 
 function Section({ title, count, children, collapsed, onToggle }) {
   return (
-    <div style={{ marginTop: 26 }}>
-      {/* label · garis · jumlah */}
+    <div style={{ marginTop: 38 }}>
+      {/* label · jumlah */}
       <div
         style={{
           display: "flex",
           alignItems: "center",
+          justifyContent: "space-between",
           gap: 12,
-          padding: "0 4px",
-          marginBottom: 10,
+          padding: "0 2px",
+          marginBottom: 14,
           cursor: "pointer",
           userSelect: "none",
         }}
@@ -5523,7 +5522,6 @@ function Section({ title, count, children, collapsed, onToggle }) {
         >
           <span style={S.chev}>{collapsed ? "▸" : "▾"}</span> {title}
         </span>
-        <div style={{ flex: 1, height: 1.5, background: "var(--border)" }} />
         <span style={{ fontFamily: MONO, fontSize: 11, color: "var(--muted)" }}>{count}</span>
       </div>
       {!collapsed && children}
@@ -5623,9 +5621,8 @@ const S = {
   h1: { fontSize: 30, fontWeight: 700, margin: 0, letterSpacing: "-0.02em" },
 
   focusCard: {
-    padding: "2px 0 18px",
-    marginBottom: 12,
-    borderBottom: "1px solid var(--border)",
+    padding: "2px 0",
+    marginBottom: 28,
   },
   focusLabel: {
     fontFamily: MONO,
@@ -5704,8 +5701,8 @@ const S = {
     fontSize: 12,
   },
   card: {
-    padding: "13px 2px",
-    borderBottom: "1px solid var(--border)",
+    padding: "4px 2px",
+    marginBottom: 18,
     display: "flex",
     alignItems: "center",
     gap: 10,
@@ -5775,8 +5772,8 @@ const S = {
 
   // ---- gaya struk buat tab Catet ----
   receipt: {
-    padding: "2px 0 16px",
-    borderBottom: "1px solid var(--border)",
+    padding: "2px 0",
+    marginBottom: 28,
   },
   receiptList: {
     padding: "16px 0 0",
@@ -5820,8 +5817,8 @@ const S = {
     whiteSpace: "nowrap",
   },
   worryCard: {
-    padding: "13px 2px",
-    borderBottom: "1px solid var(--border)",
+    padding: "4px 2px",
+    marginBottom: 18,
     display: "flex",
     alignItems: "center",
     gap: 10,
