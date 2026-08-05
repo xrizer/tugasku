@@ -1872,12 +1872,23 @@ function GrupView({ session }) {
   const [advice, setAdvice] = useState(null);
   const [err, setErr] = useState("");
 
+  // daftar grup diambil dari keanggotaan, bukan dari isi money_groups —
+  // biar yang udah keluar gak nongol lagi pas reload.
   const loadGroups = async () => {
-    const { data, error } = await supabase.from("money_groups").select("*");
-    if (!error) {
-      setGroups(data);
-      if (data.length > 0 && !gid) setGid(data[0].id);
-    } else setGroups([]);
+    const { data: mine, error: memErr } = await supabase
+      .from("group_members")
+      .select("group_id")
+      .eq("user_id", session.user.id);
+    if (memErr) { setGroups([]); return; }
+    const ids = (mine || []).map((m) => m.group_id);
+    if (ids.length === 0) { setGroups([]); setGid(null); return; }
+    const { data, error } = await supabase
+      .from("money_groups")
+      .select("*")
+      .in("id", ids);
+    if (error) { setGroups([]); return; }
+    setGroups(data);
+    if (data.length > 0 && !gid) setGid(data[0].id);
   };
   useEffect(() => { loadGroups(); }, [session]);
 
