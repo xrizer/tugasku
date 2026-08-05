@@ -42,6 +42,7 @@ const THEMES = {
     "--red-bg": "#FDF1EF",
     "--ember-soft": "rgba(228,87,46,0.18)",
     "--ember-strong": "rgba(228,87,46,0.42)",
+    "--shadow-hard": "4px 4px 0 rgba(43,40,34,0.13)",
     "--glass": "rgba(255,255,255,0.45)",
     "--glass-border": "rgba(0,0,0,0.07)",
     "--glass-hi": "rgba(255,255,255,0.75)",
@@ -81,6 +82,7 @@ const THEMES = {
     "--red-bg": "#331A14",
     "--ember-soft": "rgba(233,114,63,0.12)",
     "--ember-strong": "rgba(233,114,63,0.26)",
+    "--shadow-hard": "4px 4px 0 rgba(0,0,0,0.45)",
     "--glass": "rgba(48,43,34,0.45)",
     "--glass-border": "rgba(255,255,255,0.09)",
     "--glass-hi": "rgba(255,255,255,0.10)",
@@ -1007,6 +1009,19 @@ input::placeholder, textarea::placeholder { color: var(--faint); opacity: 1; }
   50%  { box-shadow: 0 0 0 1px var(--accent), 0 2px 18px var(--ember-strong); }
   100% { box-shadow: 0 0 0 1px var(--accent-border), 0 2px 10px var(--ember-soft); }
 }
+@keyframes toastIn {
+  0%   { transform: translateX(-50%) translateY(14px); opacity: 0; }
+  12%  { transform: translateX(-50%) translateY(0);    opacity: 1; }
+  82%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes popTotal {
+  0%   { transform: scale(1); }
+  35%  { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+.keypad-key:active { transform: scale(0.94); }
+.submit-key:active { transform: translateY(2px); }
 @keyframes sparkRise {
   0%   { transform: translateY(0)    scale(1);   opacity: 0.9; }
   100% { transform: translateY(-14px) scale(0.3); opacity: 0; }
@@ -1227,6 +1242,42 @@ const STATUS_META = {
 
 const rupiah = (n) =>
   n == null ? "" : "Rp" + n.toLocaleString("id-ID");
+
+// angka-angka di Catet pakai mono biar berasa struk — stack bawaan sistem,
+// gak usah nge-load font dari luar
+const MONO = "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+
+// tombol keluar/masuk: yang aktif jadi pill padet
+const segBtn = (on, isIn) => ({
+  flex: 1,
+  border: "none",
+  borderRadius: 9,
+  padding: "10px 0",
+  fontSize: 14,
+  fontWeight: 700,
+  cursor: "pointer",
+  fontFamily: "inherit",
+  transition: "background 0.15s, color 0.15s",
+  ...(on
+    ? isIn
+      ? { background: "var(--green-dark)", color: "var(--on-green)" }
+      : { background: "var(--solid)", color: "var(--on-solid)" }
+    : { background: "transparent", color: "var(--muted)" }),
+});
+
+const submitBtn = (ready) => ({
+  border: "1.5px solid var(--border2)",
+  borderRadius: 14,
+  background: ready ? "var(--accent)" : "var(--badge)",
+  color: ready ? "var(--on-accent)" : "var(--faint)",
+  fontSize: 16,
+  fontWeight: 800,
+  padding: "14px 0",
+  cursor: "pointer",
+  fontFamily: "inherit",
+  boxShadow: "var(--shadow-hard)",
+  transition: "background 0.12s, color 0.12s, transform 0.12s",
+});
 
 function BarangPage({ session }) {
   const [items, setItems] = useState(null);
@@ -2706,6 +2757,9 @@ function DuitPage({ session }) {
   });
   const [analysis, setAnalysis] = useState(null); // null | "..." | text
   const [calMonth, setCalMonth] = useState(() => localToday().slice(0, 7)); // 'YYYY-MM'
+  const [showBreakdown, setShowBreakdown] = useState(false);
+  const [totalKey, setTotalKey] = useState(0); // ganti = total-nya ngedenyut
+  const toastRef = useRef(null);
 
   const analyzeAI = async () => {
     setAnalysis("...");
@@ -2779,9 +2833,21 @@ function DuitPage({ session }) {
       .then(({ data, error }) => setRows(error ? [] : data));
   }, [session]);
 
+  const toast = (msg) => {
+    clearTimeout(toastRef.current);
+    setAddedMsg("");
+    requestAnimationFrame(() => {
+      setAddedMsg(msg);
+      toastRef.current = setTimeout(() => setAddedMsg(""), 1600);
+    });
+  };
+
   const add = async () => {
     const amt = parseInt(amount.replace(/\D/g, ""), 10);
-    if (!amt) return;
+    if (!amt) {
+      toast("Isi nominalnya dulu ya 😉");
+      return;
+    }
     const row = {
       amount: amt,
       kind,
@@ -2792,6 +2858,8 @@ function DuitPage({ session }) {
     setAmount("");
     setNote("");
     setKind("out");
+    setTotalKey((k) => k + 1);
+    toast(kind === "out" ? `✓ Kecatet! ${rupiah(amt)}` : `✓ Masuk ${rupiah(amt)} 🎉`);
     // tanggal gak di-reset — biar bisa nyatet beberapa entry di hari yang sama
     const { data, error } = await supabase
       .from("expenses")
@@ -2851,6 +2919,37 @@ function DuitPage({ session }) {
   const thisMonth = rows.filter((r) => r.spent_date >= firstStr && isOut(r)).reduce((s, r) => s + r.amount, 0);
   const monthIn = rows.filter((r) => r.spent_date >= firstStr && !isOut(r)).reduce((s, r) => s + r.amount, 0);
 
+  // ---- data buat kartu struk ----
+  // 7 hari yang berujung di tanggal yang lagi diliat
+  const DOW = ["M", "S", "S", "R", "K", "J", "S"];
+  const spark = [...Array(7)].map((_, i) => {
+    const d = new Date(viewDate + "T00:00:00");
+    d.setDate(d.getDate() - (6 - i));
+    const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const v = rows
+      .filter((r) => r.spent_date === ds && isOut(r))
+      .reduce((s, r) => s + r.amount, 0);
+    return { ds, v, label: DOW[d.getDay()], now: ds === viewDate };
+  });
+  const sparkMax = Math.max(...spark.map((d) => d.v), 1);
+
+  // rincian per sumber buat hari yang diliat
+  const bySource = {};
+  todayRows.filter(isOut).forEach((r) => {
+    bySource[r.source] = (bySource[r.source] || 0) + r.amount;
+  });
+  const breakdown = Object.entries(bySource).sort((a, b) => b[1] - a[1]);
+
+  const amountNum = parseInt(amount.replace(/\D/g, ""), 10) || 0;
+  const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "000", "0", "⌫"];
+  const tapKey = (k) =>
+    setAmount((a) => {
+      const digits = a.replace(/\D/g, "");
+      if (k === "⌫") return digits.slice(0, -1);
+      const next = (digits + k).replace(/^0+(?=\d)/, "");
+      return next.length > 9 ? digits : next;
+    });
+
   return (
     <>
       <GlassNav
@@ -2873,92 +2972,189 @@ function DuitPage({ session }) {
 
       {sub === "keluar" && (
       <>
-      {/* input dulu, angka belakangan — biar nyatetnya gak mikir */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-        {[["out", "− Keluar"], ["in", "+ Masuk"]].map(([k, label]) => (
-          <button
-            key={k}
+      {/* ===== struk: total hari yang lagi diliat ===== */}
+      <div style={S.receipt}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+          <div style={S.receiptEyebrow}>Keluar {dayLabel}</div>
+          <div style={{ fontFamily: MONO, fontSize: 11, color: "var(--muted)", whiteSpace: "nowrap" }}>
+            {todayRows.length} catatan
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 4 }}>
+          <div
+            key={totalKey}
             style={{
-              ...S.btnGhost,
-              flex: 1,
-              fontSize: 12,
+              fontFamily: MONO,
+              fontSize: 34,
               fontWeight: 700,
-              ...(kind === k
-                ? k === "in"
-                  ? { borderColor: "var(--green)", color: "var(--green)" }
-                  : { borderColor: "var(--muted2)", color: "var(--ink)", background: "var(--card)" }
-                : {}),
+              letterSpacing: showTotal ? "-0.02em" : "0.12em",
+              animation: "popTotal 0.35s ease",
             }}
-            onClick={() => setKind(k)}
           >
-            {label}
+            {showTotal ? rupiah(todayTotal) : "Rp ••••••"}
+          </div>
+          <button
+            style={{ ...S.btnGhost, padding: "6px 8px", lineHeight: 0 }}
+            title={showTotal ? "Sembunyiin total" : "Liat total"}
+            onClick={toggleTotal}
+          >
+            <Eye off={showTotal} />
           </button>
-        ))}
+        </div>
+
+        {/* 7 hari terakhir — batang terakhir = hari yang lagi diliat */}
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 5, height: 40, marginTop: 12 }}>
+          {spark.map((d) => (
+            <div
+              key={d.ds}
+              style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}
+            >
+              <div
+                title={showTotal && d.v ? `${d.ds} · ${rupiah(d.v)}` : d.ds}
+                style={{
+                  width: "100%",
+                  borderRadius: "4px 4px 0 0",
+                  background: d.now ? "var(--accent)" : "var(--border2)",
+                  height: Math.max(3, Math.round((d.v / sparkMax) * 24)),
+                }}
+              />
+              <div
+                style={{
+                  fontFamily: MONO,
+                  fontSize: 9,
+                  color: d.now ? "var(--accent)" : "var(--faint)",
+                }}
+              >
+                {d.label}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {showTotal && (
+          <div style={{ fontFamily: MONO, fontSize: 11, color: "var(--muted)", marginTop: 10 }}>
+            {rupiah(avg)}/hari · minggu {rupiah(thisWeek)} · bulan {rupiah(thisMonth)}
+          </div>
+        )}
+        {showTotal && todayIn > 0 && (
+          <div style={{ fontFamily: MONO, fontSize: 11, color: "var(--green)", marginTop: 3 }}>
+            masuk +{rupiah(todayIn)}
+          </div>
+        )}
+        {showTotal && monthIn > 0 && (
+          <div style={{ fontFamily: MONO, fontSize: 11, color: "var(--green)", marginTop: 3 }}>
+            masuk bulan ini +{rupiah(monthIn)}
+          </div>
+        )}
       </div>
-      <div style={{ display: "flex", gap: 6 }}>
+
+      {/* ===== kartu catet ===== */}
+      <div style={{ ...S.receipt, marginTop: 14, display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ display: "flex", gap: 6, background: "var(--badge)", borderRadius: 12, padding: 4 }}>
+          {[["out", "− Keluar"], ["in", "+ Masuk"]].map(([k, label]) => (
+            <button key={k} style={segBtn(kind === k, k === "in")} onClick={() => setKind(k)}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ textAlign: "center" }}>
+          <input
+            style={{
+              width: "100%",
+              boxSizing: "border-box",
+              border: "none",
+              background: "transparent",
+              textAlign: "center",
+              fontFamily: MONO,
+              fontSize: 34,
+              fontWeight: 700,
+              letterSpacing: "-0.02em",
+              color: amountNum ? "var(--ink)" : "var(--faint)",
+              outline: "none",
+              padding: 0,
+            }}
+            inputMode="numeric"
+            aria-label="Nominal"
+            value={"Rp " + (amountNum ? amountNum.toLocaleString("id-ID") : "0")}
+            onChange={(e) => setAmount(e.target.value.replace(/\D/g, "").slice(0, 9))}
+            onKeyDown={(e) => e.key === "Enter" && add()}
+          />
+          <div style={{ fontFamily: MONO, fontSize: 11, color: "var(--faint)", marginTop: 2 }}>
+            {amountNum
+              ? `${kind === "out" ? "keluar" : "masuk"} · ${source}`
+              : "ketik atau pencet angkanya 👇"}
+          </div>
+        </div>
+
+        {!editSrc ? (
+          <div style={{ display: "flex", gap: 6 }}>
+            <select
+              style={{
+                ...S.input,
+                flex: 1,
+                minWidth: 0,
+                textTransform: "uppercase",
+                fontSize: 13,
+                fontWeight: 700,
+                color: "var(--accent)",
+              }}
+              value={source}
+              onChange={(e) => setSource(e.target.value)}
+            >
+              {sources.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+            <button
+              style={{ ...S.btnGhost, padding: "7px 10px" }}
+              title="Edit daftar sumber"
+              onClick={() => {
+                setSrcDraft(sources.join(", "));
+                setEditSrc(true);
+              }}
+            >
+              ✎
+            </button>
+          </div>
+        ) : (
+          <div style={{ display: "flex", gap: 6 }}>
+            <input
+              style={{ ...S.input, flex: 1, minWidth: 0, fontSize: 16 }}
+              placeholder="Pisahin pakai koma"
+              value={srcDraft}
+              autoFocus
+              onChange={(e) => setSrcDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") saveSources();
+                if (e.key === "Escape") setEditSrc(false);
+              }}
+            />
+            <button style={{ ...S.addBtn, width: 60 }} onClick={saveSources}>OK</button>
+          </div>
+        )}
+
         <input
-          style={{ ...S.input, flex: 1, minWidth: 0, fontSize: 17 }}
-          placeholder="Berapa?"
-          inputMode="numeric"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
+          style={{ ...S.input, width: "100%", boxSizing: "border-box", fontSize: 16 }}
+          placeholder="Catatan"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && add()}
         />
-        <button style={{ ...S.addBtn, width: 60 }} onClick={add}>OK</button>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 7 }}>
+          {KEYS.map((k) => (
+            <button key={k} className="keypad-key" style={S.keypadKey} onClick={() => tapKey(k)}>
+              {k}
+            </button>
+          ))}
+        </div>
+
+        <button className="submit-key" style={submitBtn(amountNum > 0)} onClick={add}>
+          {kind === "out" ? "Catet keluar" : "Catet masuk"}
+        </button>
       </div>
-      {!editSrc ? (
-        <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-          <select
-            style={{
-              ...S.input,
-              flex: 1,
-              minWidth: 0,
-              textTransform: "uppercase",
-              fontSize: 13,
-              fontWeight: 700,
-              color: "var(--accent)",
-            }}
-            value={source}
-            onChange={(e) => setSource(e.target.value)}
-          >
-            {sources.map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
-          <button
-            style={{ ...S.btnGhost, padding: "7px 10px" }}
-            title="Edit daftar sumber"
-            onClick={() => {
-              setSrcDraft(sources.join(", "));
-              setEditSrc(true);
-            }}
-          >
-            ✎
-          </button>
-        </div>
-      ) : (
-        <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-          <input
-            style={{ ...S.input, flex: 1, minWidth: 0, fontSize: 16 }}
-            placeholder="Pisahin pakai koma"
-            value={srcDraft}
-            autoFocus
-            onChange={(e) => setSrcDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") saveSources();
-              if (e.key === "Escape") setEditSrc(false);
-            }}
-          />
-          <button style={{ ...S.addBtn, width: 60 }} onClick={saveSources}>OK</button>
-        </div>
-      )}
-      <input
-        style={{ ...S.input, width: "100%", boxSizing: "border-box", marginTop: 8, fontSize: 16 }}
-        placeholder="Catatan"
-        value={note}
-        onChange={(e) => setNote(e.target.value)}
-        onKeyDown={(e) => e.key === "Enter" && add()}
-      />
+
       {(() => {
         // total keluar per tanggal (dari data yang keload, ~40 hari)
         const perDay = {};
@@ -3045,54 +3241,191 @@ function DuitPage({ session }) {
         );
       })()}
 
-      {addedMsg && (
-        <div style={{ fontSize: 13, color: "var(--green)", marginTop: 6, textAlign: "center" }}>
-          {addedMsg}
-        </div>
-      )}
-
-      {/* angka hari ini — default disembunyiin, buka kalau siap liat */}
-      <div style={{ marginTop: 22, textAlign: "center" }}>
-        {/* cuma muncul pas lagi liat tanggal lain — biar jelas ini angka hari apa */}
-        {!isToday && <div style={S.eyebrow}>Keluar {dayLabel}</div>}
+      {/* ===== struk hari ini ===== */}
+      <div style={S.receiptList}>
         <div
           style={{
-            fontSize: 32,
-            fontWeight: 700,
-            letterSpacing: showTotal ? "-0.02em" : "0.15em",
             display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 10,
+            justifyContent: "space-between",
+            alignItems: "baseline",
+            padding: "0 18px 10px",
+            borderBottom: "1.5px dashed var(--border2)",
           }}
         >
-          <span>{showTotal ? rupiah(todayTotal) : "Rp ••••••"}</span>
-          <button
-            style={{ ...S.btnGhost, padding: "6px 8px", lineHeight: 0 }}
-            title={showTotal ? "Sembunyiin total" : "Liat total"}
-            onClick={toggleTotal}
-          >
-            <Eye off={showTotal} />
-          </button>
+          <div style={S.receiptEyebrow}>Struk {dayLabel}</div>
+          {breakdown.length > 0 && (
+            <button
+              style={{
+                border: "none",
+                background: "none",
+                cursor: "pointer",
+                fontFamily: MONO,
+                fontSize: 11,
+                color: "var(--accent)",
+                textDecoration: "underline",
+                padding: 0,
+              }}
+              onClick={() => setShowBreakdown((v) => !v)}
+            >
+              {showBreakdown ? "tutup" : "rincian"}
+            </button>
+          )}
         </div>
-        {showTotal && (
-          <>
-            {todayIn > 0 && (
-              <div style={{ ...S.dumpHint, marginTop: 4, color: "var(--green)" }}>
-                masuk {dayLabel} +{rupiah(todayIn)}
+
+        {showBreakdown && breakdown.length > 0 && (
+          <div
+            style={{
+              padding: "12px 18px",
+              borderBottom: "1.5px dashed var(--border2)",
+              display: "flex",
+              flexDirection: "column",
+              gap: 8,
+            }}
+          >
+            {breakdown.map(([src, v]) => (
+              <div key={src}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, fontWeight: 600 }}>
+                  <span style={{ textTransform: "uppercase" }}>{src}</span>
+                  <span style={{ fontFamily: MONO }}>{showTotal ? rupiah(v) : "Rp ••••"}</span>
+                </div>
+                <div
+                  style={{
+                    height: 6,
+                    borderRadius: 99,
+                    background: "var(--badge)",
+                    marginTop: 3,
+                    overflow: "hidden",
+                  }}
+                >
+                  <div
+                    style={{
+                      height: "100%",
+                      background: "var(--accent)",
+                      borderRadius: 99,
+                      width: `${Math.round((v / (todayTotal || 1)) * 100)}%`,
+                    }}
+                  />
+                </div>
               </div>
-            )}
-            <div style={{ ...S.dumpHint, marginTop: 4 }}>
-              {rupiah(avg)}/hari · minggu {rupiah(thisWeek)} · bulan{" "}
-              {rupiah(thisMonth)}
-            </div>
-            {monthIn > 0 && (
-              <div style={{ ...S.dumpHint, marginTop: 2, color: "var(--green)" }}>
-                masuk bulan ini +{rupiah(monthIn)}
-              </div>
-            )}
-          </>
+            ))}
+          </div>
         )}
+
+        {todayRows.length === 0 && (
+          <div style={{ ...S.empty, textAlign: "center", padding: "16px 18px" }}>Kosong.</div>
+        )}
+
+        {todayRows.map((r) => (
+          <div
+            key={r.id}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              padding: "11px 18px",
+              borderBottom: "1px dotted var(--border)",
+            }}
+          >
+            <div
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: 10,
+                background: "var(--card2)",
+                border: "1px solid var(--border)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontFamily: MONO,
+                fontSize: 10,
+                fontWeight: 700,
+                textTransform: "uppercase",
+                color: "var(--muted)",
+                flexShrink: 0,
+              }}
+            >
+              {r.source.slice(0, 3)}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div
+                style={{
+                  fontSize: 14,
+                  fontWeight: 600,
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                }}
+              >
+                {r.note || r.source}
+              </div>
+              <div style={{ fontFamily: MONO, fontSize: 10, color: "var(--muted)" }}>
+                {r.created_at
+                  ? new Date(r.created_at).toLocaleTimeString("id-ID", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    }) + " · "
+                  : ""}
+                {r.source}
+              </div>
+            </div>
+            <div
+              style={{
+                fontFamily: MONO,
+                fontSize: 13,
+                fontWeight: 700,
+                color: isOut(r) ? "var(--ink)" : "var(--green)",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {showTotal ? `${isOut(r) ? "−" : "+"}${rupiah(r.amount)}` : "Rp ••••"}
+            </div>
+            <button
+              style={{ border: "none", background: "none", cursor: "pointer", color: "var(--faint)", fontSize: 13, padding: 2 }}
+              onClick={() => remove(r.id)}
+            >
+              ✕
+            </button>
+          </div>
+        ))}
+
+        <div
+          style={{
+            padding: "12px 18px 0",
+            display: "flex",
+            justifyContent: "space-between",
+            fontFamily: MONO,
+            fontSize: 12,
+            fontWeight: 700,
+          }}
+        >
+          <span>TOTAL</span>
+          <span>{showTotal ? rupiah(todayTotal) : "Rp ••••••"}</span>
+        </div>
+
+        {/* sobekan struk */}
+        <div
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            bottom: -9,
+            height: 9,
+            background:
+              "repeating-linear-gradient(90deg, var(--card) 0 10px, transparent 10px 20px)",
+          }}
+        />
+      </div>
+      <div
+        style={{
+          textAlign: "center",
+          fontFamily: MONO,
+          fontSize: 10,
+          color: "var(--faint)",
+          letterSpacing: "1px",
+          marginTop: 16,
+        }}
+      >
+        ✂ - - - - - - - - - - - - - - - - - - - -
       </div>
 
       <div style={{ textAlign: "center", marginTop: 14 }}>
@@ -3111,36 +3444,10 @@ function DuitPage({ session }) {
         </div>
       )}
 
-      <div style={{ marginTop: 18 }}>
-        {todayRows.length === 0 && (
-          <div style={{ ...S.empty, textAlign: "center" }}>Kosong.</div>
-        )}
-        {todayRows.map((r) => (
-          <div key={r.id} style={{ ...S.card, padding: "10px 14px" }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <span
-                style={{
-                  fontSize: 15,
-                  fontWeight: 600,
-                  ...((r.kind || "out") === "in" && showTotal ? { color: "var(--green)" } : {}),
-                  ...(!showTotal ? { color: "var(--faint)", letterSpacing: "0.1em" } : {}),
-                }}
-              >
-                {showTotal
-                  ? `${(r.kind || "out") === "in" ? "+" : ""}${rupiah(r.amount)}`
-                  : "Rp ••••"}
-              </span>
-              <span style={{ ...S.dumpHint, marginLeft: 8 }}>
-                {r.source}{r.note ? ` · ${r.note}` : ""}
-              </span>
-            </div>
-            <button style={S.btnGhost} onClick={() => remove(r.id)}>✕</button>
-          </div>
-        ))}
-      </div>
-
+      {addedMsg && <div style={S.toast}>{addedMsg}</div>}
       </>
       )}
+
     </>
   );
 }
@@ -4624,6 +4931,60 @@ const S = {
   },
   dumpReleased: { fontSize: 12, color: "var(--green)", fontWeight: 600 },
   dumpHint: { fontSize: 12, color: "var(--muted)", marginBottom: 8 },
+
+  // ---- gaya struk buat tab Catet ----
+  receipt: {
+    background: "var(--card)",
+    border: "1px solid var(--border2)",
+    borderRadius: 18,
+    padding: "16px 18px",
+    boxShadow: "var(--shadow-hard)",
+  },
+  receiptList: {
+    background: "var(--card)",
+    border: "1px solid var(--border2)",
+    borderRadius: "18px 18px 4px 4px",
+    boxShadow: "var(--shadow-hard)",
+    padding: "16px 0 14px",
+    position: "relative",
+    marginTop: 14,
+  },
+  receiptEyebrow: {
+    fontFamily: MONO,
+    fontSize: 11,
+    letterSpacing: "0.16em",
+    textTransform: "uppercase",
+    color: "var(--muted)",
+  },
+  keypadKey: {
+    border: "1px solid var(--border2)",
+    borderRadius: 12,
+    background: "var(--card2)",
+    fontFamily: MONO,
+    fontSize: 20,
+    fontWeight: 700,
+    padding: "13px 0",
+    cursor: "pointer",
+    color: "var(--ink)",
+    transition: "transform 0.08s",
+  },
+  toast: {
+    position: "fixed",
+    bottom: 28,
+    left: "50%",
+    transform: "translateX(-50%)",
+    background: "var(--solid)",
+    color: "var(--on-solid)",
+    fontFamily: MONO,
+    fontSize: 13,
+    fontWeight: 700,
+    padding: "12px 22px",
+    borderRadius: 999,
+    animation: "toastIn 1.6s ease forwards",
+    boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
+    zIndex: 50,
+    whiteSpace: "nowrap",
+  },
   worryCard: {
     background: "var(--card2)",
     border: "1px solid var(--border)",
