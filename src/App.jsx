@@ -1141,21 +1141,23 @@ function GlassNav({ items, value, onChange, small, style }) {
   );
 }
 
-function EditableText({ value, onSave, style }) {
+function EditableText({ value, onSave, style, placeholder }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
 
   if (!editing)
     return (
       <div
-        style={{ ...style, cursor: "text" }}
+        // kalau kosong, placeholder-nya yang jadi target tap — tanpa ini
+        // barisnya nol tinggi dan gak ada yang bisa dipencet
+        style={{ ...style, cursor: "text", ...(value ? {} : { color: "var(--faint)" }) }}
         title="Tap untuk edit"
         onClick={() => {
           setDraft(value);
           setEditing(true);
         }}
       >
-        {value}
+        {value || placeholder || ""}
       </div>
     );
 
@@ -1180,6 +1182,7 @@ function EditableText({ value, onSave, style }) {
         font: "inherit",
       }}
       value={draft}
+      placeholder={placeholder}
       onChange={(e) => setDraft(e.target.value)}
       onBlur={commit}
       onKeyDown={(e) => {
@@ -3236,7 +3239,7 @@ function WaktuSection({ session }) {
       <div style={{ ...S.dumpHint, marginTop: 6, textAlign: "center" }}>
         {over ? (
           <span style={{ color: "var(--red)" }}>
-            kepake {used.toFixed(1)} jam — lebih {(used - 24).toFixed(1)} jam dari 24. Ada yang harus ngalah.
+            kepake {used.toFixed(1)} jam — lebih {(used - 24).toFixed(1)} jam dari 24.
           </span>
         ) : (
           <>
@@ -3244,7 +3247,6 @@ function WaktuSection({ session }) {
             <b style={{ color: "var(--green)" }}>
               {free.toFixed(1)} jam belum keclaim
             </b>
-            {free >= 1 && " — di situ tempat hal yang katanya \"gak sempet\""}
           </>
         )}
       </div>
@@ -3260,7 +3262,7 @@ function WaktuSection({ session }) {
           <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
             <input
               style={{ ...S.input, flex: 2, minWidth: 0 }}
-              placeholder="Kegiatan (misal: tidur, kerja, commute)"
+              placeholder="Kegiatan"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
             />
@@ -3280,15 +3282,13 @@ function WaktuSection({ session }) {
               checked={form.wajib}
               onChange={(e) => setForm({ ...form, wajib: e.target.checked })}
             />{" "}
-            Wajib (gak bisa diganggu gugat)
+            Wajib
           </label>
         </div>
       )}
 
       {blocks.length === 0 && !showForm && (
-        <div style={S.empty}>
-          Kosong. Mulai dari yang pasti: tidur, kerja, commute, makan — sisanya bakal keliatan sendiri.
-        </div>
+        <div style={S.empty}>Kosong.</div>
       )}
 
       {blocks.map((b) => (
@@ -3461,7 +3461,7 @@ function EnergiSection({ session }) {
         <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
           <input
             style={{ ...S.input, flex: 1, minWidth: 0 }}
-            placeholder="Apa yang nyedot? (misal: scroll, suruhan dadakan)"
+            placeholder="Apa yang nyedot?"
             value={newDrain}
             onChange={(e) => setNewDrain(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && addDrain()}
@@ -3471,9 +3471,7 @@ function EnergiSection({ session }) {
       )}
 
       {drains.length === 0 && !showDrainForm && (
-        <div style={S.empty}>
-          Tambahin penyedot energi lu (scroll, meeting dadakan, macet…) — tiap kejadian tinggal tap.
-        </div>
+        <div style={S.empty}>Belum ada.</div>
       )}
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
@@ -3483,7 +3481,7 @@ function EnergiSection({ session }) {
             <button
               key={d.id}
               style={{ ...S.btnGhost, fontSize: 13 }}
-              title="Tap tiap kejadian. Tahan buat hapus? — pakai ✕ di rekap"
+              title="Tap tiap kejadian"
               onClick={() => logDrain(d)}
             >
               ⚡ {d.name}{n > 0 ? ` ·${n}` : ""}
@@ -3494,7 +3492,7 @@ function EnergiSection({ session }) {
 
       {topDrains.length > 0 && (
         <div style={{ ...S.dumpHint, marginTop: 8 }}>
-          7 hari terakhir paling nyedot:{" "}
+          paling nyedot:{" "}
           {topDrains.map((d, i) => (
             <span key={d.id}>
               {i > 0 && " · "}
@@ -3520,7 +3518,7 @@ function EnergiSection({ session }) {
         <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
           <input
             style={{ ...S.input, flex: 1, minWidth: 0 }}
-            placeholder="Misal: IELTS, benerin CV"
+            placeholder="Mimpi apa?"
             value={newDream}
             onChange={(e) => setNewDream(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && addDream()}
@@ -3530,10 +3528,7 @@ function EnergiSection({ session }) {
       )}
 
       {dreams.length === 0 && !showDreamForm && (
-        <div style={S.empty}>
-          Apapun yang lu pengin kejar tapi ngerasa gak ada waktu/energi — taro di sini.
-          Yang penting bukan selesai, tapi kesentuh.
-        </div>
+        <div style={S.empty}>Belum ada.</div>
       )}
 
       {dreams.map((dr) => {
@@ -3548,7 +3543,7 @@ function EnergiSection({ session }) {
                   <EditableText
                     value={dr.why || ""}
                     onSave={(v) => patchDream(dr.id, { why: v })}
-                    placeholder="kenapa ini penting? (tap — buat dibaca pas males)"
+                    placeholder="kenapa ini penting?"
                     style={{ fontSize: 12, color: "var(--muted2)", fontStyle: "italic", lineHeight: 1.4 }}
                   />
                 </div>
@@ -3569,20 +3564,16 @@ function EnergiSection({ session }) {
                 <button style={S.btnGhost} onClick={() => removeDream(dr.id)}>✕</button>
               </div>
             </div>
-            <div style={{ marginTop: 8, padding: "8px 10px", background: "var(--card2)", border: "1px solid var(--border)", borderRadius: 10 }}>
-              <div style={{ ...S.fieldLabel || {}, fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--faint)", marginBottom: 2 }}>
-                Langkah kecil berikutnya
-              </div>
+            <div style={{ marginTop: 6 }}>
               <EditableText
                 value={dr.next_step || ""}
                 onSave={(v) => patchDream(dr.id, { next_step: v })}
-                placeholder="tap — sekecil mungkin, misal: buka 1 video, tulis 1 paragraf"
+                placeholder="langkah kecil berikutnya…"
                 style={{ fontSize: 14, lineHeight: 1.4 }}
               />
             </div>
             <div style={{ ...S.dumpHint, marginBottom: 0, marginTop: 6 }}>
-              kesentuh <b>{days}/7 hari</b> terakhir
-              {days === 0 && " — 5 menit juga ngitung"}
+              kesentuh <b>{days}/7 hari</b>
             </div>
           </div>
         );
@@ -3594,8 +3585,7 @@ function EnergiSection({ session }) {
           Wajib harian hari ini:{" "}
           <b style={{ color: dailyStat.done === dailyStat.total ? "var(--green)" : "var(--ink)" }}>
             {dailyStat.done}/{dailyStat.total} kelar
-          </b>{" "}
-          (dari board Tugas)
+          </b>
         </div>
       )}
     </>
@@ -3676,10 +3666,7 @@ function PencapaianSection({ session }) {
       )}
 
       {items.length === 0 && !showForm && (
-        <div style={S.empty}>
-          Lulus? Sertifikasi? Proyek yang jadi? Tulis di sini — otak suka lupa,
-          daftar ini yang inget. Buat dibaca pas lagi ngerasa gak becus.
-        </div>
+        <div style={S.empty}>Belum ada.</div>
       )}
 
       {items.map((a) => (
@@ -3920,7 +3907,7 @@ function DiriPage({ session }) {
             onClick={reflectAI}
             disabled={reflection === "..."}
           >
-            ✨ {reflection === "..." ? "AI lagi baca pola lu…" : "Baca pola gue dong"}
+            ✨ {reflection === "..." ? "lagi baca…" : "Baca pola gue dong"}
           </button>
         </div>
         {reflection && reflection !== "..." && (
@@ -3929,7 +3916,7 @@ function DiriPage({ session }) {
               {reflection}
             </div>
             <div style={{ ...S.dumpHint, marginTop: 6, textAlign: "center" }}>
-              AI cuma baca pola, bukan diagnosis. Buat yang berat, psikolog tetep juaranya.
+              Cuma baca pola, bukan diagnosis.
             </div>
           </>
         )}
@@ -3960,7 +3947,7 @@ function DiriPage({ session }) {
 
       {habits === null && <div style={S.empty}>Memuat…</div>}
       {habits !== null && habits.length === 0 && !showHabitForm && (
-        <div style={S.empty}>Belum ada. Mulai dari satu aja — jangan borong.</div>
+        <div style={S.empty}>Belum ada.</div>
       )}
 
       {(habits || []).map((h) => {
@@ -3987,8 +3974,7 @@ function DiriPage({ session }) {
             </div>
             {justLogged === h.id && (
               <div style={{ ...S.aiBubble, marginTop: 8 }}>
-                Kecatet. Gapapa — jujur itu bagian tersulitnya, dan lu barusan lakuin.
-                Hitungannya mulai lagi dari sekarang, bukan dari nol harga diri.
+                Kecatet. Hitungannya mulai lagi dari sekarang.
               </div>
             )}
           </div>
@@ -4001,10 +3987,6 @@ function DiriPage({ session }) {
 
       <WaktuSection session={session} />
 
-      <div style={S.footer}>
-        Gak ada streak yang "hangus", gak ada merah, gak ada hukuman.
-        Cuma data — biar lu kenal polanya sendiri.
-      </div>
     </>
   );
 }
