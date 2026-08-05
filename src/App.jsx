@@ -3053,7 +3053,8 @@ function DuitPage({ session }) {
 
       {/* angka hari ini — default disembunyiin, buka kalau siap liat */}
       <div style={{ marginTop: 22, textAlign: "center" }}>
-        <div style={S.eyebrow}>Keluar {dayLabel}</div>
+        {/* cuma muncul pas lagi liat tanggal lain — biar jelas ini angka hari apa */}
+        {!isToday && <div style={S.eyebrow}>Keluar {dayLabel}</div>}
         <div
           style={{
             fontSize: 32,
@@ -3097,10 +3098,11 @@ function DuitPage({ session }) {
       <div style={{ textAlign: "center", marginTop: 14 }}>
         <button
           style={{ ...S.btnGhost, fontSize: 13 }}
+          title="Duit gue kemana aja?"
           onClick={analyzeAI}
           disabled={analysis === "..."}
         >
-          ✨ {analysis === "..." ? "lagi mikir…" : "Duit gue kemana aja?"}
+          {analysis === "..." ? "✨ lagi mikir…" : "✨"}
         </button>
       </div>
       {analysis && analysis !== "..." && (
