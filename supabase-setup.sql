@@ -18,6 +18,16 @@ alter table tasks enable row level security;
 create policy "allow all" on tasks
   for all using (true) with check (true);
 
+-- ---------------------------------------------------------------------
+-- Grup patungan (tabelnya dibikin lewat dashboard, bukan file ini).
+--
+-- group_members udah punya policy SELECT ("member read members"),
+-- INSERT ("self join") dan UPDATE ("self update member") — tapi belum
+-- DELETE. Tanpa policy di bawah, RLS nolak hapus baris keanggotaan dan
+-- tombol "Keluar dari grup" selalu gagal (0 baris kehapus, tanpa error).
+create policy "self leave" on public.group_members
+  for delete using (user_id = auth.uid());
+
 -- Seed tugas awal
 insert into tasks (title, priority, daily, status) values
   ('Masukkan baju kotor ke keranjang laundry', 1, true,  'todo'),
