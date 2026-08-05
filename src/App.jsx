@@ -2804,7 +2804,7 @@ function DuitPage({ session }) {
       <div style={{ display: "flex", gap: 6 }}>
         <input
           style={{ ...S.input, flex: 1, minWidth: 0, fontSize: 17 }}
-          placeholder="Berapa? (misal 25000)"
+          placeholder="Berapa?"
           inputMode="numeric"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
@@ -2847,7 +2847,7 @@ function DuitPage({ session }) {
         <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
           <input
             style={{ ...S.input, flex: 1, minWidth: 0, fontSize: 16 }}
-            placeholder="Pisahin pakai koma, misal: cash, bca, danamon, gopay"
+            placeholder="Pisahin pakai koma"
             value={srcDraft}
             autoFocus
             onChange={(e) => setSrcDraft(e.target.value)}
@@ -2859,23 +2859,13 @@ function DuitPage({ session }) {
           <button style={{ ...S.addBtn, width: 60 }} onClick={saveSources}>OK</button>
         </div>
       )}
-      <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-        <input
-          style={{ ...S.input, flex: 2, minWidth: 0, fontSize: 16 }}
-          placeholder="Catatan (opsional)"
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && add()}
-        />
-        <input
-          type="date"
-          max={localToday()}
-          style={{ ...S.input, flex: 1, minWidth: 0, fontSize: 14 }}
-          title="Tanggal — ganti kalau mau catet pengeluaran kemarin"
-          value={spentDate}
-          onChange={(e) => setSpentDate(e.target.value)}
-        />
-      </div>
+      <input
+        style={{ ...S.input, width: "100%", boxSizing: "border-box", marginTop: 8, fontSize: 16 }}
+        placeholder="Catatan"
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && add()}
+      />
       {(() => {
         // total keluar per tanggal (dari data yang keload, ~40 hari)
         const perDay = {};
@@ -2943,9 +2933,13 @@ function DuitPage({ session }) {
                       fontSize: 13,
                       cursor: future ? "default" : "pointer",
                       background: sel ? "var(--badge)" : "transparent",
-                      border: c ? `1.5px solid ${c}` : "1px solid var(--border)",
+                      border: sel
+                        ? "1.5px solid var(--accent)"
+                        : c
+                        ? `1.5px solid ${c}`
+                        : "1px solid var(--border)",
                       color: future ? "var(--faint)" : c || "var(--ink)",
-                      fontWeight: c ? 700 : 400,
+                      fontWeight: sel || c ? 700 : 400,
                       opacity: future ? 0.35 : 1,
                     }}
                   >
@@ -2954,11 +2948,11 @@ function DuitPage({ session }) {
                 );
               })}
             </div>
-            <div style={{ ...S.dumpHint, marginTop: 8, textAlign: "center" }}>
-              {showTotal
-                ? "relatif ke rata-rata lu: hijau < ½× · kuning sekitar · merah > 1½× — tap tanggal buat liat detail"
-                : "buka 👁 dulu buat liat warnanya"}
-            </div>
+            {showTotal && (
+              <div style={{ ...S.dumpHint, marginTop: 8, textAlign: "center", marginBottom: 0 }}>
+                hijau hemat · kuning normal · merah boros
+              </div>
+            )}
           </div>
         );
       })()}
@@ -3000,10 +2994,8 @@ function DuitPage({ session }) {
               </div>
             )}
             <div style={{ ...S.dumpHint, marginTop: 4 }}>
-              rata-rata 7 hari terakhir: {rupiah(avg)}/hari
-            </div>
-            <div style={{ ...S.dumpHint, marginTop: 2 }}>
-              minggu ini {rupiah(thisWeek)} · bulan ini {rupiah(thisMonth)}
+              {rupiah(avg)}/hari · minggu {rupiah(thisWeek)} · bulan{" "}
+              {rupiah(thisMonth)}
             </div>
             {monthIn > 0 && (
               <div style={{ ...S.dumpHint, marginTop: 2, color: "var(--green)" }}>
@@ -3020,7 +3012,7 @@ function DuitPage({ session }) {
           onClick={analyzeAI}
           disabled={analysis === "..."}
         >
-          ✨ {analysis === "..." ? "AI lagi baca catatan lu…" : "Duit gue kemana aja?"}
+          ✨ {analysis === "..." ? "lagi mikir…" : "Duit gue kemana aja?"}
         </button>
       </div>
       {analysis && analysis !== "..." && (
@@ -3031,9 +3023,7 @@ function DuitPage({ session }) {
 
       <div style={{ marginTop: 18 }}>
         {todayRows.length === 0 && (
-          <div style={{ ...S.empty, textAlign: "center" }}>
-            Belum ada catatan {dayLabel === "hari ini" ? "hari ini" : dayLabel}.
-          </div>
+          <div style={{ ...S.empty, textAlign: "center" }}>Kosong.</div>
         )}
         {todayRows.map((r) => (
           <div key={r.id} style={{ ...S.card, padding: "10px 14px" }}>
@@ -3059,9 +3049,6 @@ function DuitPage({ session }) {
         ))}
       </div>
 
-      <div style={S.footer}>
-        Dicatet doang, gak dinilai. Angka gede sehari itu normal — liatnya per minggu.
-      </div>
       </>
       )}
     </>
