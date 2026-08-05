@@ -1046,7 +1046,6 @@ input::placeholder, textarea::placeholder { color: var(--faint); opacity: 1; }
 .keypad-key:active { transform: scale(0.94); }
 .tap-tile { transition: transform 0.15s, border-color 0.15s, background 0.15s; }
 .tap-tile:active { transform: scale(0.92); }
-.shelf { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; }
 .submit-key:active { transform: translateY(2px); }
 @keyframes sparkRise {
   0%   { transform: translateY(0)    scale(1);   opacity: 0.9; }
@@ -4476,14 +4475,17 @@ function PencapaianSection({ session }) {
         <div style={S.empty}>Belum ada.</div>
       )}
 
-      <div className="shelf">
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))",
+          gap: 10,
+        }}
+      >
         {items.map((a) => (
           <div
             key={a.id}
             style={{
-              minWidth: 142,
-              maxWidth: 142,
-              flexShrink: 0,
               background: "linear-gradient(160deg, var(--janji-bg), var(--card))",
               border: "1px solid var(--janji-border)",
               borderRadius: 14,
