@@ -41,8 +41,6 @@ const THEMES = {
     "--on-janji": "#FFFFFF",
     "--red": "#C0392B",
     "--red-bg": "#FDF1EF",
-    "--ember-soft": "rgba(228,87,46,0.18)",
-    "--ember-strong": "rgba(228,87,46,0.42)",
     "--shadow-hard": "4px 4px 0 rgba(43,40,34,0.13)",
     // warna per sumber — versi terang dibikin lebih gelap biar kebaca di kartu putih
     "--src-0": "#C2451F",
@@ -53,6 +51,8 @@ const THEMES = {
     "--src-5": "#B33A54",
     "--src-6": "#1F7A72",
     "--src-7": "#8A5A38",
+    // garis tebal ala kartu Tuku — di terang ikut warna tinta
+    "--border-strong": "#2B2822",
     "--glass": "rgba(255,255,255,0.45)",
     "--glass-border": "rgba(0,0,0,0.07)",
     "--glass-hi": "rgba(255,255,255,0.75)",
@@ -91,8 +91,6 @@ const THEMES = {
     "--on-janji": "#241F12",
     "--red": "#DB6552",
     "--red-bg": "#331A14",
-    "--ember-soft": "rgba(233,114,63,0.12)",
-    "--ember-strong": "rgba(233,114,63,0.26)",
     "--shadow-hard": "4px 4px 0 rgba(0,0,0,0.45)",
     "--src-0": "#E4572E",
     "--src-1": "#4C9E6E",
@@ -102,6 +100,8 @@ const THEMES = {
     "--src-5": "#D95F79",
     "--src-6": "#38AFA5",
     "--src-7": "#B9825E",
+    // di gelap garis tinta bakal nyilo — pakai abu hangat yang masih keliatan
+    "--border-strong": "#4A4339",
     "--glass": "rgba(48,43,34,0.45)",
     "--glass-border": "rgba(255,255,255,0.09)",
     "--glass-hi": "rgba(255,255,255,0.10)",
@@ -641,7 +641,7 @@ export default function LifeHack() {
             style={{
               ...S.focusCard,
               ...(focus.status === "inprogress"
-                ? { animation: "emberGlow 1.8s ease-in-out infinite" }
+                ? { borderColor: "var(--accent)" }
                 : {}),
             }}
           >
@@ -682,7 +682,7 @@ export default function LifeHack() {
         >
           <div style={{ ...S.dumpHead, cursor: "pointer", userSelect: "none" }}>
             <span
-              style={{ ...S.dumpTitle, color: "var(--janji-ink)" }}
+              style={{ ...S.cardEyebrow, color: "var(--janji-ink)" }}
               onClick={() => toggleCollapsed("janji")}
             >
               <span style={S.chev}>{collapsed.janji ? "▸" : "▾"}</span> Janji
@@ -801,112 +801,113 @@ export default function LifeHack() {
           )}
         </div>
 
-        {/* add */}
-        <div style={S.addRow}>
-          <input
-            style={S.input}
-            placeholder="Tugas baru…"
-            value={newTitle}
-            onChange={(e) => setNewTitle(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && addTask()}
-          />
-          <button style={S.addBtn} onClick={addTask}>+</button>
-        </div>
-        {newTitle.trim() !== "" && (
-          <div style={S.addOpts}>
-            <label style={S.optLabel}>
-              <input
-                type="checkbox"
-                checked={newDaily}
-                onChange={(e) => setNewDaily(e.target.checked)}
-              />{" "}
-              Harian
-            </label>
-            <label style={S.optLabel}>
-              <input
-                type="checkbox"
-                checked={newPriority === 0}
-                onChange={(e) => setNewPriority(e.target.checked ? 0 : 1)}
-              />{" "}
-              Penting
-            </label>
-          </div>
-        )}
-
-        {/* brain dump — tumpahin dulu, sortir belakangan */}
+        {/* tugas baru + resah — dua kartu sebelahan, numpuk sendiri pas sempit */}
         <div
-          style={
-            collapsed.dump
-              ? { marginTop: 14, padding: "4px 2px" }
-              : S.dump
-          }
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+            gap: 14,
+          }}
         >
-          <div
-            style={{ ...S.dumpHead, cursor: "pointer", userSelect: "none" }}
-            onClick={() => toggleCollapsed("dump")}
-          >
-            <span style={S.dumpTitle}>
-              <span style={S.chev}>{collapsed.dump ? "▸" : "▾"}</span> Resah
-              {collapsed.dump && worries.length > 0 && (
-                <span style={S.miniCount}>{worries.length}</span>
-              )}
-            </span>
-            {released > 0 && !collapsed.dump && (
-              <span style={S.dumpReleased}>{released} dilepas</span>
+          <div style={S.inputCard}>
+            <div style={S.cardEyebrow}>Tugas baru</div>
+            <div style={S.addRow}>
+              <input
+                style={S.input}
+                placeholder="Tulis di sini…"
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && addTask()}
+              />
+              <button style={S.addBtn} onClick={addTask}>+</button>
+            </div>
+            {newTitle.trim() !== "" && (
+              <div style={S.addOpts}>
+                <label style={S.optLabel}>
+                  <input
+                    type="checkbox"
+                    checked={newDaily}
+                    onChange={(e) => setNewDaily(e.target.checked)}
+                  />{" "}
+                  Harian
+                </label>
+                <label style={S.optLabel}>
+                  <input
+                    type="checkbox"
+                    checked={newPriority === 0}
+                    onChange={(e) => setNewPriority(e.target.checked ? 0 : 1)}
+                  />{" "}
+                  Penting
+                </label>
+              </div>
             )}
           </div>
-          {!collapsed.dump && (
-          <>
-          <div style={S.addRow}>
-            <input
-              style={{ ...S.input, background: "var(--card2)" }}
-              placeholder="Tumpahin di sini…"
-              value={worryText}
-              onChange={(e) => setWorryText(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && addWorry()}
-            />
-            <button style={S.addBtn} onClick={addWorry}>+</button>
-          </div>
-          {worries.length > 0 && (
-            <div style={{ marginTop: 10 }}>
-              {worries.map((w) => (
-                <div key={w.id} style={S.worryCard}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <EditableText
-                      value={w.text}
-                      onSave={(v) => editWorry(w.id, v)}
-                      style={{ fontSize: 14, lineHeight: 1.4 }}
-                    />
-                    {suggestions[w.id] && (
-                      <div style={S.aiBubble}>
-                        {suggestions[w.id] === "..."
-                          ? "AI lagi mikir…"
-                          : suggestions[w.id]}
-                      </div>
-                    )}
-                  </div>
-                  <div style={S.cardBtns}>
-                    <button
-                      style={S.btnGhost}
-                      title="Minta saran AI"
-                      onClick={() => suggestAI(w)}
-                    >
-                      ✨
-                    </button>
-                    <button style={S.btn} onClick={() => worryToTask(w)}>
-                      Jadiin tugas
-                    </button>
-                    <button style={S.btnGhost} onClick={() => releaseWorry(w.id)}>
-                      Lepasin
-                    </button>
-                  </div>
-                </div>
-              ))}
+
+          <div
+            style={{
+              ...S.inputCard,
+              background: "var(--dump-bg)",
+              borderColor: "var(--dump-border)",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+              <span
+                style={{ ...S.cardEyebrow, marginBottom: 0, cursor: "pointer", userSelect: "none" }}
+                onClick={() => toggleCollapsed("dump")}
+                title={collapsed.dump ? "Liat daftar resah" : "Sembunyiin daftar resah"}
+              >
+                <span style={S.chev}>{collapsed.dump ? "▸" : "▾"}</span> Resah
+                {collapsed.dump && worries.length > 0 && (
+                  <span style={S.miniCount}>{worries.length}</span>
+                )}
+              </span>
+              {released > 0 && <span style={S.dumpReleased}>{released} dilepas</span>}
             </div>
-          )}
-          </>
-          )}
+            <div style={S.addRow}>
+              <input
+                style={{ ...S.input, background: "var(--card)" }}
+                placeholder="Tumpahin di sini…"
+                value={worryText}
+                onChange={(e) => setWorryText(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && addWorry()}
+              />
+              <button style={S.addBtn} onClick={addWorry}>+</button>
+            </div>
+          </div>
         </div>
+
+        {/* daftar resah — full width di bawah grid */}
+        {!collapsed.dump && worries.length > 0 && (
+          <div style={{ marginTop: 12 }}>
+            {worries.map((w) => (
+              <div key={w.id} style={S.worryCard}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <EditableText
+                    value={w.text}
+                    onSave={(v) => editWorry(w.id, v)}
+                    style={{ fontSize: 14, lineHeight: 1.4 }}
+                  />
+                  {suggestions[w.id] && (
+                    <div style={S.aiBubble}>
+                      {suggestions[w.id] === "..." ? "AI lagi mikir…" : suggestions[w.id]}
+                    </div>
+                  )}
+                </div>
+                <div style={S.cardBtns}>
+                  <button style={S.btnGhost} title="Minta saran AI" onClick={() => suggestAI(w)}>
+                    ✨
+                  </button>
+                  <button style={S.btn} onClick={() => worryToTask(w)}>
+                    Jadiin tugas
+                  </button>
+                  <button style={S.btnGhost} onClick={() => releaseWorry(w.id)}>
+                    Lepasin
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* sections */}
         <Section title="Todo" count={todoList.length} collapsed={!!collapsed.todo} onToggle={() => toggleCollapsed("todo")}>
@@ -1022,11 +1023,6 @@ input::placeholder, textarea::placeholder { color: var(--faint); opacity: 1; }
   30%  { transform: rotate(48deg) scale(0.85); opacity: 1; }
   60%  { transform: rotate(42deg) scale(1.1); opacity: 0.85; }
   100% { transform: rotate(45deg) scale(1); opacity: 0.95; }
-}
-@keyframes emberGlow {
-  0%   { box-shadow: 0 0 0 1px var(--accent-border), 0 2px 10px var(--ember-soft); }
-  50%  { box-shadow: 0 0 0 1px var(--accent), 0 2px 18px var(--ember-strong); }
-  100% { box-shadow: 0 0 0 1px var(--accent-border), 0 2px 10px var(--ember-soft); }
 }
 @keyframes toastIn {
   0%   { transform: translateX(-50%) translateY(14px); opacity: 0; }
@@ -4709,7 +4705,7 @@ function PublicView({ userId, themeVars }) {
         )}
 
         {doing.length > 0 && (
-          <div style={{ ...S.focusCard, animation: "emberGlow 1.8s ease-in-out infinite" }}>
+          <div style={{ ...S.focusCard, borderColor: "var(--accent)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <Flame />
               <div style={{ ...S.focusLabel, marginBottom: 0 }}>Lagi dikerjain</div>
@@ -4879,14 +4875,34 @@ function Login({ themeVars }) {
 function Section({ title, count, children, collapsed, onToggle }) {
   return (
     <div style={{ marginTop: 26 }}>
+      {/* label · garis · jumlah */}
       <div
-        style={{ ...S.sectionHead, cursor: "pointer", userSelect: "none" }}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          padding: "0 4px",
+          marginBottom: 10,
+          cursor: "pointer",
+          userSelect: "none",
+        }}
         onClick={onToggle}
       >
-        <span>
+        <span
+          style={{
+            fontFamily: MONO,
+            fontSize: 11,
+            letterSpacing: "0.18em",
+            textTransform: "uppercase",
+            fontWeight: 700,
+            color: "var(--muted2)",
+            whiteSpace: "nowrap",
+          }}
+        >
           <span style={S.chev}>{collapsed ? "▸" : "▾"}</span> {title}
         </span>
-        <span style={S.count}>{count}</span>
+        <div style={{ flex: 1, height: 1.5, background: "var(--border)" }} />
+        <span style={{ fontFamily: MONO, fontSize: 11, color: "var(--muted)" }}>{count}</span>
       </div>
       {!collapsed && children}
     </div>
@@ -4902,13 +4918,14 @@ function Card({ t, children, active, done, onEdit, onTogglePublic }) {
     <div
       style={{
         ...S.card,
+        borderRadius: 18,
+        padding: "14px 16px",
         ...(active
-          ? {
-              border: "1px solid transparent",
-              animation: "emberGlow 1.8s ease-in-out infinite",
-            }
+          ? { background: "var(--accent-bg)", border: "2px solid var(--accent)" }
           : {}),
-        ...(done ? { opacity: 0.55 } : {}),
+        ...(done
+          ? { background: "var(--badge)", opacity: 0.75 }
+          : {}),
       }}
     >
       {active && <Flame />}
@@ -4918,7 +4935,10 @@ function Card({ t, children, active, done, onEdit, onTogglePublic }) {
           onSave={(v) => onEdit(t.id, v)}
           style={{
             ...S.cardTitle,
-            ...(done ? { textDecoration: "line-through" } : {}),
+            ...(active ? { fontWeight: 700 } : {}),
+            ...(done
+              ? { textDecoration: "line-through", color: "var(--muted)" }
+              : {}),
           }}
         />
         <div style={S.tags}>
@@ -4988,34 +5008,53 @@ const S = {
   h1: { fontSize: 30, fontWeight: 700, margin: 0, letterSpacing: "-0.02em" },
 
   focusCard: {
-    background: "var(--accent-bg)",
-    border: "1px solid var(--accent-border)",
-    borderRadius: 14,
-    padding: "16px 18px",
+    background: "var(--card)",
+    border: "2px solid var(--border-strong)",
+    borderRadius: 22,
+    padding: "20px 22px",
     marginBottom: 22,
+    boxShadow: "var(--shadow-hard)",
   },
   focusLabel: {
+    fontFamily: MONO,
     fontSize: 11,
-    letterSpacing: "0.12em",
+    letterSpacing: "0.18em",
     textTransform: "uppercase",
     color: "var(--accent)",
     fontWeight: 700,
     marginBottom: 6,
   },
-  focusTitle: { fontSize: 18, fontWeight: 600, lineHeight: 1.35, marginBottom: 12 },
+  focusTitle: { fontSize: 26, fontWeight: 800, lineHeight: 1.15, letterSpacing: "-0.015em", marginBottom: 16 },
   focusBtn: {
     background: "var(--accent)",
     color: "var(--on-accent)",
     border: "none",
-    borderRadius: 10,
-    padding: "10px 16px",
-    fontSize: 15,
-    fontWeight: 600,
+    borderRadius: 16,
+    padding: "15px 16px",
+    fontSize: 16,
+    fontWeight: 800,
     cursor: "pointer",
     width: "100%",
   },
 
   addRow: { display: "flex", gap: 8 },
+  inputCard: {
+    background: "var(--card)",
+    border: "1px solid var(--border2)",
+    borderRadius: 18,
+    padding: "14px 16px",
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+  },
+  cardEyebrow: {
+    fontFamily: MONO,
+    fontSize: 11,
+    letterSpacing: "0.18em",
+    textTransform: "uppercase",
+    fontWeight: 700,
+    color: "var(--muted)",
+  },
   input: {
     flex: 1,
     padding: "11px 14px",
@@ -5065,14 +5104,17 @@ const S = {
     alignItems: "center",
     gap: 10,
   },
-  cardTitle: { fontSize: 15, fontWeight: 500, lineHeight: 1.35 },
-  tags: { display: "flex", gap: 6, marginTop: 5 },
+  cardTitle: { fontSize: 16, fontWeight: 600, lineHeight: 1.35 },
+  tags: { display: "flex", gap: 6, marginTop: 6 },
   tag: {
-    fontSize: 11,
+    fontFamily: MONO,
+    fontSize: 10,
+    letterSpacing: "0.1em",
+    textTransform: "uppercase",
     color: "var(--muted)",
     border: "1px solid var(--border)",
-    borderRadius: 20,
-    padding: "1px 8px",
+    borderRadius: 999,
+    padding: "2px 9px",
   },
   cardBtns: { display: "flex", gap: 6, flexShrink: 0 },
   btn: {
@@ -5186,10 +5228,10 @@ const S = {
     whiteSpace: "nowrap",
   },
   worryCard: {
-    background: "var(--card2)",
+    background: "var(--card)",
     border: "1px solid var(--border)",
-    borderRadius: 12,
-    padding: "10px 12px",
+    borderRadius: 16,
+    padding: "12px 14px",
     marginBottom: 8,
     display: "flex",
     alignItems: "center",
@@ -5199,8 +5241,8 @@ const S = {
     marginBottom: 22,
     background: "var(--janji-bg)",
     border: "1px solid var(--janji-border)",
-    borderRadius: 14,
-    padding: "14px 16px",
+    borderRadius: 20,
+    padding: "16px 18px",
   },
   promAddLink: {
     background: "transparent",
