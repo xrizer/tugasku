@@ -613,7 +613,7 @@ export default function LifeHack() {
         {page === "home" && <HomePage session={session} go={goPage} />}
 
         {page === "tugas" && showPassForm && (
-          <div style={{ ...S.promBox, background: "var(--card)", border: "1px solid var(--border)" }}>
+          <div style={S.promBox}>
             <div style={{ ...S.dumpTitle, marginBottom: 8 }}>Ganti password</div>
             <div style={{ display: "flex", gap: 6 }}>
               <input
@@ -842,8 +842,6 @@ export default function LifeHack() {
         <div
           style={{
             ...S.inputCard,
-            background: "var(--dump-bg)",
-            borderColor: "var(--dump-border)",
           }}
         >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
@@ -855,7 +853,7 @@ export default function LifeHack() {
           </div>
           <div style={S.addRow}>
             <input
-              style={{ ...S.input, background: "var(--card)" }}
+              style={S.input}
               placeholder="Tumpahin di sini…"
               value={worryText}
               onChange={(e) => setWorryText(e.target.value)}
@@ -1188,10 +1186,11 @@ function EditableText({ value, onSave, style, placeholder }) {
         ...style,
         width: "100%",
         boxSizing: "border-box",
-        border: "1px solid var(--accent)",
-        borderRadius: 6,
-        padding: "2px 6px",
-        background: "var(--card)",
+        border: "none",
+        borderBottom: "1px solid var(--accent)",
+        borderRadius: 0,
+        padding: "2px 0",
+        background: "transparent",
         outline: "none",
         font: "inherit",
       }}
@@ -4527,33 +4526,26 @@ function PencapaianSection({ session }) {
         <div style={S.empty}>Belum ada.</div>
       )}
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))",
-          gap: 10,
-        }}
-      >
+      <div>
         {items.map((a) => (
           <div
             key={a.id}
             style={{
-              background: "linear-gradient(160deg, var(--janji-bg), var(--card))",
-              border: "1px solid var(--janji-border)",
-              borderRadius: 14,
-              padding: 12,
+              borderBottom: "1px solid var(--border)",
+              padding: "13px 2px",
               display: "flex",
-              flexDirection: "column",
-              gap: 6,
-              position: "relative",
+              alignItems: "center",
+              gap: 10,
             }}
           >
-            <div style={{ fontSize: 18, lineHeight: 1 }}>🏅</div>
-            <EditableText
-              value={a.text}
-              onSave={(v) => patchItem(a.id, { text: v })}
-              style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.3 }}
-            />
+            <span style={{ fontSize: 16, lineHeight: 1, flexShrink: 0 }}>🏅</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <EditableText
+                value={a.text}
+                onSave={(v) => patchItem(a.id, { text: v })}
+                style={{ fontSize: 15, fontWeight: 600, lineHeight: 1.35 }}
+              />
+            </div>
             <EditableText
               value={a.year ? String(a.year) : ""}
               onSave={(v) => {
@@ -4561,24 +4553,15 @@ function PencapaianSection({ session }) {
                 patchItem(a.id, { year: y >= 1900 && y <= 2100 ? y : null });
               }}
               placeholder="tahun"
-              style={{ fontSize: 11, color: "var(--janji-ink)", fontWeight: 700, fontFamily: MONO }}
-            />
-            <button
               style={{
-                position: "absolute",
-                top: 4,
-                right: 4,
-                border: "none",
-                background: "none",
-                cursor: "pointer",
-                color: "var(--faint)",
                 fontSize: 12,
-                padding: 4,
-                lineHeight: 1,
+                color: "var(--janji-ink)",
+                fontWeight: 700,
+                fontFamily: MONO,
+                flexShrink: 0,
               }}
-              title="Hapus"
-              onClick={() => removeItem(a.id)}
-            >
+            />
+            <button style={S.btnGhost} title="Hapus" onClick={() => removeItem(a.id)}>
               ✕
             </button>
           </div>
@@ -5211,7 +5194,6 @@ function HomePage({ session, go }) {
         ...S.card,
         display: "block",
         cursor: "pointer",
-        ...(accent ? { border: "1px solid var(--accent-border)", background: "var(--accent-bg)" } : {}),
       }}
       onClick={() => go(page)}
     >
@@ -5552,15 +5534,7 @@ function Card({ t, children, active, done, onEdit, onTogglePublic }) {
     <div
       style={{
         ...S.card,
-        borderRadius: 18,
-        padding: "14px 16px",
-        // yang lagi jalan cukup ditandain warna latar, gak usah digaris tebel
-        ...(active
-          ? { background: "var(--accent-bg)", borderColor: "var(--accent-border)" }
-          : {}),
-        ...(done
-          ? { background: "transparent", borderColor: "transparent", opacity: 0.55 }
-          : {}),
+        ...(done ? { opacity: 0.5 } : {}),
       }}
     >
       {active && <Flame />}
@@ -5570,7 +5544,7 @@ function Card({ t, children, active, done, onEdit, onTogglePublic }) {
           onSave={(v) => onEdit(t.id, v)}
           style={{
             ...S.cardTitle,
-            ...(active ? { fontWeight: 700 } : {}),
+            ...(active ? { fontWeight: 700, color: "var(--accent)" } : {}),
             ...(done
               ? { textDecoration: "line-through", color: "var(--muted)" }
               : {}),
@@ -5643,12 +5617,9 @@ const S = {
   h1: { fontSize: 30, fontWeight: 700, margin: 0, letterSpacing: "-0.02em" },
 
   focusCard: {
-    background: "var(--card)",
-    border: "2px solid var(--border-strong)",
-    borderRadius: 22,
-    padding: "20px 22px",
-    marginBottom: 22,
-    boxShadow: "var(--shadow-hard)",
+    padding: "2px 0 18px",
+    marginBottom: 12,
+    borderBottom: "1px solid var(--border)",
   },
   focusLabel: {
     fontFamily: MONO,
@@ -5674,13 +5645,9 @@ const S = {
 
   addRow: { display: "flex", gap: 8 },
   inputCard: {
-    background: "var(--card)",
-    border: "1px solid var(--border)",
-    borderRadius: 18,
-    padding: "14px 16px",
     display: "flex",
     flexDirection: "column",
-    gap: 10,
+    gap: 8,
   },
   cardEyebrow: {
     fontFamily: MONO,
@@ -5692,10 +5659,11 @@ const S = {
   },
   input: {
     flex: 1,
-    padding: "11px 14px",
-    borderRadius: 10,
-    border: "1px solid var(--border2)",
-    background: "var(--card)",
+    padding: "10px 2px",
+    borderRadius: 0,
+    border: "none",
+    borderBottom: "1px solid var(--border2)",
+    background: "transparent",
     color: "var(--ink)",
     fontSize: 16, // >=16 biar iOS gak auto-zoom pas ngetik
     outline: "none",
@@ -5730,11 +5698,8 @@ const S = {
     fontSize: 12,
   },
   card: {
-    background: "var(--card)",
-    border: "1px solid var(--border)",
-    borderRadius: 12,
-    padding: "12px 14px",
-    marginBottom: 10,
+    padding: "13px 2px",
+    borderBottom: "1px solid var(--border)",
     display: "flex",
     alignItems: "center",
     gap: 10,
@@ -5785,10 +5750,6 @@ const S = {
   },
   dump: {
     marginTop: 26,
-    background: "var(--dump-bg)",
-    border: "1px dashed var(--dump-border)",
-    borderRadius: 14,
-    padding: "14px 16px",
   },
   dumpHead: {
     display: "flex",
@@ -5808,18 +5769,11 @@ const S = {
 
   // ---- gaya struk buat tab Catet ----
   receipt: {
-    background: "var(--card)",
-    border: "1px solid var(--border2)",
-    borderRadius: 18,
-    padding: "16px 18px",
-    boxShadow: "var(--shadow-hard)",
+    padding: "2px 0 16px",
+    borderBottom: "1px solid var(--border)",
   },
   receiptList: {
-    background: "var(--card)",
-    border: "1px solid var(--border2)",
-    borderRadius: "18px 18px 4px 4px",
-    boxShadow: "var(--shadow-hard)",
-    padding: "16px 0 14px",
+    padding: "16px 0 0",
     position: "relative",
     marginTop: 14,
   },
@@ -5831,9 +5785,9 @@ const S = {
     color: "var(--muted)",
   },
   keypadKey: {
-    border: "1px solid var(--border2)",
+    border: "1px solid var(--border)",
     borderRadius: 12,
-    background: "var(--card2)",
+    background: "transparent",
     fontFamily: MONO,
     fontSize: 20,
     fontWeight: 700,
@@ -5860,21 +5814,14 @@ const S = {
     whiteSpace: "nowrap",
   },
   worryCard: {
-    background: "var(--card)",
-    border: "1px solid var(--border)",
-    borderRadius: 16,
-    padding: "12px 14px",
-    marginBottom: 8,
+    padding: "13px 2px",
+    borderBottom: "1px solid var(--border)",
     display: "flex",
     alignItems: "center",
     gap: 10,
   },
   promBox: {
     marginBottom: 22,
-    background: "var(--janji-bg)",
-    border: "1px solid var(--janji-border)",
-    borderRadius: 20,
-    padding: "16px 18px",
   },
   promAddLink: {
     background: "transparent",
@@ -5886,7 +5833,7 @@ const S = {
     padding: 0,
   },
   themeBtn: {
-    background: "var(--card)",
+    background: "transparent",
     border: "1px solid var(--border)",
     borderRadius: 10,
     padding: "8px 12px",
@@ -5905,10 +5852,8 @@ const S = {
   },
   aiBubble: {
     marginTop: 8,
-    padding: "8px 10px",
-    background: "var(--accent-bg)",
-    border: "1px solid var(--accent-border)",
-    borderRadius: 10,
+    padding: "2px 0 2px 10px",
+    borderLeft: "2px solid var(--accent-border)",
     fontSize: 13,
     lineHeight: 1.5,
     color: "var(--ink)",
