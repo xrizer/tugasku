@@ -601,29 +601,26 @@ export default function LifeHack() {
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               {focus.status === "inprogress" && <Flame />}
               <div style={{ ...S.focusLabel, marginBottom: 0 }}>
-                {focus.status === "inprogress"
-                  ? "Lagi dikerjain — jangan pindah dulu"
-                  : "Fokus sekarang"}
+                {focus.status === "inprogress" ? "Lagi dikerjain" : "Fokus"}
               </div>
             </div>
             <div style={{ height: 6 }} />
             <div style={S.focusTitle}>{focus.title}</div>
             {focus.status === "todo" ? (
               <button style={S.focusBtn} onClick={() => move(focus.id, "inprogress")}>
-                Terima & mulai →
+                Mulai →
               </button>
             ) : (
               <button style={S.focusBtn} onClick={() => move(focus.id, "done")}>
-                Tandai selesai ✓
+                Selesai ✓
               </button>
             )}
           </div>
         )}
         {!focus && (
           <div style={{ ...S.focusCard, background: "var(--green-bg)", borderColor: "var(--green-border)" }}>
-            <div style={{ ...S.focusLabel, color: "var(--green)" }}>Semua beres</div>
             <div style={{ ...S.focusTitle, color: "var(--green-dark)" }}>
-              Tidak ada tugas tersisa hari ini. 🎉
+              Semua beres 🎉
             </div>
           </div>
         )}
@@ -641,8 +638,7 @@ export default function LifeHack() {
               style={{ ...S.dumpTitle, color: "var(--janji-ink)" }}
               onClick={() => toggleCollapsed("janji")}
             >
-              <span style={S.chev}>{collapsed.janji ? "▸" : "▾"}</span> Janji yang
-              harus ditepati
+              <span style={S.chev}>{collapsed.janji ? "▸" : "▾"}</span> Janji
               {collapsed.janji && promises.length > 0 && (
                 <span style={S.miniCount}>{promises.length}</span>
               )}
@@ -652,7 +648,7 @@ export default function LifeHack() {
                 style={S.promAddLink}
                 onClick={() => setShowPromForm((v) => !v)}
               >
-                {showPromForm ? "batal" : "+ janji baru"}
+                {showPromForm ? "batal" : "+ baru"}
               </button>
             )}
           </div>
@@ -663,7 +659,7 @@ export default function LifeHack() {
             <div style={{ marginBottom: 10 }}>
               <input
                 style={{ ...S.input, width: "100%", boxSizing: "border-box", marginBottom: 6 }}
-                placeholder="Janji apa? (misal: kirim laporan ke Rendy)"
+                placeholder="Janji apa?"
                 value={promForm.text}
                 onChange={(e) => setPromForm({ ...promForm, text: e.target.value })}
               />
@@ -688,7 +684,7 @@ export default function LifeHack() {
           )}
 
           {promises.length === 0 && !showPromForm && (
-            <div style={S.dumpHint}>Gak ada janji tertunda. Aman.</div>
+            <div style={S.dumpHint}>Kosong.</div>
           )}
 
           {promises.map((p) => {
@@ -713,19 +709,20 @@ export default function LifeHack() {
                     style={{ fontSize: 14, fontWeight: 500, lineHeight: 1.4 }}
                   />
                   <div style={{ ...S.dumpHint, marginBottom: 0, marginTop: 3 }}>
-                    {p.to_whom && <>ke <b>{p.to_whom}</b> · </>}
+                    {p.to_whom && (
+                      <>ke <b>{p.to_whom}</b>{p.due_date ? " · " : ""}</>
+                    )}
                     {overdue && (
                       <span style={{ color: "var(--red)", fontWeight: 700 }}>
-                        TELAT — {p.due_date}
+                        telat · {p.due_date}
                       </span>
                     )}
                     {today && (
                       <span style={{ color: "var(--janji-ink)", fontWeight: 700 }}>
-                        HARI INI
+                        hari ini
                       </span>
                     )}
-                    {!overdue && !today && p.due_date && <>sampai {p.due_date}</>}
-                    {!p.due_date && <>tanpa deadline</>}
+                    {!overdue && !today && p.due_date && <>{p.due_date}</>}
                   </div>
                 </div>
                 <div style={S.cardBtns}>
@@ -761,7 +758,7 @@ export default function LifeHack() {
         <div style={S.addRow}>
           <input
             style={S.input}
-            placeholder="Tambah tugas baru…"
+            placeholder="Tugas baru…"
             value={newTitle}
             onChange={(e) => setNewTitle(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && addTask()}
@@ -776,7 +773,7 @@ export default function LifeHack() {
                 checked={newDaily}
                 onChange={(e) => setNewDaily(e.target.checked)}
               />{" "}
-              Tugas harian (reset tiap hari)
+              Harian
             </label>
             <label style={S.optLabel}>
               <input
@@ -802,14 +799,13 @@ export default function LifeHack() {
             onClick={() => toggleCollapsed("dump")}
           >
             <span style={S.dumpTitle}>
-              <span style={S.chev}>{collapsed.dump ? "▸" : "▾"}</span> Lagi resah
-              apa?
+              <span style={S.chev}>{collapsed.dump ? "▸" : "▾"}</span> Resah
               {collapsed.dump && worries.length > 0 && (
                 <span style={S.miniCount}>{worries.length}</span>
               )}
             </span>
             {released > 0 && !collapsed.dump && (
-              <span style={S.dumpReleased}>{released} dilepas hari ini</span>
+              <span style={S.dumpReleased}>{released} dilepas</span>
             )}
           </div>
           {!collapsed.dump && (
@@ -817,7 +813,7 @@ export default function LifeHack() {
           <div style={S.addRow}>
             <input
               style={{ ...S.input, background: "var(--card2)" }}
-              placeholder="Tumpahin di sini, jangan disimpen di kepala…"
+              placeholder="Tumpahin di sini…"
               value={worryText}
               onChange={(e) => setWorryText(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && addWorry()}
@@ -826,9 +822,6 @@ export default function LifeHack() {
           </div>
           {worries.length > 0 && (
             <div style={{ marginTop: 10 }}>
-              <div style={S.dumpHint}>
-                Sortir: bisa lu pengaruhi → jadiin tugas. Di luar kendali lu → lepasin.
-              </div>
               {worries.map((w) => (
                 <div key={w.id} style={S.worryCard}>
                   <div style={{ flex: 1, minWidth: 0 }}>
