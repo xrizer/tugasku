@@ -18,6 +18,7 @@ const THEMES = {
     "--muted2": "#6E6A5E",
     "--faint": "#A5A093",
     "--accent": "#E4572E",
+    "--on-accent": "#FFFFFF",
     "--accent-border": "#F0C4B4",
     "--accent-bg": "#FFF4EC",
     "--border": "#E3DFD4",
@@ -29,6 +30,9 @@ const THEMES = {
     "--green-border": "#BFDCC2",
     "--green": "#3E7A46",
     "--green-dark": "#2E5934",
+    "--on-green": "#FFFFFF",
+    "--solid": "#2B2822",
+    "--on-solid": "#F6F4EF",
     "--dump-bg": "#EFEBE2",
     "--dump-border": "#C9C2B2",
     "--janji-bg": "#FBF6E9",
@@ -36,38 +40,49 @@ const THEMES = {
     "--janji-ink": "#7A5C1E",
     "--red": "#C0392B",
     "--red-bg": "#FDF1EF",
+    "--ember-soft": "rgba(228,87,46,0.18)",
+    "--ember-strong": "rgba(228,87,46,0.42)",
     "--glass": "rgba(255,255,255,0.45)",
     "--glass-border": "rgba(0,0,0,0.07)",
     "--glass-hi": "rgba(255,255,255,0.75)",
     "--lens": "rgba(255,255,255,0.30)",
   },
+  // gelap tapi bukan item pekat: permukaan berlapis (bg < card < card2) biar ada
+  // kedalaman, teks off-white biar gak bikin halation, aksen digeser dikit biar
+  // gak nyilo. Semua pasangan teks/latar minimal 4.5:1.
   dark: {
-    "--bg": "#16140F",
-    "--ink": "#EDEAE0",
-    "--muted": "#9C968A",
-    "--muted2": "#B3AC9E",
-    "--faint": "#6E6A5E",
-    "--accent": "#F26B3F",
-    "--accent-border": "#5C2E1E",
-    "--accent-bg": "#2A1B13",
-    "--border": "#34302A",
-    "--border2": "#3D3931",
-    "--badge": "#34302A",
-    "--card": "#211E18",
-    "--card2": "#26231C",
-    "--green-bg": "#17241A",
-    "--green-border": "#2C4A33",
-    "--green": "#8FCF9A",
-    "--green-dark": "#3E8A4C",
-    "--dump-bg": "#1D1B15",
-    "--dump-border": "#45402F",
-    "--janji-bg": "#231E10",
-    "--janji-border": "#4C4223",
-    "--janji-ink": "#D9B25C",
-    "--red": "#E0604F",
-    "--red-bg": "#2C1712",
-    "--glass": "rgba(42,38,30,0.45)",
-    "--glass-border": "rgba(255,255,255,0.08)",
+    "--bg": "#1A1713",
+    "--ink": "#DEDACE",
+    "--muted": "#A8A192",
+    "--muted2": "#C2BBAB",
+    "--faint": "#8F897B",
+    "--accent": "#E9723F",
+    "--on-accent": "#1F1206",
+    "--accent-border": "#63331F",
+    "--accent-bg": "#2E1D14",
+    "--border": "#38332C",
+    "--border2": "#453F36",
+    "--badge": "#38332C",
+    "--card": "#242019",
+    "--card2": "#2B271F",
+    "--green-bg": "#1B2A1E",
+    "--green-border": "#31543A",
+    "--green": "#7FC48C",
+    "--green-dark": "#4F9A5C",
+    "--on-green": "#0F1F0D",
+    "--solid": "#B8B1A2",
+    "--on-solid": "#1F1D18",
+    "--dump-bg": "#211E17",
+    "--dump-border": "#4A4534",
+    "--janji-bg": "#2A2314",
+    "--janji-border": "#544927",
+    "--janji-ink": "#D4AF5E",
+    "--red": "#DB6552",
+    "--red-bg": "#331A14",
+    "--ember-soft": "rgba(233,114,63,0.12)",
+    "--ember-strong": "rgba(233,114,63,0.26)",
+    "--glass": "rgba(48,43,34,0.45)",
+    "--glass-border": "rgba(255,255,255,0.09)",
     "--glass-hi": "rgba(255,255,255,0.10)",
     "--lens": "rgba(255,255,255,0.09)",
   },
@@ -158,8 +173,14 @@ export default function LifeHack() {
       return n;
     });
   useEffect(() => {
-    document.body.style.background = dark ? "#16140F" : "#F6F4EF";
+    const bg = THEMES[dark ? "dark" : "light"]["--bg"];
+    document.body.style.background = bg;
     document.body.style.margin = "0";
+    // html + theme-color ikut ganti biar area overscroll & UI browser gak nyilo
+    document.documentElement.style.background = bg;
+    document.documentElement.style.colorScheme = dark ? "dark" : "light";
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", bg);
   }, [dark]);
 
   const [showPassForm, setShowPassForm] = useState(false);
@@ -619,7 +640,7 @@ export default function LifeHack() {
         )}
         {!focus && (
           <div style={{ ...S.focusCard, background: "var(--green-bg)", borderColor: "var(--green-border)" }}>
-            <div style={{ ...S.focusTitle, color: "var(--green-dark)" }}>
+            <div style={{ ...S.focusTitle, color: "var(--green)" }}>
               Semua beres 🎉
             </div>
           </div>
@@ -698,7 +719,7 @@ export default function LifeHack() {
                   ...(overdue
                     ? { borderLeft: "3px solid var(--red)", background: "var(--red-bg)" }
                     : today
-                    ? { borderLeft: "3px solid #B8860B", background: "var(--janji-bg)" }
+                    ? { borderLeft: "3px solid var(--janji-ink)", background: "var(--janji-bg)" }
                     : {}),
                 }}
               >
@@ -738,7 +759,7 @@ export default function LifeHack() {
                     </a>
                   )}
                   <button
-                    style={{ ...S.btn, background: "var(--green-dark)" }}
+                    style={S.btnGreen}
                     onClick={() => keepPromise(p.id)}
                   >
                     Ditepati ✓
@@ -876,7 +897,7 @@ export default function LifeHack() {
         <Section title="In Progress" count={doing.length} collapsed={!!collapsed.doing} onToggle={() => toggleCollapsed("doing")}>
           {doing.map((t) => (
             <Card key={t.id} t={t} active onEdit={editTask} onTogglePublic={togglePublic}>
-              <button style={{ ...S.btn, background: "var(--green-dark)" }} onClick={() => move(t.id, "done")}>
+              <button style={S.btnGreen} onClick={() => move(t.id, "done")}>
                 Selesai
               </button>
               <button style={S.btnGhost} onClick={() => move(t.id, "todo")}>↩</button>
@@ -906,6 +927,7 @@ export default function LifeHack() {
 
 const FIRE_CSS = `
 html, body, #root { margin: 0; padding: 0; }
+input::placeholder, textarea::placeholder { color: var(--faint); opacity: 1; }
 .glass-nav {
   position: relative;
   display: flex;
@@ -976,9 +998,9 @@ html, body, #root { margin: 0; padding: 0; }
   100% { transform: rotate(45deg) scale(1); opacity: 0.95; }
 }
 @keyframes emberGlow {
-  0%   { box-shadow: 0 0 0 1px var(--accent-border), 0 2px 10px rgba(228,87,46,0.18); }
-  50%  { box-shadow: 0 0 0 1px var(--accent), 0 2px 18px rgba(228,87,46,0.42); }
-  100% { box-shadow: 0 0 0 1px var(--accent-border), 0 2px 10px rgba(228,87,46,0.18); }
+  0%   { box-shadow: 0 0 0 1px var(--accent-border), 0 2px 10px var(--ember-soft); }
+  50%  { box-shadow: 0 0 0 1px var(--accent), 0 2px 18px var(--ember-strong); }
+  100% { box-shadow: 0 0 0 1px var(--accent-border), 0 2px 10px var(--ember-soft); }
 }
 @keyframes sparkRise {
   0%   { transform: translateY(0)    scale(1);   opacity: 0.9; }
@@ -1539,7 +1561,7 @@ function RutinView({ session, sources, onLogExpense }) {
                   </span>
                 ) : (
                   <button
-                    style={{ ...S.btn, background: "var(--green-dark)" }}
+                    style={S.btnGreen}
                     onClick={() => markPaid(it)}
                   >
                     Bayar ✓
@@ -1615,7 +1637,7 @@ function RutinView({ session, sources, onLogExpense }) {
                   </span>
                 ) : (
                   <button
-                    style={{ ...S.btn, background: "var(--green-dark)" }}
+                    style={S.btnGreen}
                     onClick={() => markReceived(it)}
                   >
                     Terima ✓
@@ -1788,7 +1810,7 @@ function UtangView({ session, sources, onLogExpense }) {
             </div>
             <div style={S.cardBtns}>
               <button
-                style={{ ...S.btn, background: "var(--green-dark)" }}
+                style={S.btnGreen}
                 onClick={() => markLunas(d)}
               >
                 Lunas ✓
@@ -2358,7 +2380,7 @@ function MikirView({ session, onLogExpense }) {
                 <div style={S.cardBtns}>
                   {!bought && (
                     <button
-                      style={{ ...S.btn, background: "var(--green-dark)" }}
+                      style={S.btnGreen}
                       onClick={() => markBought(pl)}
                     >
                       Kebeli ✓
@@ -3493,7 +3515,7 @@ function EnergiSection({ session }) {
                   </span>
                 ) : (
                   <button
-                    style={{ ...S.btn, background: "var(--green-dark)" }}
+                    style={S.btnGreen}
                     onClick={() => touchDream(dr)}
                   >
                     Sentuh ✓
@@ -4424,7 +4446,7 @@ const S = {
   focusTitle: { fontSize: 18, fontWeight: 600, lineHeight: 1.35, marginBottom: 12 },
   focusBtn: {
     background: "var(--accent)",
-    color: "#fff",
+    color: "var(--on-accent)",
     border: "none",
     borderRadius: 10,
     padding: "10px 16px",
@@ -4441,6 +4463,7 @@ const S = {
     borderRadius: 10,
     border: "1px solid var(--border2)",
     background: "var(--card)",
+    color: "var(--ink)",
     fontSize: 16, // >=16 biar iOS gak auto-zoom pas ngetik
     outline: "none",
   },
@@ -4448,8 +4471,8 @@ const S = {
     width: 46,
     borderRadius: 10,
     border: "none",
-    background: "var(--ink)",
-    color: "var(--bg)",
+    background: "var(--solid)",
+    color: "var(--on-solid)",
     fontSize: 20,
     cursor: "pointer",
   },
@@ -4495,7 +4518,17 @@ const S = {
   cardBtns: { display: "flex", gap: 6, flexShrink: 0 },
   btn: {
     background: "var(--accent)",
-    color: "#fff",
+    color: "var(--on-accent)",
+    border: "none",
+    borderRadius: 8,
+    padding: "7px 12px",
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: "pointer",
+  },
+  btnGreen: {
+    background: "var(--green-dark)",
+    color: "var(--on-green)",
     border: "none",
     borderRadius: 8,
     padding: "7px 12px",

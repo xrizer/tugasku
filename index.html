@@ -7,6 +7,29 @@
             content="width=device-width, initial-scale=1.0, maximum-scale=1.0"
         />
         <title>LifeHack by Afifi</title>
+        <meta name="color-scheme" content="dark light" />
+        <!-- warna dasar dipasang sebelum React jalan, biar gak ada kedip putih -->
+        <script>
+            (function () {
+                var dark;
+                try {
+                    var saved = localStorage.getItem("tugasku-theme");
+                    dark = saved
+                        ? saved === "dark"
+                        : matchMedia("(prefers-color-scheme: dark)").matches;
+                } catch (e) {
+                    dark = false;
+                }
+                var bg = dark ? "#1A1713" : "#F6F4EF";
+                var root = document.documentElement;
+                root.style.background = bg;
+                root.style.colorScheme = dark ? "dark" : "light";
+                var m = document.createElement("meta");
+                m.name = "theme-color";
+                m.content = bg;
+                document.head.appendChild(m);
+            })();
+        </script>
     </head>
     <body>
         <div id="root"></div>
