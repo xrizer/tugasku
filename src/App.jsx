@@ -5921,19 +5921,19 @@ function Card({ t, children, active, done, onEdit, onTogglePublic }) {
               : {}),
           }}
         />
-        <div style={S.tags}>
-          {t.priority === 0 && (
-            <span style={{ ...S.tag, color: "var(--accent)" }}>
-              penting
-            </span>
-          )}
-          {t.daily && <span style={S.tag}>harian</span>}
-          {t.is_public && (
-            <span style={{ ...S.tag, color: "var(--green)" }}>
-              publik
-            </span>
-          )}
-        </div>
+        {/* status publik dibaca dari tombol matanya di balik ⋯, gak usah
+            dicetak lagi di tiap baris. div-nya sendiri cuma dirender kalau
+            ada isinya — kalau nggak, marginTop-nya nyisain celah kosong */}
+        {(t.priority === 0 || t.daily) && (
+          <div style={S.tags}>
+            {t.priority === 0 && (
+              <span style={{ ...S.tag, color: "var(--accent)" }}>
+                penting
+              </span>
+            )}
+            {t.daily && <span style={S.tag}>harian</span>}
+          </div>
+        )}
       </div>
       <div style={S.cardBtns}>
         {more && onTogglePublic && (
