@@ -505,6 +505,11 @@ export default function LifeHack() {
   // the single most important thing right now
   const focus = doing[0] || todo[0] || null;
 
+  // yang lagi difokusin udah punya kartunya sendiri di atas — jangan diulang
+  const notFocus = (t) => !focus || t.id !== focus.id;
+  const todoList = todo.filter(notFocus);
+  const doingList = doing.filter(notFocus);
+
   const dateLabel = new Date().toLocaleDateString("id-ID", {
     weekday: "long",
     day: "numeric",
@@ -883,8 +888,8 @@ export default function LifeHack() {
         </div>
 
         {/* sections */}
-        <Section title="Todo" count={todo.length} collapsed={!!collapsed.todo} onToggle={() => toggleCollapsed("todo")}>
-          {todo.map((t) => (
+        <Section title="Todo" count={todoList.length} collapsed={!!collapsed.todo} onToggle={() => toggleCollapsed("todo")}>
+          {todoList.map((t) => (
             <Card key={t.id} t={t} onEdit={editTask} onTogglePublic={togglePublic}>
               <button style={S.btn} onClick={() => move(t.id, "inprogress")}>
                 Terima
@@ -894,8 +899,8 @@ export default function LifeHack() {
           ))}
         </Section>
 
-        <Section title="In Progress" count={doing.length} collapsed={!!collapsed.doing} onToggle={() => toggleCollapsed("doing")}>
-          {doing.map((t) => (
+        <Section title="In Progress" count={doingList.length} collapsed={!!collapsed.doing} onToggle={() => toggleCollapsed("doing")}>
+          {doingList.map((t) => (
             <Card key={t.id} t={t} active onEdit={editTask} onTogglePublic={togglePublic}>
               <button style={S.btnGreen} onClick={() => move(t.id, "done")}>
                 Selesai
