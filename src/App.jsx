@@ -4278,7 +4278,8 @@ function DrainSection({ session }) {
   const [drains, setDrains] = useState([]);
   const [drainEvents, setDrainEvents] = useState([]);
   const [dailyStat, setDailyStat] = useState(null);
-  const [form, setForm] = useState({ kind: null, text: "" }); // kind aktif = form kebuka
+  const [newDrain, setNewDrain] = useState("");
+  const [showDrainForm, setShowDrainForm] = useState(false);
   const [err, setErr] = useState("");
 
   const today = localToday();
@@ -4306,17 +4307,13 @@ function DrainSection({ session }) {
       });
   }, [session]);
 
-  // baris lama belum punya kind — anggep aja "cape"
-  const kindOf = (d) => d.kind || "cape";
-  const listOf = (k) => drains.filter((d) => kindOf(d) === k);
-
-  const addItem = async (kind) => {
-    const name = form.text.trim();
+  const addDrain = async () => {
+    const name = newDrain.trim();
     if (!name) return;
     setErr("");
-    setForm({ kind: null, text: "" });
-    const { data, error } = await supabase
-      .from("drains").insert({ name, kind }).select().single();
+    setNewDrain("");
+    setShowDrainForm(false);
+    const { data, error } = await supabase.from("drains").insert({ name }).select().single();
     if (error) { setErr(error.message); return; }
     setDrains((xs) => [...xs, data]);
   };
@@ -4325,6 +4322,13 @@ function DrainSection({ session }) {
     const { data, error } = await supabase
       .from("drain_events").insert({ drain_id: d.id, date: today }).select().single();
     if (!error) setDrainEvents((es) => [...es, data]);
+  };
+
+  const patchDrain = async (id, patch) => {
+    setErr("");
+    setDrains((xs) => xs.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+    const { error } = await supabase.from("drains").update(patch).eq("id", id);
+    if (error) setErr(error.message);
   };
 
   const removeDrain = async (d) => {
@@ -4337,134 +4341,116 @@ function DrainSection({ session }) {
   const drainCount = (id) => drainEvents.filter((e) => e.drain_id === id).length;
   const drainToday = (id) =>
     drainEvents.filter((e) => e.drain_id === id && e.date === today).length;
-  const topDrains = listOf("cape")
+  const topDrains = drains
     .map((d) => ({ ...d, n: drainCount(d.id) }))
     .filter((d) => d.n > 0)
     .sort((a, b) => b.n - a.n)
     .slice(0, 3);
 
-  const addForm = (kind, placeholder) =>
-    form.kind === kind && (
-      <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-        <input
-          style={{ ...S.input, flex: 1, minWidth: 0 }}
-          placeholder={placeholder}
-          autoFocus
-          value={form.text}
-          onChange={(e) => setForm({ kind, text: e.target.value })}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") addItem(kind);
-            if (e.key === "Escape") setForm({ kind: null, text: "" });
-          }}
-        />
-        <button style={{ ...S.addBtn, width: 60 }} onClick={() => addItem(kind)}>OK</button>
-      </div>
-    );
-
-  const header = (kind, title, marginTop) => (
-    <div
-      style={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "baseline",
-        marginTop,
-        marginBottom: 8,
-        gap: 10,
-      }}
-    >
-      <div style={S.sectionHead}><span>{title}</span></div>
-      <button
-        style={S.promAddLink}
-        onClick={() =>
-          setForm((f) => (f.kind === kind ? { kind: null, text: "" } : { kind, text: "" }))
-        }
-      >
-        {form.kind === kind ? "batal" : "+ tambah"}
-      </button>
+  // baris solusi: ikon + teks yang bisa di-tap buat diisi
+  const solusi = (icon, value, onSave, placeholder, color) => (
+    <div style={{ display: "flex", gap: 7, alignItems: "flex-start", marginTop: 6 }}>
+      <span style={{ fontSize: 12, lineHeight: 1.5, flexShrink: 0 }}>{icon}</span>
+      <EditableText
+        value={value || ""}
+        onSave={onSave}
+        placeholder={placeholder}
+        style={{ flex: 1, minWidth: 0, fontSize: 13, lineHeight: 1.45, color }}
+      />
     </div>
   );
 
-  // solusi cuma daftar teks — gak ada yang perlu di-tap tiap hari
-  const solusiList = (kind, kosong) => {
-    const items = listOf(kind);
-    return (
-      <>
-        {items.length === 0 && form.kind !== kind && (
-          <div style={S.empty}>{kosong}</div>
-        )}
-        {items.map((d) => (
-          <div key={d.id} style={{ ...S.card, padding: "10px 14px" }}>
-            <div style={{ flex: 1, minWidth: 0, fontSize: 14, lineHeight: 1.4 }}>
-              {d.name}
-            </div>
-            <button style={S.btnGhost} onClick={() => removeDrain(d)}>✕</button>
-          </div>
-        ))}
-      </>
-    );
-  };
-
   return (
     <>
-      {header("cape", "⚡ Bikin cape", 26)}
-      {addForm("cape", "Apa yang bikin cape?")}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 26, gap: 10 }}>
+        <div style={S.sectionHead}>
+          <span>⚡ Bikin cape</span>
+        </div>
+        <button style={S.promAddLink} onClick={() => setShowDrainForm((v) => !v)}>
+          {showDrainForm ? "batal" : "+ tambah"}
+        </button>
+      </div>
 
-      {listOf("cape").length === 0 && form.kind !== "cape" && (
-        <div style={S.empty}>Belum ada.</div>
+      {showDrainForm && (
+        <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+          <input
+            style={{ ...S.input, flex: 1, minWidth: 0 }}
+            placeholder="Apa yang bikin cape?"
+            autoFocus
+            value={newDrain}
+            onChange={(e) => setNewDrain(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && addDrain()}
+          />
+          <button style={{ ...S.addBtn, width: 60 }} onClick={addDrain}>OK</button>
+        </div>
       )}
 
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
-        {listOf("cape").map((d) => {
-          const n = drainToday(d.id);
-          const on = n > 0;
-          return (
-            <span
-              key={d.id}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                borderRadius: 999,
-                border: `1px solid ${on ? "var(--red)" : "var(--border)"}`,
-                background: on ? "var(--red-bg)" : "transparent",
-                overflow: "hidden",
-              }}
-            >
+      {drains.length === 0 && !showDrainForm && <div style={S.empty}>Belum ada.</div>}
+
+      {drains.map((d) => {
+        const n = drainToday(d.id);
+        const week = drainCount(d.id);
+        return (
+          <div
+            key={d.id}
+            style={{
+              ...S.card,
+              display: "block",
+              ...(n > 0 ? { borderColor: "var(--red)" } : {}),
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 15, fontWeight: 600, lineHeight: 1.35 }}>{d.name}</div>
+                {week > 0 && (
+                  <div style={{ ...S.dumpHint, marginBottom: 0, marginTop: 2 }}>
+                    {week}× minggu ini{n > 0 ? ` · ${n}× hari ini` : ""}
+                  </div>
+                )}
+              </div>
               <button
                 className="tap-tile"
                 style={{
-                  background: "transparent",
-                  border: "none",
-                  padding: "7px 4px 7px 12px",
+                  ...S.btnGhost,
+                  borderRadius: 999,
                   fontSize: 12,
-                  fontFamily: "inherit",
-                  cursor: "pointer",
-                  color: on ? "var(--red)" : "var(--muted)",
-                  fontWeight: on ? 700 : 400,
+                  whiteSpace: "nowrap",
+                  ...(n > 0
+                    ? {
+                        background: "var(--red-bg)",
+                        borderColor: "var(--red)",
+                        color: "var(--red)",
+                        fontWeight: 700,
+                      }
+                    : {}),
                 }}
                 title="Tap tiap kejadian"
                 onClick={() => logDrain(d)}
               >
-                {d.name}{on ? ` ·${n}` : ""}
+                kejadian{n > 0 ? ` ·${n}` : ""}
               </button>
-              <button
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  padding: "7px 10px 7px 4px",
-                  fontSize: 11,
-                  fontFamily: "inherit",
-                  cursor: "pointer",
-                  color: "var(--faint)",
-                }}
-                title={`Hapus "${d.name}"`}
-                onClick={() => removeDrain(d)}
-              >
+              <button style={S.btnGhost} title={`Hapus "${d.name}"`} onClick={() => removeDrain(d)}>
                 ✕
               </button>
-            </span>
-          );
-        })}
-      </div>
+            </div>
+
+            {solusi(
+              "🩹",
+              d.solusi_sementara,
+              (v) => patchDrain(d.id, { solusi_sementara: v }),
+              "solusi sementara — biar nggak kebablasan sekarang",
+              "var(--ink)"
+            )}
+            {solusi(
+              "🌱",
+              d.solusi_panjang,
+              (v) => patchDrain(d.id, { solusi_panjang: v }),
+              "solusi jangka panjang — biar akarnya beres",
+              "var(--muted2)"
+            )}
+          </div>
+        );
+      })}
 
       {topDrains.length > 0 && (
         <div style={{ ...S.dumpHint, marginTop: 8 }}>
@@ -4478,18 +4464,10 @@ function DrainSection({ session }) {
         </div>
       )}
 
-      {header("sementara", "🩹 Solusi sementara", 26)}
-      {addForm("sementara", "Biar nggak kebablasan sekarang…")}
-      {solusiList("sementara", "Belum ada.")}
-
-      {header("panjang", "🌱 Solusi jangka panjang", 26)}
-      {addForm("panjang", "Biar akarnya beres…")}
-      {solusiList("panjang", "Belum ada.")}
-
       {err && (
         <div style={{ color: "var(--red)", fontSize: 12, marginTop: 8 }}>
           {err}
-          {/kind|[Cc]olumn/.test(err) && (
+          {/solusi|[Cc]olumn/.test(err) && (
             <> — jalanin dulu bagian <code>drains</code> di supabase-setup.sql.</>
           )}
         </div>

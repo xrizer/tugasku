@@ -44,13 +44,15 @@ alter table public.time_blocks
   add constraint time_blocks_end_min_range   check (end_min   between 0 and 1439) not valid;
 
 -- ---------------------------------------------------------------------
--- "Bikin cape" + solusinya numpang di tabel yang sama, dibedain lewat kind:
---   'cape'      -> yang bikin cape (yang di-tap tiap kejadian)
---   'sementara' -> solusi sementara
---   'panjang'   -> solusi jangka panjang
--- Baris lama otomatis jadi 'cape' lewat default-nya.
+-- Tiap "bikin cape" punya solusinya sendiri: satu buat nahan sekarang,
+-- satu buat ngeberesin akarnya.
 alter table public.drains
-  add column if not exists kind text not null default 'cape';
+  add column if not exists solusi_sementara text,
+  add column if not exists solusi_panjang text;
+
+-- Catatan: versi sebelumnya sempet nambah kolom `kind` buat misahin daftar
+-- solusi. Sekarang udah gak kepake. Aman dibiarin, atau dibuang:
+--   alter table public.drains drop column if exists kind;
 
 -- Seed tugas awal
 insert into tasks (title, priority, daily, status) values
