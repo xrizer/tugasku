@@ -3517,6 +3517,8 @@ const STREAK_TIERS = [
   { days: 180, pts: 600, label: "6 bulan" },
   { days: 365, pts: 1500, label: "1 tahun" },
 ];
+// tiap hari good habit dikerjain
+const GOOD_POINT = 5;
 const streakPoints = (days) =>
   STREAK_TIERS.filter((t) => days >= t.days).reduce((s, t) => s + t.pts, 0);
 const nextTier = (days) => STREAK_TIERS.find((t) => days < t.days) || null;
@@ -4621,7 +4623,8 @@ function DiriPage({ session }) {
   const [habits, setHabits] = useState(null);
   const [events, setEvents] = useState([]);
   const [newHabit, setNewHabit] = useState("");
-  const [showHabitForm, setShowHabitForm] = useState(false);
+  const [showHabitForm, setShowHabitForm] = useState(null); // null | "bad" | "good"
+  const [habitErr, setHabitErr] = useState("");
   const [sub, setSub] = useState("mood");
   const [justLogged, setJustLogged] = useState(null); // habit_id yang baru dicatet
 
@@ -4745,13 +4748,16 @@ function DiriPage({ session }) {
     if (!error) setMoods((ms) => [data, ...ms]);
   };
 
-  const addHabit = async () => {
+  const addHabit = async (kind) => {
     const name = newHabit.trim();
     if (!name) return;
+    setHabitErr("");
     setNewHabit("");
-    setShowHabitForm(false);
-    const { data, error } = await supabase.from("habits").insert({ name }).select().single();
-    if (!error) setHabits((hs) => [...hs, data]);
+    setShowHabitForm(null);
+    const { data, error } = await supabase
+      .from("habits").insert({ name, kind }).select().single();
+    if (error) { setHabitErr(error.message); return; }
+    setHabits((hs) => [...hs, data]);
   };
 
   const removeHabit = async (id) => {
@@ -4770,16 +4776,39 @@ function DiriPage({ session }) {
     if (!error) setEvents((es) => [data, ...es]);
   };
 
+  // good habit: sekali sehari, bisa dibatalin kalau kepencet
+  const toggleGood = async (h) => {
+    if (doneToday(h)) {
+      setEvents((es) => es.filter((e) => !(e.habit_id === h.id && e.date === today)));
+      await supabase.from("habit_events").delete().eq("habit_id", h.id).eq("date", today);
+      return;
+    }
+    const { data, error } = await supabase
+      .from("habit_events")
+      .insert({ habit_id: h.id, date: today, mood: todayMood?.mood || null })
+      .select().single();
+    if (!error) setEvents((es) => [data, ...es]);
+  };
+
+  const kindOf = (h) => h.kind || "bad";
+  const badHabits = (habits || []).filter((h) => kindOf(h) === "bad");
+  const goodHabits = (habits || []).filter((h) => kindOf(h) === "good");
+
   const cleanDays = (h) => {
     const ev = events.filter((e) => e.habit_id === h.id);
     const last = ev.length > 0 ? ev[0].created_at : h.created_at;
     return Math.floor((Date.now() - new Date(last)) / 86400000);
   };
 
-  const totalPoints = (habits || []).reduce(
-    (s, h) => s + streakPoints(cleanDays(h)),
-    0
-  );
+  // good habit dihitung per hari, bukan per tap
+  const doneDates = (h) =>
+    new Set(events.filter((e) => e.habit_id === h.id).map((e) => e.date));
+  const doneToday = (h) => doneDates(h).has(today);
+  const goodPoints = (h) => doneDates(h).size * GOOD_POINT;
+
+  const totalPoints =
+    badHabits.reduce((s, h) => s + streakPoints(cleanDays(h)), 0) +
+    goodHabits.reduce((s, h) => s + goodPoints(h), 0);
 
   const topMood = (h) => {
     const withMood = events.filter((e) => e.habit_id === h.id && e.mood);
@@ -4800,6 +4829,25 @@ function DiriPage({ session }) {
 
   return (
     <>
+      {/* poin habit — keliatan di semua sub-tab */}
+      {totalPoints > 0 && (
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            alignItems: "baseline",
+            gap: 6,
+            marginBottom: 8,
+            fontFamily: MONO,
+          }}
+        >
+          <span style={{ fontSize: 18, fontWeight: 700, color: "var(--janji-ink)" }}>
+            🏅 {totalPoints.toLocaleString("id-ID")}
+          </span>
+          <span style={{ fontSize: 10, color: "var(--faint)" }}>poin</span>
+        </div>
+      )}
+
       <GlassNav
         small
         items={[
@@ -4923,73 +4971,51 @@ function DiriPage({ session }) {
 
       {sub === "habit" && (
       <>
-        {/* ===== kebiasaan ===== */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 22 }}>
-          <div style={S.sectionHead}>
-            <span>Yang lagi dikurangin</span>
-            {totalPoints > 0 && (
-              <span
-                style={{
-                  ...S.count,
-                  fontFamily: MONO,
-                  fontWeight: 700,
-                  color: "var(--janji-ink)",
-                }}
-              >
-                🏅 {totalPoints}
-              </span>
-            )}
-          </div>
-          <button style={S.promAddLink} onClick={() => setShowHabitForm((v) => !v)}>
-            {showHabitForm ? "batal" : "+ tambah"}
+        {/* ===== bad habit ===== */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 4, gap: 10 }}>
+          <div style={S.sectionHead}><span>Bad habit</span></div>
+          <button
+            style={S.promAddLink}
+            onClick={() => setShowHabitForm((v) => (v === "bad" ? null : "bad"))}
+          >
+            {showHabitForm === "bad" ? "batal" : "+ tambah"}
           </button>
         </div>
 
-        {showHabitForm && (
+        {showHabitForm === "bad" && (
           <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
             <input
               style={{ ...S.input, flex: 1, minWidth: 0 }}
               placeholder="Apa yang mau dikurangin?"
+              autoFocus
               value={newHabit}
               onChange={(e) => setNewHabit(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && addHabit()}
+              onKeyDown={(e) => e.key === "Enter" && addHabit("bad")}
             />
-            <button style={{ ...S.addBtn, width: 60 }} onClick={addHabit}>OK</button>
+            <button style={{ ...S.addBtn, width: 60 }} onClick={() => addHabit("bad")}>OK</button>
           </div>
         )}
 
         {habits === null && <div style={S.empty}>Memuat…</div>}
-        {habits !== null && habits.length === 0 && !showHabitForm && (
+        {habits !== null && badHabits.length === 0 && showHabitForm !== "bad" && (
           <div style={S.empty}>Belum ada.</div>
         )}
 
-        {(habits || []).map((h) => {
+        {badHabits.map((h) => {
           const days = cleanDays(h);
           const tm = topMood(h);
           const pts = streakPoints(days);
           const next = nextTier(days);
           const from = lastTierDays(days);
-          const pct = next
-            ? Math.round(((days - from) / (next.days - from)) * 100)
-            : 100;
+          const pct = next ? Math.round(((days - from) / (next.days - from)) * 100) : 100;
           return (
             <div key={h.id} style={{ ...S.card, display: "block" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                 <div style={{ flexShrink: 0, textAlign: "center", minWidth: 30 }}>
-                  <div
-                    style={{
-                      fontFamily: MONO,
-                      fontSize: 34,
-                      fontWeight: 700,
-                      color: "var(--green)",
-                      lineHeight: 1,
-                    }}
-                  >
+                  <div style={{ fontFamily: MONO, fontSize: 34, fontWeight: 700, color: "var(--green)", lineHeight: 1 }}>
                     {days}
                   </div>
-                  <div style={{ fontFamily: MONO, fontSize: 9, color: "var(--faint)" }}>
-                    hari
-                  </div>
+                  <div style={{ fontFamily: MONO, fontSize: 9, color: "var(--faint)" }}>hari</div>
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={S.cardTitle}>{h.name}</div>
@@ -5001,15 +5027,7 @@ function DiriPage({ session }) {
                 </div>
                 <div style={S.cardBtns}>
                   {pts > 0 && (
-                    <span
-                      style={{
-                        fontFamily: MONO,
-                        fontSize: 12,
-                        fontWeight: 700,
-                        color: "var(--janji-ink)",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
+                    <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 700, color: "var(--janji-ink)", whiteSpace: "nowrap" }}>
                       🏅 {pts}
                     </span>
                   )}
@@ -5024,39 +5042,13 @@ function DiriPage({ session }) {
                 </div>
               </div>
 
-              {/* jarak ke tingkat berikutnya */}
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
-                <div
-                  style={{
-                    flex: 1,
-                    height: 6,
-                    borderRadius: 99,
-                    background: "var(--badge)",
-                    overflow: "hidden",
-                  }}
-                >
-                  <div
-                    style={{
-                      height: "100%",
-                      width: `${Math.max(2, pct)}%`,
-                      background: "var(--janji-ink)",
-                      borderRadius: 99,
-                    }}
-                  />
+                <div style={{ flex: 1, height: 6, borderRadius: 99, background: "var(--badge)", overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${Math.max(2, pct)}%`, background: "var(--janji-ink)", borderRadius: 99 }} />
                 </div>
-                <span
-                  style={{
-                    fontFamily: MONO,
-                    fontSize: 10,
-                    color: "var(--muted)",
-                    whiteSpace: "nowrap",
-                  }}
-                >
+                <span style={{ fontFamily: MONO, fontSize: 10, color: "var(--muted)", whiteSpace: "nowrap" }}>
                   {next ? (
-                    <>
-                      {next.label}{" "}
-                      <b style={{ color: "var(--janji-ink)" }}>+{next.pts}</b>
-                    </>
+                    <>{next.label} <b style={{ color: "var(--janji-ink)" }}>+{next.pts}</b></>
                   ) : (
                     "maks 🎉"
                   )}
@@ -5071,6 +5063,95 @@ function DiriPage({ session }) {
             </div>
           );
         })}
+
+        {/* ===== good habit ===== */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 26, gap: 10 }}>
+          <div style={S.sectionHead}><span>Good habit</span></div>
+          <button
+            style={S.promAddLink}
+            onClick={() => setShowHabitForm((v) => (v === "good" ? null : "good"))}
+          >
+            {showHabitForm === "good" ? "batal" : "+ tambah"}
+          </button>
+        </div>
+
+        {showHabitForm === "good" && (
+          <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+            <input
+              style={{ ...S.input, flex: 1, minWidth: 0 }}
+              placeholder="Apa yang mau dibiasain?"
+              autoFocus
+              value={newHabit}
+              onChange={(e) => setNewHabit(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && addHabit("good")}
+            />
+            <button style={{ ...S.addBtn, width: 60 }} onClick={() => addHabit("good")}>OK</button>
+          </div>
+        )}
+
+        {habits !== null && goodHabits.length === 0 && showHabitForm !== "good" && (
+          <div style={S.empty}>Belum ada.</div>
+        )}
+
+        {goodHabits.map((h) => {
+          const done = doneToday(h);
+          const total = doneDates(h).size;
+          return (
+            <div
+              key={h.id}
+              style={{
+                ...S.card,
+                ...(done ? { borderColor: "var(--green)" } : {}),
+              }}
+            >
+              <div style={{ flexShrink: 0, textAlign: "center", minWidth: 30 }}>
+                <div style={{ fontFamily: MONO, fontSize: 34, fontWeight: 700, color: "var(--green)", lineHeight: 1 }}>
+                  {total}
+                </div>
+                <div style={{ fontFamily: MONO, fontSize: 9, color: "var(--faint)" }}>hari</div>
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={S.cardTitle}>{h.name}</div>
+              </div>
+              {total > 0 && (
+                <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 700, color: "var(--janji-ink)", whiteSpace: "nowrap" }}>
+                  🏅 {goodPoints(h)}
+                </span>
+              )}
+              <button
+                className="tap-tile"
+                style={{
+                  border: "none",
+                  borderRadius: 999,
+                  padding: "9px 14px",
+                  fontFamily: "inherit",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                  flexShrink: 0,
+                  background: done ? "var(--green-bg)" : "var(--green-dark)",
+                  color: done ? "var(--green)" : "var(--on-green)",
+                  boxShadow: done ? "inset 0 0 0 1px var(--green-border)" : "none",
+                }}
+                title={done ? "Batal buat hari ini" : `Udah dikerjain (+${GOOD_POINT})`}
+                onClick={() => toggleGood(h)}
+              >
+                {done ? "udah ✓" : "Udah"}
+              </button>
+              <button style={S.btnGhost} onClick={() => removeHabit(h.id)}>✕</button>
+            </div>
+          );
+        })}
+
+        {habitErr && (
+          <div style={{ color: "var(--red)", fontSize: 12, marginTop: 8 }}>
+            {habitErr}
+            {/kind|[Cc]olumn/.test(habitErr) && (
+              <> — jalanin dulu bagian <code>habits</code> di supabase-setup.sql.</>
+            )}
+          </div>
+        )}
       </>
       )}
 

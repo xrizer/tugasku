@@ -54,6 +54,14 @@ alter table public.drains
 -- solusi. Sekarang udah gak kepake. Aman dibiarin, atau dibuang:
 --   alter table public.drains drop column if exists kind;
 
+-- ---------------------------------------------------------------------
+-- Habit ada dua rasa:
+--   'bad'  -> yang lagi dikurangin; poin dari lamanya bersih
+--   'good' -> yang lagi dibiasain; poin tiap hari dikerjain
+-- Dua-duanya nyatet ke habit_events. Baris lama otomatis jadi 'bad'.
+alter table public.habits
+  add column if not exists kind text not null default 'bad';
+
 -- Seed tugas awal
 insert into tasks (title, priority, daily, status) values
   ('Masukkan baju kotor ke keranjang laundry', 1, true,  'todo'),
