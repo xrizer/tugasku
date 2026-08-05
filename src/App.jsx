@@ -5556,7 +5556,7 @@ function PublicView({ userId, themeVars }) {
       <style>{FIRE_CSS}</style>
       <div className="lh-wrap">
         <div style={{ marginBottom: 20 }}>
-          <div style={S.eyebrow}>{dateLabel} · Papan publik (read-only)</div>
+          <div style={S.eyebrow}>{dateLabel} · Papan publik</div>
           <h1 style={S.h1}>LifeHack</h1>
         </div>
 
@@ -5570,37 +5570,45 @@ function PublicView({ userId, themeVars }) {
           </div>
         )}
 
+        {/* strip mood nempel di kiri kayak yang lain, keterangannya sebaris —
+            ditaro di tengah bikin dia keliatan nyasar sendirian */}
         {hasMood && (
-          <div style={{ marginTop: 26 }}>
-            <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
-              {last7.map((d) => (
-                <div
-                  key={d.ds}
-                  title={d.ds}
-                  style={{
-                    width: 26,
-                    height: 26,
-                    borderRadius: "50%",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: 14,
-                    background: d.mood ? "var(--card2)" : "transparent",
-                    border: "1px dashed var(--border2)",
-                  }}
-                >
-                  {d.mood ? moodEmoji(d.mood) : ""}
-                </div>
-              ))}
-            </div>
-            <div style={{ ...S.dumpHint, textAlign: "center", marginTop: 6 }}>
-              mood 7 hari terakhir
-            </div>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: 8,
+              marginBottom: 32,
+            }}
+          >
+            {last7.map((d) => (
+              <div
+                key={d.ds}
+                title={d.ds}
+                style={{
+                  width: 26,
+                  height: 26,
+                  borderRadius: "50%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 14,
+                  background: d.mood ? "var(--card2)" : "transparent",
+                  border: "1px dashed var(--border2)",
+                }}
+              >
+                {d.mood ? moodEmoji(d.mood) : ""}
+              </div>
+            ))}
+            <span style={{ fontFamily: MONO, fontSize: 11, color: "var(--faint)", marginLeft: 4 }}>
+              mood 7 hari
+            </span>
           </div>
         )}
 
         {doing.length > 0 && (
-          <div style={{ ...S.focusCard, borderColor: "var(--accent)" }}>
+          <div style={S.focusCard}>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <Flame />
               <div style={{ ...S.focusLabel, marginBottom: 0 }}>Lagi dikerjain</div>
@@ -5614,7 +5622,7 @@ function PublicView({ userId, themeVars }) {
         )}
 
         {todo.length > 0 && (
-          <div style={{ marginTop: 26 }}>
+          <div style={{ marginTop: 38 }}>
             <div style={S.sectionHead}><span>Antrian</span><span style={S.count}>{todo.length}</span></div>
             {todo.map((t) => (
               <div key={t.id} style={S.card}>
@@ -5625,7 +5633,7 @@ function PublicView({ userId, themeVars }) {
         )}
 
         {done.length > 0 && (
-          <div style={{ marginTop: 26 }}>
+          <div style={{ marginTop: 38 }}>
             <div style={S.sectionHead}><span>Kelar</span><span style={S.count}>{done.length}</span></div>
             {done.map((t) => (
               <div key={t.id} style={{ ...S.card, opacity: 0.55 }}>
@@ -5678,7 +5686,6 @@ function PublicView({ userId, themeVars }) {
                 fontSize: 11,
                 color: "var(--muted)",
                 marginTop: 8,
-                textAlign: "center",
               }}
             >
               kepake {used.toFixed(1)} · {free.toFixed(1)} jam bebas
@@ -5721,7 +5728,6 @@ function PublicView({ userId, themeVars }) {
           </div>
         )}
 
-        <div style={S.footer}>Cuma yang ditandain publik yang keliatan di sini.</div>
       </div>
     </div>
   );
