@@ -5028,7 +5028,7 @@ function DiriPage({ session }) {
         })}
 
         {/* ===== good habit ===== */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 26, gap: 10 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 44, gap: 10 }}>
           <div style={S.sectionHead}><span>Good habit</span></div>
           <button
             style={S.promAddLink}
