@@ -56,6 +56,9 @@ const THEMES = {
     "--glass": "rgba(255,255,255,0.45)",
     "--glass-border": "rgba(0,0,0,0.07)",
     "--glass-hi": "rgba(255,255,255,0.75)",
+    "--glass-pill": "#FFFFFF",
+    "--glass-pill-shadow": "0 2px 10px rgba(0,0,0,0.14)",
+    "--glass-shadow": "0 4px 18px rgba(0,0,0,0.06)",
     "--lens": "rgba(255,255,255,0.30)",
   },
   // gelap tapi bukan item pekat: permukaan berlapis (bg < card < card2) biar ada
@@ -102,10 +105,15 @@ const THEMES = {
     "--src-7": "#B9825E",
     // di gelap garis tinta bakal nyilo — pakai abu hangat yang masih keliatan
     "--border-strong": "#4A4339",
-    "--glass": "rgba(48,43,34,0.45)",
-    "--glass-border": "rgba(255,255,255,0.09)",
-    "--glass-hi": "rgba(255,255,255,0.10)",
-    "--lens": "rgba(255,255,255,0.09)",
+    // di gelap kacanya dibikin cekung (lebih gelap dari latar) biar pill-nya
+    // yang terang keliatan naik — sebelumnya track sama pill warnanya kembar
+    "--glass": "rgba(0,0,0,0.55)",
+    "--glass-border": "rgba(255,255,255,0.14)",
+    "--glass-hi": "rgba(255,255,255,0.16)",
+    "--glass-pill": "#4A4136",
+    "--glass-pill-shadow": "0 2px 12px rgba(0,0,0,0.55)",
+    "--glass-shadow": "0 6px 22px rgba(0,0,0,0.5)",
+    "--lens": "rgba(255,255,255,0.14)",
   },
 };
 
@@ -963,7 +971,7 @@ input::placeholder, textarea::placeholder { color: var(--faint); opacity: 1; }
   border: 1px solid var(--glass-border);
   backdrop-filter: blur(18px) saturate(1.7);
   -webkit-backdrop-filter: blur(18px) saturate(1.7);
-  box-shadow: inset 0 1px 0 var(--glass-hi), 0 4px 18px rgba(0,0,0,0.06);
+  box-shadow: inset 0 1px 0 var(--glass-hi), var(--glass-shadow);
   padding: 4px;
   overflow: hidden;
 }
@@ -972,8 +980,8 @@ input::placeholder, textarea::placeholder { color: var(--faint); opacity: 1; }
   top: 4px;
   bottom: 4px;
   border-radius: 12px;
-  background: var(--card);
-  box-shadow: 0 2px 10px rgba(0,0,0,0.14), inset 0 1px 0 var(--glass-hi);
+  background: var(--glass-pill);
+  box-shadow: var(--glass-pill-shadow), inset 0 1px 0 var(--glass-hi);
   transition: left 0.42s cubic-bezier(0.3, 1.35, 0.4, 1);
   pointer-events: none;
 }
