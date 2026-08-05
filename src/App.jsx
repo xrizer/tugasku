@@ -3570,62 +3570,67 @@ function WaktuSection({ session }) {
 
   return (
     <>
-      <div style={{ ...S.sectionHead, marginTop: 26 }}>
-        <span>Peta 24 jam</span>
-      </div>
-
-      {/* stacked bar */}
-      <div
-        style={{
-          display: "flex",
-          height: 34,
-          borderRadius: 10,
-          overflow: "hidden",
-          border: "1px solid var(--border)",
-        }}
-      >
-        {blocks.map((b) => (
-          <div
-            key={b.id}
-            title={`${b.name} — ${b.hours} jam`}
-            style={{
-              width: `${(Number(b.hours) / 24) * 100}%`,
-              background: b.color || "#8A8578",
-              minWidth: 2,
-            }}
-          />
-        ))}
-        {free > 0 && (
-          <div
-            title={`belum keclaim — ${free.toFixed(1)} jam`}
-            style={{
-              width: `${(free / 24) * 100}%`,
-              background:
-                "repeating-linear-gradient(45deg, transparent, transparent 4px, var(--border) 4px, var(--border) 6px)",
-            }}
-          />
-        )}
-      </div>
-
-      <div style={{ ...S.dumpHint, marginTop: 6, textAlign: "center" }}>
-        {over ? (
-          <span style={{ color: "var(--red)" }}>
-            kepake {used.toFixed(1)} jam — lebih {(used - 24).toFixed(1)} jam dari 24.
-          </span>
-        ) : (
-          <>
-            kepake {used.toFixed(1)} jam · wajib {wajibTotal.toFixed(1)} jam ·{" "}
-            <b style={{ color: "var(--green)" }}>
-              {free.toFixed(1)} jam belum keclaim
-            </b>
-          </>
-        )}
-      </div>
-
-      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 26, gap: 10 }}>
+        <div style={S.sectionHead}><span>🕒 Peta 24 jam</span></div>
         <button style={S.promAddLink} onClick={() => setShowForm((v) => !v)}>
           {showForm ? "batal" : "+ kegiatan"}
         </button>
+      </div>
+
+      <div style={{ ...S.card, display: "block", padding: 14, marginBottom: 8 }}>
+        {/* stacked bar */}
+        <div
+          style={{
+            display: "flex",
+            height: 34,
+            borderRadius: 10,
+            overflow: "hidden",
+            border: "1px solid var(--border)",
+          }}
+        >
+          {blocks.map((b) => (
+            <div
+              key={b.id}
+              title={`${b.name} — ${b.hours} jam`}
+              style={{
+                width: `${(Number(b.hours) / 24) * 100}%`,
+                background: b.color || "var(--muted)",
+                minWidth: 2,
+              }}
+            />
+          ))}
+          {free > 0 && (
+            <div
+              title={`belum keclaim — ${free.toFixed(1)} jam`}
+              style={{
+                width: `${(free / 24) * 100}%`,
+                background:
+                  "repeating-linear-gradient(45deg, transparent, transparent 4px, var(--border) 4px, var(--border) 6px)",
+              }}
+            />
+          )}
+        </div>
+
+        <div
+          style={{
+            fontFamily: MONO,
+            fontSize: 11,
+            color: "var(--muted)",
+            marginTop: 8,
+            textAlign: "center",
+          }}
+        >
+          {over ? (
+            <span style={{ color: "var(--red)" }}>
+              kepake {used.toFixed(1)} jam — lebih {(used - 24).toFixed(1)} jam dari 24
+            </span>
+          ) : (
+            <>
+              kepake {used.toFixed(1)} · wajib {wajibTotal.toFixed(1)} ·{" "}
+              <b style={{ color: "var(--green)" }}>{free.toFixed(1)} jam bebas</b>
+            </>
+          )}
+        </div>
       </div>
 
       {showForm && (
@@ -3665,14 +3670,15 @@ function WaktuSection({ session }) {
       {blocks.map((b) => (
         <div key={b.id} style={{ ...S.card, padding: "10px 14px" }}>
           <button
+            className="tap-tile"
             title="Tap buat ganti warna"
             onClick={() => cycleColor(b)}
             style={{
-              width: 18,
-              height: 18,
-              borderRadius: 6,
+              width: 20,
+              height: 20,
+              borderRadius: 7,
               border: "none",
-              background: b.color || "#8A8578",
+              background: b.color || "var(--muted)",
               cursor: "pointer",
               flexShrink: 0,
             }}
@@ -3695,7 +3701,13 @@ function WaktuSection({ session }) {
               const n = parseFloat(String(v).replace(",", "."));
               if (!isNaN(n) && n > 0) patchBlock(b.id, { hours: n });
             }}
-            style={{ fontSize: 14, fontWeight: 700, minWidth: 34, textAlign: "right" }}
+            style={{
+              fontFamily: MONO,
+              fontSize: 14,
+              fontWeight: 700,
+              minWidth: 34,
+              textAlign: "right",
+            }}
           />
           <span style={{ fontSize: 12, color: "var(--faint)" }}>jam</span>
           <button
