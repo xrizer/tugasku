@@ -4362,7 +4362,7 @@ function DrainSection({ session }) {
 
   return (
     <>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 26, gap: 10 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
         <div style={S.sectionHead}>
           <span>⚡ Bikin cape</span>
         </div>
@@ -4806,7 +4806,8 @@ function DiriPage({ session }) {
         items={[
           ["mood", "Mood"],
           ["mimpi", "Mimpi"],
-          ["kurangin", "Kurangin"],
+          ["habit", "Habit"],
+          ["energi", "Energi"],
           ["waktu", "Waktu"],
           ["trofi", "Trofi"],
         ]}
@@ -4905,7 +4906,7 @@ function DiriPage({ session }) {
 
       {sub === "mimpi" && <MimpiSection session={session} />}
 
-      {sub === "kurangin" && (
+      {sub === "habit" && (
       <>
         {/* ===== kebiasaan ===== */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 22 }}>
@@ -5039,9 +5040,10 @@ function DiriPage({ session }) {
             </div>
           );
         })}
-        <DrainSection session={session} />
       </>
       )}
+
+      {sub === "energi" && <DrainSection session={session} />}
 
       {sub === "trofi" && <PencapaianSection session={session} />}
 
