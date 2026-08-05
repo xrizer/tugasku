@@ -1057,6 +1057,29 @@ function Flame() {
   );
 }
 
+// mata buat toggle "keliatan / disembunyiin" — ikut warna teks tombolnya,
+// jadi konsisten di light & dark (emoji dulu warnanya ngikut font sistem)
+function Eye({ off }) {
+  return (
+    <svg
+      width="17"
+      height="17"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{ display: "block" }}
+      aria-hidden="true"
+    >
+      <path d="M2 12s3.7-6.2 10-6.2S22 12 22 12s-3.7 6.2-10 6.2S2 12 2 12Z" />
+      <circle cx="12" cy="12" r="2.7" />
+      {off && <path d="M4 4l16 16" />}
+    </svg>
+  );
+}
+
 function GlassNav({ items, value, onChange, small, style }) {
   const ref = useRef(null);
   const drag = useRef(null);
@@ -2548,10 +2571,11 @@ function AsetView({ session, sources }) {
         >
           <span>{show ? rupiah(total) : "Rp ••••••"}</span>
           <button
-            style={{ ...S.btnGhost, fontSize: 14, padding: "5px 9px" }}
+            style={{ ...S.btnGhost, padding: "6px 8px", lineHeight: 0 }}
+            title={show ? "Sembunyiin" : "Liat"}
             onClick={toggleShow}
           >
-            {show ? "🙈" : "👁"}
+            <Eye off={show} />
           </button>
         </div>
       </div>
@@ -3017,11 +3041,6 @@ function DuitPage({ session }) {
                 );
               })}
             </div>
-            {showTotal && (
-              <div style={{ ...S.dumpHint, marginTop: 8, textAlign: "center", marginBottom: 0 }}>
-                hijau hemat · kuning normal · merah boros
-              </div>
-            )}
           </div>
         );
       })()}
@@ -3048,11 +3067,11 @@ function DuitPage({ session }) {
         >
           <span>{showTotal ? rupiah(todayTotal) : "Rp ••••••"}</span>
           <button
-            style={{ ...S.btnGhost, fontSize: 14, padding: "5px 9px" }}
+            style={{ ...S.btnGhost, padding: "6px 8px", lineHeight: 0 }}
             title={showTotal ? "Sembunyiin total" : "Liat total"}
             onClick={toggleTotal}
           >
-            {showTotal ? "🙈" : "👁"}
+            <Eye off={showTotal} />
           </button>
         </div>
         {showTotal && (
@@ -4410,11 +4429,16 @@ function Card({ t, children, active, done, onEdit, onTogglePublic }) {
       <div style={S.cardBtns}>
         {more && onTogglePublic && (
           <button
-            style={{ ...S.btnGhost, ...(t.is_public ? { borderColor: "var(--green)", color: "var(--green)" } : {}) }}
-            title={t.is_public ? "Keliatan di link publik — klik buat sembunyiin" : "Privat — klik buat tampilin di link publik"}
+            style={{
+              ...S.btnGhost,
+              padding: "6px 8px",
+              lineHeight: 0,
+              ...(t.is_public ? { borderColor: "var(--green)", color: "var(--green)" } : {}),
+            }}
+            title={t.is_public ? "Keliatan di link publik" : "Privat"}
             onClick={() => onTogglePublic(t)}
           >
-            {t.is_public ? "👁" : "🙈"}
+            <Eye off={!t.is_public} />
           </button>
         )}
         {more && rest}
