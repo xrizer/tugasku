@@ -43,6 +43,15 @@ const THEMES = {
     "--ember-soft": "rgba(228,87,46,0.18)",
     "--ember-strong": "rgba(228,87,46,0.42)",
     "--shadow-hard": "4px 4px 0 rgba(43,40,34,0.13)",
+    // warna per sumber — versi terang dibikin lebih gelap biar kebaca di kartu putih
+    "--src-0": "#C2451F",
+    "--src-1": "#2F7A4F",
+    "--src-2": "#2C6DA8",
+    "--src-3": "#836512",
+    "--src-4": "#7A4FA8",
+    "--src-5": "#B33A54",
+    "--src-6": "#1F7A72",
+    "--src-7": "#8A5A38",
     "--glass": "rgba(255,255,255,0.45)",
     "--glass-border": "rgba(0,0,0,0.07)",
     "--glass-hi": "rgba(255,255,255,0.75)",
@@ -83,6 +92,14 @@ const THEMES = {
     "--ember-soft": "rgba(233,114,63,0.12)",
     "--ember-strong": "rgba(233,114,63,0.26)",
     "--shadow-hard": "4px 4px 0 rgba(0,0,0,0.45)",
+    "--src-0": "#E4572E",
+    "--src-1": "#4C9E6E",
+    "--src-2": "#5892D6",
+    "--src-3": "#C9A227",
+    "--src-4": "#A177D1",
+    "--src-5": "#D95F79",
+    "--src-6": "#38AFA5",
+    "--src-7": "#B9825E",
     "--glass": "rgba(48,43,34,0.45)",
     "--glass-border": "rgba(255,255,255,0.09)",
     "--glass-hi": "rgba(255,255,255,0.10)",
@@ -1246,6 +1263,21 @@ const rupiah = (n) =>
 // angka-angka di Catet pakai mono biar berasa struk — stack bawaan sistem,
 // gak usah nge-load font dari luar
 const MONO = "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+
+// tiap sumber dapet warnanya sendiri. Nomor urutnya dari posisi di daftar
+// sumber (jadi gak ada yang kembar selama <= 8), sumber yang udah dihapus dari
+// daftar jatuh ke hash namanya biar warnanya tetep konsisten.
+const srcVar = (name, sources) => {
+  let i = sources.indexOf(name);
+  if (i < 0) {
+    let h = 0;
+    for (let k = 0; k < name.length; k++) h = (h * 31 + name.charCodeAt(k)) >>> 0;
+    i = h;
+  }
+  return `var(--src-${i % 8})`;
+};
+const srcTint = (name, sources, pct) =>
+  `color-mix(in srgb, ${srcVar(name, sources)} ${pct}%, transparent)`;
 
 // tombol keluar/masuk: yang aktif jadi pill padet
 const segBtn = (on, isIn) => ({
@@ -3081,9 +3113,14 @@ function DuitPage({ session }) {
             onKeyDown={(e) => e.key === "Enter" && add()}
           />
           <div style={{ fontFamily: MONO, fontSize: 11, color: "var(--faint)", marginTop: 2 }}>
-            {amountNum
-              ? `${kind === "out" ? "keluar" : "masuk"} · ${source}`
-              : "ketik atau pencet angkanya 👇"}
+            {amountNum ? (
+              <>
+                {kind === "out" ? "keluar" : "masuk"} ·{" "}
+                <span style={{ color: srcVar(source, sources), fontWeight: 700 }}>{source}</span>
+              </>
+            ) : (
+              "ketik atau pencet angkanya 👇"
+            )}
           </div>
         </div>
 
@@ -3097,7 +3134,7 @@ function DuitPage({ session }) {
                 textTransform: "uppercase",
                 fontSize: 13,
                 fontWeight: 700,
-                color: "var(--accent)",
+                color: srcVar(source, sources),
               }}
               value={source}
               onChange={(e) => setSource(e.target.value)}
@@ -3285,7 +3322,9 @@ function DuitPage({ session }) {
             {breakdown.map(([src, v]) => (
               <div key={src}>
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, fontWeight: 600 }}>
-                  <span style={{ textTransform: "uppercase" }}>{src}</span>
+                  <span style={{ textTransform: "uppercase", color: srcVar(src, sources) }}>
+                    {src}
+                  </span>
                   <span style={{ fontFamily: MONO }}>{showTotal ? rupiah(v) : "Rp ••••"}</span>
                 </div>
                 <div
@@ -3300,7 +3339,7 @@ function DuitPage({ session }) {
                   <div
                     style={{
                       height: "100%",
-                      background: "var(--accent)",
+                      background: srcVar(src, sources),
                       borderRadius: 99,
                       width: `${Math.round((v / (todayTotal || 1)) * 100)}%`,
                     }}
@@ -3331,8 +3370,8 @@ function DuitPage({ session }) {
                 width: 34,
                 height: 34,
                 borderRadius: 10,
-                background: "var(--card2)",
-                border: "1px solid var(--border)",
+                background: srcTint(r.source, sources, 16),
+                border: `1px solid ${srcTint(r.source, sources, 45)}`,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -3340,7 +3379,7 @@ function DuitPage({ session }) {
                 fontSize: 10,
                 fontWeight: 700,
                 textTransform: "uppercase",
-                color: "var(--muted)",
+                color: srcVar(r.source, sources),
                 flexShrink: 0,
               }}
             >
