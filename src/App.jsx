@@ -4438,14 +4438,14 @@ function DrainSection({ session }) {
               "🩹",
               d.solusi_sementara,
               (v) => patchDrain(d.id, { solusi_sementara: v }),
-              "solusi sementara — biar nggak kebablasan sekarang",
+              "solusi sementaranya apa nih?",
               "var(--ink)"
             )}
             {solusi(
               "🌱",
               d.solusi_panjang,
               (v) => patchDrain(d.id, { solusi_panjang: v }),
-              "solusi jangka panjang — biar akarnya beres",
+              "solusi jangka panjang",
               "var(--muted2)"
             )}
           </div>
