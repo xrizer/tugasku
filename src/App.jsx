@@ -5601,6 +5601,9 @@ function HomePage({ session, go }) {
         outMonth: ex.filter(isOut).reduce((s, r) => s + Number(r.amount), 0),
         sisa: fixedIn - fixedOut,
         unpaid: fx.filter((f) => f.last_paid !== month).length,
+        unpaidAmount: fx
+          .filter((f) => f.last_paid !== month)
+          .reduce((s, f) => s + Number(f.amount || 0), 0),
         piutang: owed("piutang"),
         utang: owed("utang"),
         showMoney: (() => {
@@ -5653,7 +5656,13 @@ function HomePage({ session, go }) {
     d.overdue.length && { t: `${d.overdue.length} janji telat`, p: "tugas", red: true },
     d.dueToday.length && { t: `${d.dueToday.length} janji jatuh tempo hari ini`, p: "tugas" },
     d.dailyTotal > d.dailyDone && { t: `${d.dailyTotal - d.dailyDone} wajib harian belum kelar`, p: "tugas" },
-    d.unpaid && { t: `${d.unpaid} rutin belum dibayar`, p: "duit" },
+    d.unpaid && {
+      t: `${d.unpaid} rutin belum dibayar`,
+      p: "duit",
+      // nominalnya yang bikin baris ini kekejar duluan — 2 tagihan Rp50rb
+      // beda urgensinya sama 2 tagihan Rp1,7jt
+      v: d.showMoney ? rupiah(d.unpaidAmount) : "Rp ••••",
+    },
     d.careItems && { t: `${d.careItems} barang perlu diurus`, p: "barang" },
     !d.moodToday && { t: "belum check-in mood", p: "diri" },
     d.dreamTotal > 0 && d.dreamToday === 0 && { t: "belum nyentuh mimpi hari ini", p: "diri" },
@@ -5707,6 +5716,20 @@ function HomePage({ session, go }) {
               <span style={{ flex: 1, fontSize: 15, ...(x.red ? { color: "var(--red)" } : {}) }}>
                 {x.t}
               </span>
+              {x.v && (
+                <span
+                  style={{
+                    fontFamily: MONO,
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: x.red ? "var(--red)" : "var(--ink)",
+                    whiteSpace: "nowrap",
+                    flexShrink: 0,
+                  }}
+                >
+                  {x.v}
+                </span>
+              )}
               {/* nama tabnya udah ketebak dari kalimatnya — panahnya cukup */}
               <span style={{ fontSize: 15, color: "var(--faint)", flexShrink: 0 }}>›</span>
             </div>
