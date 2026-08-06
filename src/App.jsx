@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { supabase } from "./lib/supabase";
 
 // LifeHack by afifi — a dead-simple personal ticketing board, backed by Supabase.
@@ -1029,6 +1029,13 @@ input::placeholder, textarea::placeholder { color: var(--faint); opacity: 1; }
 .page-slide-l { animation: pageFromRight 0.28s cubic-bezier(0.25, 0.9, 0.35, 1); }
 .page-slide-r { animation: pageFromLeft 0.28s cubic-bezier(0.25, 0.9, 0.35, 1); }
 .lh-wrap { max-width: 560px; margin: 0 auto; }
+
+/* titik fokus: cuma kedip pas timernya jalan */
+.lh-pulse { animation: lhpulse 1.8s ease-in-out infinite; }
+@keyframes lhpulse {
+  0%, 100% { opacity: .35; transform: scale(1); }
+  50%      { opacity: 1;   transform: scale(1.35); }
+}
 @media (min-width: 900px)  { .lh-wrap { max-width: 720px; } }
 @media (min-width: 1280px) { .lh-wrap { max-width: 820px; } }
 
@@ -5808,349 +5815,509 @@ function DiriPage({ session, onPoints }) {
 
 function HomePage({ session, go }) {
   const [d, setD] = useState(null);
+  const [msg, setMsg] = useState("");
+  // timer fokus disimpen sebagai waktu selesai, bukan sisa detik — biar tetep
+  // jalan bener walau pindah tab atau app-nya sempet ketutup
+  const [endAt, setEndAt] = useState(() => {
+    try {
+      const v = Number(localStorage.getItem("tugasku-focus-until"));
+      return v > Date.now() ? v : 0;
+    } catch { return 0; }
+  });
+  const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
-    (async () => {
-      const uid = session.user.id;
-      const today = localToday();
-      const month = today.slice(0, 7);
-      const dstr = (x) =>
-        `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
-      const weekAgo = (() => {
-        const x = new Date();
-        x.setDate(x.getDate() - 6);
-        return dstr(x);
-      })();
+    if (!endAt) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [endAt]);
 
-      const [tasks, promises, exp, fixed, income, moods, dreams, touches, habits, hevents, debts, blocks, items] =
-        await Promise.all([
-          supabase.from("tasks").select("title,status,daily").eq("user_id", uid),
-          supabase.from("promises").select("text,to_whom,due_date").eq("done", false),
-          supabase.from("expenses").select("amount,kind,spent_date").eq("user_id", uid).gte("spent_date", month + "-01"),
-          supabase.from("fixed_costs").select("name,amount,last_paid").eq("user_id", uid),
-          supabase.from("fixed_income").select("amount").eq("user_id", uid),
-          supabase.from("moods").select("mood,date").eq("user_id", uid).gte("date", weekAgo).order("created_at", { ascending: false }),
-          supabase.from("dreams").select("id,name,next_step").eq("user_id", uid),
-          supabase.from("dream_touches").select("dream_id,date").eq("user_id", uid).gte("date", weekAgo),
-          supabase.from("habits").select("id,name,kind,created_at").eq("user_id", uid),
-          supabase.from("habit_events").select("habit_id,date,created_at").eq("user_id", uid).order("created_at", { ascending: false }).limit(200),
-          supabase.from("debts").select("amount,status,direction").eq("user_id", uid),
-          supabase.from("time_blocks").select("name,hours,wajib").eq("user_id", uid),
-          // select("*") biar tetep jalan walau migrasi kolom kondisi belum dijalanin
-          supabase.from("items").select("*").eq("user_id", uid),
-        ]);
+  const left = endAt ? Math.max(0, Math.round((endAt - now) / 1000)) : 0;
+  const setFocusTimer = (ms) => {
+    const at = ms ? Date.now() + ms : 0;
+    setEndAt(at);
+    setNow(Date.now());
+    try {
+      if (at) localStorage.setItem("tugasku-focus-until", String(at));
+      else localStorage.removeItem("tugasku-focus-until");
+    } catch {}
+  };
 
-      const t = tasks.data || [];
-      const daily = t.filter((x) => x.daily);
-      const proms = promises.data || [];
+  const dstr = (x) =>
+    `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
 
-      const ex = exp.data || [];
-      const isOut = (r) => (r.kind || "out") === "out";
-      const fx = fixed.data || [];
-      const fixedOut = fx.reduce((s, x) => s + Number(x.amount || 0), 0);
-      const fixedIn = (income.data || []).reduce((s, x) => s + Number(x.amount || 0), 0);
+  const load = async () => {
+    const uid = session.user.id;
+    const today = localToday();
+    const month = today.slice(0, 7);
+    // minggu kalender, mulai Senin — "minggu ini" mestinya minggu beneran,
+    // bukan 7 hari mundur dari hari ini
+    const nd = new Date();
+    const dow = (nd.getDay() + 6) % 7;
+    const wStart = new Date(nd);
+    wStart.setDate(nd.getDate() - dow);
+    const week = [...Array(7)].map((_, i) => {
+      const x = new Date(wStart);
+      x.setDate(wStart.getDate() + i);
+      return dstr(x);
+    });
 
-      const ms = moods.data || [];
-      const tch = touches.data || [];
-      const drs = dreams.data || [];
-      const touchedToday = new Set(tch.filter((x) => x.date === today).map((x) => x.dream_id));
+    const [tasks, promises, exp, fixed, income, moods, dreams, touches, habits, hevents, debts, blocks, items] =
+      await Promise.all([
+        supabase.from("tasks").select("id,title,status,daily,priority").eq("user_id", uid),
+        supabase.from("promises").select("text,to_whom,due_date").eq("done", false),
+        supabase.from("expenses").select("amount,kind,spent_date").eq("user_id", uid).gte("spent_date", month + "-01"),
+        supabase.from("fixed_costs").select("name,amount,last_paid").eq("user_id", uid),
+        supabase.from("fixed_income").select("amount").eq("user_id", uid),
+        supabase.from("moods").select("mood,date").eq("user_id", uid).gte("date", week[0]),
+        supabase.from("dreams").select("id,name,next_step").eq("user_id", uid),
+        supabase.from("dream_touches").select("dream_id,date").eq("user_id", uid).gte("date", week[0]),
+        supabase.from("habits").select("id,name,kind,created_at").eq("user_id", uid),
+        supabase.from("habit_events").select("habit_id,date,created_at").eq("user_id", uid).order("created_at", { ascending: false }).limit(300),
+        supabase.from("debts").select("amount,status,direction").eq("user_id", uid),
+        supabase.from("time_blocks").select("name,hours,wajib").eq("user_id", uid),
+        supabase.from("items").select("*").eq("user_id", uid),
+      ]);
 
-      const hbs = habits.data || [];
-      const hev = hevents.data || [];
-      const goodIds = new Set(hbs.filter((h) => h.kind === "good").map((h) => h.id));
-      const bad = hbs
-        .filter((h) => (h.kind || "bad") === "bad")
-        .map((h) => {
-          const ev = hev.filter((e) => e.habit_id === h.id);
-          const last = ev.length ? ev[0].created_at : h.created_at;
-          return { name: h.name, days: Math.floor((Date.now() - new Date(last)) / 86400000) };
-        })
-        .sort((a, b) => b.days - a.days);
+    const t = tasks.data || [];
+    const daily = t.filter((x) => x.daily);
+    const proms = promises.data || [];
+    const ex = exp.data || [];
+    const isOut = (r) => (r.kind || "out") === "out";
+    const fx = fixed.data || [];
+    const unpaidRows = fx.filter((f) => f.last_paid !== month);
+    const fixedIn = (income.data || []).reduce((s, x) => s + Number(x.amount || 0), 0);
+    const fixedOut = fx.reduce((s, x) => s + Number(x.amount || 0), 0);
 
-      const db = debts.data || [];
-      const owed = (dir) =>
-        db
-          .filter((x) => x.status !== "lunas" && (x.direction || "piutang") === dir)
-          .reduce((s, x) => s + Number(x.amount), 0);
+    const moodDates = new Set((moods.data || []).map((m) => m.date));
+    const touchDates = new Set((touches.data || []).map((x) => x.date));
+    const drs = dreams.data || [];
+    const touchedToday = new Set((touches.data || []).filter((x) => x.date === today).map((x) => x.dream_id));
 
-      const bl = blocks.data || [];
-      const it = items.data || [];
+    const hbs = habits.data || [];
+    const hev = hevents.data || [];
+    const goodIds = new Set(hbs.filter((h) => h.kind === "good").map((h) => h.id));
+    const badIds = new Set(hbs.filter((h) => (h.kind || "bad") === "bad").map((h) => h.id));
+    const goodDates = new Set(hev.filter((e) => goodIds.has(e.habit_id)).map((e) => e.date));
+    const slipDates = new Set(hev.filter((e) => badIds.has(e.habit_id)).map((e) => e.date));
+    const bad = hbs
+      .filter((h) => badIds.has(h.id))
+      .map((h) => {
+        const ev = hev.filter((e) => e.habit_id === h.id);
+        const last = ev.length ? ev[0].created_at : h.created_at;
+        return { name: h.name, days: Math.floor((Date.now() - new Date(last)) / 86400000) };
+      })
+      .sort((a, b) => b.days - a.days);
 
-      setD({
-        doing: t.find((x) => x.status === "inprogress"),
-        todoCount: t.filter((x) => x.status === "todo").length,
-        dailyDone: daily.filter((x) => x.status === "done").length,
-        dailyTotal: daily.length,
+    const db = debts.data || [];
+    const owed = (dir) =>
+      db.filter((x) => x.status !== "lunas" && (x.direction || "piutang") === dir)
+        .reduce((s, x) => s + Number(x.amount), 0);
 
-        overdue: proms.filter((p) => p.due_date && p.due_date < today),
-        dueToday: proms.filter((p) => p.due_date === today),
+    const bl = blocks.data || [];
+    const it = items.data || [];
 
-        outToday: ex.filter((r) => r.spent_date === today && isOut(r)).reduce((s, r) => s + Number(r.amount), 0),
-        outMonth: ex.filter(isOut).reduce((s, r) => s + Number(r.amount), 0),
-        sisa: fixedIn - fixedOut,
-        unpaid: fx.filter((f) => f.last_paid !== month).length,
-        unpaidAmount: fx
-          .filter((f) => f.last_paid !== month)
-          .reduce((s, f) => s + Number(f.amount || 0), 0),
-        piutang: owed("piutang"),
-        utang: owed("utang"),
-        showMoney: (() => {
-          try { return localStorage.getItem("tugasku-show-total") === "1"; } catch { return false; }
-        })(),
+    setD({
+      today, week, todayIdx: dow,
+      doing: t.find((x) => x.status === "inprogress"),
+      todos: t.filter((x) => x.status === "todo").sort((a, b) => a.priority - b.priority),
+      dailyDone: daily.filter((x) => x.status === "done").length,
+      dailyTotal: daily.length,
 
-        moodToday: ms.find((m) => m.date === today)?.mood || null,
-        moodDays: new Set(ms.map((m) => m.date)).size,
-        last7: [...Array(7)].map((_, i) => {
-          const x = new Date();
-          x.setDate(x.getDate() - (6 - i));
-          const ds = dstr(x);
-          return { ds, mood: ms.find((m) => m.date === ds)?.mood };
-        }),
+      overdue: proms.filter((p) => p.due_date && p.due_date < today),
+      dueToday: proms.filter((p) => p.due_date === today),
 
-        dreamTotal: drs.length,
-        dreamToday: drs.filter((x) => touchedToday.has(x.id)).length,
-        dreamDays: new Set(tch.map((x) => x.date)).size,
-        nextStep: drs.find((x) => !touchedToday.has(x.id))?.next_step || null,
+      outMonth: ex.filter(isOut).reduce((s, r) => s + Number(r.amount), 0),
+      sisa: fixedIn - fixedOut,
+      unpaid: unpaidRows.length,
+      unpaidAmount: unpaidRows.reduce((s, f) => s + Number(f.amount || 0), 0),
+      piutang: owed("piutang"),
+      utang: owed("utang"),
+      showMoney: (() => {
+        try { return localStorage.getItem("tugasku-show-total") === "1"; } catch { return false; }
+      })(),
 
-        goodDays: new Set(hev.filter((e) => goodIds.has(e.habit_id) && e.date >= weekAgo).map((e) => e.date)).size,
-        bestStreak: bad[0] || null,
-        points: habitPoints(hbs, hev),
+      moodToday: moodDates.has(today),
+      moodDates, touchDates, goodDates, slipDates,
+      hasBad: badIds.size > 0,
+      hasGood: goodIds.size > 0,
 
-        jamWajib: bl.filter((b) => b.wajib).reduce((s, b) => s + Number(b.hours), 0),
-        jamKepake: bl.reduce((s, b) => s + Number(b.hours), 0),
-        blocks: bl,
+      dreamTotal: drs.length,
+      dreamToday: drs.filter((x) => touchedToday.has(x.id)).length,
+      nextStep: drs.find((x) => !touchedToday.has(x.id))?.next_step || null,
+      bestStreak: bad[0] || null,
 
-        careItems: it.filter(
-          (x) => (x.condition || "oke") !== "oke" || (x.status || "ada") !== "ada"
-        ).length,
-      });
-    })();
-  }, [session]);
+      jamWajib: bl.filter((b) => b.wajib).reduce((s, b) => s + Number(b.hours), 0),
+      jamKepake: bl.reduce((s, b) => s + Number(b.hours), 0),
+      careItems: it.filter((x) => (x.condition || "oke") !== "oke" || (x.status || "ada") !== "ada").length,
+    });
+  };
+
+  useEffect(() => { load(); }, [session]);
 
   if (!d) return <div style={S.empty}>Memuat…</div>;
 
-  const big = { fontSize: 17, fontWeight: 600, lineHeight: 1.35 };
-  const sub = { ...S.dumpHint, marginBottom: 0, marginTop: 4 };
-  const Sec = ({ title, page, children }) => (
-    <div style={{ marginTop: 34, cursor: page ? "pointer" : "default" }} onClick={page ? () => go(page) : undefined}>
-      <div style={S.sectionHead}><span>{title}</span></div>
+  const money = (n) => (d.showMoney ? rupiah(n) : "Rp ••••");
+  const jamBebas = Math.max(0, 24 - d.jamKepake);
+  const burn = d.sisa > 0 ? Math.min(100, (d.outMonth / d.sisa) * 100) : 0;
+  const owe = d.sisa > 0 ? Math.min(100 - burn, (d.unpaidAmount / d.sisa) * 100) : 0;
+
+  // ---- ganti fokus: yang lagi nyala balik ke antrian, todo teratas naik ----
+  const gantiFokus = async () => {
+    const next = d.todos[0];
+    if (!next) { setMsg("Antrian kosong."); return; }
+    if (d.doing) await supabase.from("tasks").update({ status: "todo" }).eq("id", d.doing.id);
+    await supabase.from("tasks").update({ status: "inprogress" }).eq("id", next.id);
+    setFocusTimer(0);
+    load();
+  };
+
+  // ---- langkah mimpi jadi tugas beneran di board Tugas ----
+  const jadwalkan = async () => {
+    if (!d.nextStep) return;
+    const { error } = await supabase
+      .from("tasks")
+      .insert({ title: d.nextStep, status: "todo", priority: 0, daily: false });
+    setMsg(error ? error.message : "Masuk antrian Tugas ✓");
+    if (!error) load();
+  };
+
+  const nyangkut = [
+    d.overdue.length && { t: `${d.overdue.length} janji telat`, v: d.overdue[0].text, tag: "MENDESAK", c: "var(--red)", p: "tugas" },
+    d.unpaid && { t: `${d.unpaid} rutin belum dibayar`, v: money(d.unpaidAmount), tag: "MENDESAK", c: "var(--red)", p: "duit" },
+    d.dailyTotal > d.dailyDone && { t: `${d.dailyTotal - d.dailyDone} wajib harian belum kelar`, v: `${d.dailyDone}/${d.dailyTotal}`, tag: "HARI INI", c: "var(--janji-ink)", p: "tugas" },
+    d.careItems && { t: `${d.careItems} barang perlu diurus`, v: `${d.careItems} item`, tag: "NANTI", c: "var(--janji-ink)", p: "barang" },
+    !d.moodToday && { t: "belum check-in mood", v: "kosong", tag: "KOSONG", c: "var(--src-3)", p: "diri" },
+    d.dreamTotal > 0 && d.dreamToday === 0 && { t: "belum nyentuh mimpi hari ini", v: `0/${d.dreamTotal}`, tag: "KOSONG", c: "var(--src-3)", p: "diri" },
+  ].filter(Boolean);
+
+  // ---- grid minggu ----
+  const upto = (day) => day <= d.today;
+  // label sengaja pendek — kolomnya cuma 66px biar 7 kotak tetep muat di hp
+  const rows = [
+    { key: "mood", color: "var(--janji-ink)", on: (day) => d.moodDates.has(day) },
+    d.dreamTotal > 0 && { key: "mimpi", color: "var(--src-3)", on: (day) => d.touchDates.has(day) },
+    d.hasGood && { key: "habit", color: "var(--green)", on: (day) => d.goodDates.has(day) },
+    // "bersih" cuma masuk akal kalau emang ada bad habit yang dilacak
+    d.hasBad && { key: "bersih", color: "var(--src-4)", on: (day) => upto(day) && !d.slipDates.has(day) },
+  ].filter(Boolean);
+  const hits = (r) => d.week.filter((day) => upto(day) && r.on(day)).length;
+  const DAYS = ["SEN", "SEL", "RAB", "KAM", "JUM", "SAB", "MIN"];
+  const kosong = rows.find((r) => hits(r) === 0);
+
+  // ---- insight: ambil yang paling nyolok, satu aja ----
+  const insight = (() => {
+    if (d.showMoney && d.unpaidAmount > 0 && d.outMonth > 0 && d.unpaidAmount > d.outMonth * 2)
+      return {
+        t: `Rutin yang belum dibayar ${(d.unpaidAmount / d.outMonth).toFixed(0)}x lebih gede dari semua pengeluaran bulan ini.`,
+        s: `${rupiah(d.unpaidAmount)} vs ${rupiah(d.outMonth)}`,
+      };
+    if (d.sisa > 0 && d.outMonth > d.sisa)
+      return { t: "Pengeluaran bulan ini udah lewat sisa bebas.", s: `${money(d.outMonth)} dari ${money(d.sisa)}` };
+    if (d.jamKepake > 24)
+      return { t: "Peta 24 jam lu kelebihan — totalnya lewat 24 jam.", s: `kepake ${d.jamKepake.toFixed(1)} jam` };
+    if (jamBebas <= 0)
+      return { t: "Gak ada jam bebas tersisa di peta harian lu.", s: `wajib ${d.jamWajib.toFixed(1)} jam` };
+    if (kosong)
+      return { t: `${kosong.key} satu-satunya yang masih kosong minggu ini.`, s: "0 dari 7 hari" };
+    if (d.bestStreak && d.bestStreak.days >= 3)
+      return { t: `${d.bestStreak.name} udah ${d.bestStreak.days} hari bersih.`, s: "jangan diputus" };
+    return null;
+  })();
+
+  const Panel = ({ children, style }) => (
+    <div
+      style={{
+        background: "var(--card)",
+        border: "1px solid var(--border)",
+        borderRadius: 18,
+        padding: 20,
+        ...style,
+      }}
+    >
       {children}
     </div>
   );
-
-  // satu daftar buat semua yang nyangkut, dari tab mana pun asalnya —
-  // ini inti dashboardnya: gak perlu keliling lima tab buat nyari yang telat
-  const nyangkut = [
-    d.overdue.length && { t: `${d.overdue.length} janji telat`, p: "tugas", red: true },
-    d.dueToday.length && { t: `${d.dueToday.length} janji jatuh tempo hari ini`, p: "tugas" },
-    d.dailyTotal > d.dailyDone && { t: `${d.dailyTotal - d.dailyDone} wajib harian belum kelar`, p: "tugas" },
-    d.unpaid && {
-      t: `${d.unpaid} rutin belum dibayar`,
-      p: "duit",
-      // nominalnya yang bikin baris ini kekejar duluan — 2 tagihan Rp50rb
-      // beda urgensinya sama 2 tagihan Rp1,7jt
-      v: d.showMoney ? rupiah(d.unpaidAmount) : "Rp ••••",
-    },
-    d.careItems && { t: `${d.careItems} barang perlu diurus`, p: "barang" },
-    !d.moodToday && { t: "belum check-in mood", p: "diri" },
-    d.dreamTotal > 0 && d.dreamToday === 0 && { t: "belum nyentuh mimpi hari ini", p: "diri" },
-  ].filter(Boolean);
-
-  const burn = d.sisa > 0 ? Math.min(100, Math.round((d.outMonth / d.sisa) * 100)) : 0;
-  const jamBebas = Math.max(0, 24 - d.jamKepake);
+  const Label = ({ children, right }) => (
+    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10, marginBottom: 14 }}>
+      <span style={{ fontFamily: MONO, fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--muted)" }}>
+        {children}
+      </span>
+      {right && <span style={{ fontFamily: MONO, fontSize: 11, color: "var(--faint)" }}>{right}</span>}
+    </div>
+  );
 
   return (
-    <>
-      {/* ---------- sekarang ---------- */}
-      <div style={{ marginTop: 4, cursor: "pointer" }} onClick={() => go("tugas")}>
-        <div style={S.sectionHead}><span>🔥 Fokus sekarang</span></div>
-        <div style={big}>
-          {d.doing ? d.doing.title : `Gak ada yang nyala — pilih satu dari ${d.todoCount} todo`}
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      {/* ================= fokus ================= */}
+      <Panel
+        style={{
+          background: "linear-gradient(135deg, var(--accent-bg) 0%, var(--card) 65%)",
+          borderColor: "var(--accent-border)",
+          padding: 22,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+          <span
+            className={endAt ? "lh-pulse" : undefined}
+            style={{ width: 8, height: 8, borderRadius: 999, background: "var(--accent)", flexShrink: 0 }}
+          />
+          <span style={{ fontFamily: MONO, fontSize: 11, letterSpacing: "0.2em", color: "var(--accent)" }}>
+            FOKUS SEKARANG
+          </span>
         </div>
-        {d.dailyTotal > 0 && (
-          <div style={sub}>
-            wajib harian{" "}
-            <b style={{ color: d.dailyDone === d.dailyTotal ? "var(--green)" : "var(--ink)" }}>
-              {d.dailyDone}/{d.dailyTotal}
-            </b>
+        <div style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.02em", lineHeight: 1.2 }}>
+          {d.doing ? d.doing.title : d.todos.length ? "Belum ada yang nyala" : "Antrian kosong"}
+        </div>
+        <div style={{ ...S.dumpHint, marginBottom: 0, marginTop: 8 }}>
+          {d.dailyTotal > 0
+            ? `wajib harian ${d.dailyDone}/${d.dailyTotal} · ${d.todos.length} di antrian`
+            : `${d.todos.length} di antrian`}
+        </div>
+        <div style={{ display: "flex", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
+          <button
+            style={{
+              ...S.focusBtn,
+              width: "auto",
+              flex: "1 1 150px",
+              padding: "13px 20px",
+              ...(left ? { background: "var(--green-dark)", color: "var(--on-green)" } : {}),
+            }}
+            onClick={() => setFocusTimer(left ? 0 : 25 * 60 * 1000)}
+          >
+            {left
+              ? `${String(Math.floor(left / 60)).padStart(2, "0")}:${String(left % 60).padStart(2, "0")} · stop`
+              : "Mulai 25 menit"}
+          </button>
+          <button style={{ ...S.btnGhost, padding: "13px 18px", fontSize: 15 }} onClick={gantiFokus}>
+            Ganti
+          </button>
+        </div>
+      </Panel>
+
+      {/* ================= butuh diurus ================= */}
+      {nyangkut.length > 0 ? (
+        <div>
+          <Label right={`${nyangkut.length} hal`}>Butuh diurus</Label>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
+            {nyangkut.map((x) => (
+              <Panel
+                key={x.t}
+                style={{
+                  padding: 16,
+                  cursor: "pointer",
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "space-between",
+                  gap: 16,
+                  minHeight: 120,
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }} onClick={() => go(x.p)}>
+                  <span style={{ width: 9, height: 9, borderRadius: 999, background: x.c }} />
+                  <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: "0.14em", color: x.c }}>{x.tag}</span>
+                </div>
+                <div onClick={() => go(x.p)}>
+                  <div style={{ fontSize: 15, fontWeight: 600, lineHeight: 1.3 }}>{x.t}</div>
+                  <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8, marginTop: 8 }}>
+                    <span style={{ fontFamily: MONO, fontSize: 13, fontWeight: 700 }}>{x.v}</span>
+                    <span style={{ color: "var(--faint)", fontSize: 15 }}>›</span>
+                  </div>
+                </div>
+              </Panel>
+            ))}
           </div>
-        )}
-      </div>
+        </div>
+      ) : (
+        <Panel>
+          <Label>Butuh diurus</Label>
+          <div style={{ fontSize: 17, fontWeight: 600, color: "var(--green)" }}>Beres semua ✓</div>
+        </Panel>
+      )}
 
-      {/* ---------- yang nyangkut ---------- */}
-      <Sec title="Butuh diurus">
-        {nyangkut.length === 0 ? (
-          <div style={{ ...big, color: "var(--green)" }}>Beres semua ✓</div>
-        ) : (
-          // yang nyangkut pakai kartu — sisa app-nya rata, jadi kotak di sini
-          // yang bikin dia kebaca duluan pas buka Home
-          nyangkut.map((x) => (
+      {/* ================= minggu ini ================= */}
+      <Panel>
+        <Label right={`${d.todayIdx + 1} hari jalan`}>Minggu ini</Label>
+        <div style={{ display: "grid", gridTemplateColumns: "66px repeat(7, minmax(0, 1fr))", gap: 5, alignItems: "center" }}>
+          <div />
+          {DAYS.map((n, i) => (
             <div
-              key={x.t}
-              className="tap-tile"
+              key={n}
               style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                background: x.red ? "var(--red-bg)" : "var(--card)",
-                border: `1px solid ${x.red ? "var(--red)" : "var(--border)"}`,
-                borderRadius: 14,
-                padding: "14px 16px",
-                marginBottom: 10,
-                cursor: "pointer",
-              }}
-              onClick={() => go(x.p)}
-            >
-              <span style={{ flex: 1, fontSize: 15, ...(x.red ? { color: "var(--red)" } : {}) }}>
-                {x.t}
-              </span>
-              {x.v && (
-                <span
-                  style={{
-                    fontFamily: MONO,
-                    fontSize: 13,
-                    fontWeight: 700,
-                    color: x.red ? "var(--red)" : "var(--ink)",
-                    whiteSpace: "nowrap",
-                    flexShrink: 0,
-                  }}
-                >
-                  {x.v}
-                </span>
-              )}
-              {/* nama tabnya udah ketebak dari kalimatnya — panahnya cukup */}
-              <span style={{ fontSize: 15, color: "var(--faint)", flexShrink: 0 }}>›</span>
-            </div>
-          ))
-        )}
-      </Sec>
-
-      {/* ---------- minggu ini ---------- */}
-      <Sec title="Minggu ini" page="diri">
-        <div style={{ display: "flex", gap: 7, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
-          {d.last7.map((x) => (
-            <div
-              key={x.ds}
-              title={x.ds}
-              style={{
-                width: 24,
-                height: 24,
-                borderRadius: "50%",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 13,
-                background: x.mood ? "var(--card2)" : "transparent",
-                border: "1px dashed var(--border2)",
+                textAlign: "center",
+                fontFamily: MONO,
+                fontSize: 9,
+                letterSpacing: "0.06em",
+                color: i === d.todayIdx ? "var(--accent)" : "var(--faint)",
               }}
             >
-              {x.mood ? moodEmoji(x.mood) : ""}
+              {n}
             </div>
           ))}
+          {rows.map((r) => (
+            <React.Fragment key={r.key}>
+              <div style={{ fontFamily: MONO, fontSize: 10, color: "var(--muted2)", whiteSpace: "nowrap" }}>
+                {r.key} <b style={{ color: "var(--ink)" }}>{hits(r)}</b>/7
+              </div>
+              {d.week.map((day, i) => {
+                const future = day > d.today;
+                const on = !future && r.on(day);
+                return (
+                  <div
+                    key={day}
+                    title={day}
+                    style={{
+                      height: 24,
+                      borderRadius: 7,
+                      background: on ? r.color : future ? "transparent" : "var(--badge)",
+                      border: `1px solid ${on ? r.color : "var(--border)"}`,
+                      opacity: future ? 0.4 : 1,
+                      boxShadow: i === d.todayIdx ? "inset 0 0 0 1px var(--accent)" : "none",
+                    }}
+                  />
+                );
+              })}
+            </React.Fragment>
+          ))}
         </div>
-        <div style={{ fontFamily: MONO, fontSize: 12, color: "var(--muted)" }}>
-          check-in <b style={{ color: "var(--ink)" }}>{d.moodDays}/7</b>
-          {d.dreamTotal > 0 && <> · mimpi <b style={{ color: "var(--ink)" }}>{d.dreamDays}/7</b></>}
-          {" · good habit "}<b style={{ color: "var(--ink)" }}>{d.goodDays}/7</b>
-        </div>
-        {/* poinnya udah nangkring di header, gak usah dicetak lagi di sini */}
-        {d.bestStreak && (
-          <div style={sub}>
-            {d.bestStreak.name} <b style={{ color: "var(--green)" }}>{d.bestStreak.days} hari</b> bersih
-          </div>
-        )}
-      </Sec>
+      </Panel>
 
-      {/* ---------- bulan ini ---------- */}
-      <Sec title="Bulan ini" page="duit">
-        <div style={big}>
-          {d.showMoney ? rupiah(d.outMonth) : "Rp ••••"}
-          {d.sisa > 0 && d.showMoney && (
-            <span style={{ fontSize: 13, fontWeight: 500, color: "var(--muted)" }}>
-              {" "}dari {rupiah(d.sisa)} sisa bebas
-            </span>
+      {/* ================= bulan ini ================= */}
+      <Panel>
+        <Label>Bulan ini</Label>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+          <div style={{ fontFamily: MONO, fontSize: 26, fontWeight: 700, letterSpacing: "-0.02em" }}>
+            {money(d.outMonth)}
+          </div>
+          {d.sisa > 0 && (
+            <div style={{ fontSize: 13, color: "var(--muted)" }}>kepakai dari {money(d.sisa)}</div>
           )}
         </div>
         {d.sisa > 0 && (
-          <div
-            style={{
-              height: 6,
-              borderRadius: 99,
-              background: "var(--badge)",
-              overflow: "hidden",
-              marginTop: 10,
-            }}
-          >
-            <div
-              style={{
-                height: "100%",
-                width: `${Math.max(2, burn)}%`,
-                borderRadius: 99,
-                background: burn >= 100 ? "var(--red)" : burn >= 75 ? "var(--janji-ink)" : "var(--green)",
-              }}
-            />
-          </div>
-        )}
-        {/* pengeluaran hari ini tinggal di tab Duit — di sini yang dicari
-            angka sebulannya */}
-        {d.showMoney && (d.piutang > 0 || d.utang > 0) && (
-          <div style={sub}>
-            {d.piutang > 0 && <>piutang {rupiah(d.piutang)}</>}
-            {d.piutang > 0 && d.utang > 0 && " · "}
-            {d.utang > 0 && <>utang {rupiah(d.utang)}</>}
-          </div>
-        )}
-      </Sec>
-
-      {/* ---------- sehari ---------- */}
-      {d.blocks.length > 0 && (
-        <Sec title="Sehari" page="diri">
-          <div
-            style={{
-              display: "flex",
-              height: 22,
-              borderRadius: 8,
-              overflow: "hidden",
-              border: "1px solid var(--border)",
-            }}
-          >
-            {d.blocks.map((b, i) => (
+          <>
+            <div style={{ display: "flex", height: 11, borderRadius: 999, background: "var(--badge)", overflow: "hidden", marginTop: 14 }}>
+              <div style={{ width: `${burn}%`, background: burn >= 100 ? "var(--red)" : "var(--green)" }} />
+              {/* rutin yang belum dibayar: udah kekunci, tinggal nunggu keluar */}
               <div
-                key={i}
-                title={`${b.name} — ${b.hours} jam`}
                 style={{
-                  width: `${(Number(b.hours) / 24) * 100}%`,
-                  background: b.wajib ? "var(--janji-ink)" : "var(--green-dark)",
-                  minWidth: 2,
+                  width: `${owe}%`,
+                  background:
+                    "repeating-linear-gradient(45deg, var(--janji-ink), var(--janji-ink) 4px, var(--janji-border) 4px, var(--janji-border) 8px)",
                 }}
               />
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontFamily: MONO, fontSize: 11, color: "var(--muted)", marginTop: 8 }}>
+              <span><b style={{ color: "var(--green)" }}>{burn.toFixed(1)}%</b> kepakai</span>
+              {d.unpaid > 0 && (
+                <span><b style={{ color: "var(--janji-ink)" }}>{owe.toFixed(1)}%</b> rutin belum dibayar</span>
+              )}
+            </div>
+          </>
+        )}
+        {(d.piutang > 0 || d.utang > 0) && (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 16 }}>
+            {[
+              { l: "PIUTANG", v: d.piutang, c: "var(--green)" },
+              { l: "UTANG", v: d.utang, c: "var(--janji-ink)" },
+            ].map((x) => (
+              <div
+                key={x.l}
+                style={{ background: "var(--card2)", border: "1px solid var(--border)", borderRadius: 12, padding: 12 }}
+              >
+                <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: "0.16em", color: "var(--muted)" }}>{x.l}</div>
+                <div style={{ fontFamily: MONO, fontSize: 15, fontWeight: 700, color: x.c, marginTop: 4 }}>
+                  {money(x.v)}
+                </div>
+              </div>
             ))}
+          </div>
+        )}
+      </Panel>
+
+      {/* ================= sehari ================= */}
+      {d.jamKepake > 0 && (
+        <Panel>
+          <Label right="24 jam">Sehari</Label>
+          <div style={{ display: "flex", height: 32, borderRadius: 11, overflow: "hidden", border: "1px solid var(--border)" }}>
+            <div
+              style={{
+                flex: Math.max(d.jamKepake, 0.01),
+                background: "var(--accent)",
+                color: "var(--on-accent)",
+                display: "flex",
+                alignItems: "center",
+                paddingLeft: 12,
+                fontFamily: MONO,
+                fontSize: 11,
+                fontWeight: 700,
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+              }}
+            >
+              kepake {d.jamKepake.toFixed(1)} jam
+            </div>
             {jamBebas > 0 && (
               <div
                 style={{
-                  width: `${(jamBebas / 24) * 100}%`,
+                  flex: jamBebas,
                   background:
-                    "repeating-linear-gradient(45deg, transparent, transparent 4px, var(--border) 4px, var(--border) 6px)",
+                    "repeating-linear-gradient(45deg, transparent, transparent 5px, var(--border) 5px, var(--border) 10px)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "flex-end",
+                  paddingRight: 12,
+                  fontFamily: MONO,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: "var(--green)",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
                 }}
-              />
+              >
+                {jamBebas.toFixed(1)} jam bebas
+              </div>
             )}
           </div>
-          <div style={sub}>
-            wajib {d.jamWajib.toFixed(1)} jam ·{" "}
-            <b style={{ color: jamBebas > 0 ? "var(--green)" : "var(--red)" }}>
-              {jamBebas.toFixed(1)} jam bebas
-            </b>
+          <div style={{ display: "flex", gap: 3, marginTop: 10 }}>
+            {[...Array(24)].map((_, i) => (
+              <div
+                key={i}
+                style={{
+                  flex: 1,
+                  height: 5,
+                  borderRadius: 2,
+                  background: i < Math.round(d.jamWajib) ? "var(--janji-ink)" : i < Math.round(d.jamKepake) ? "var(--accent)" : "var(--badge)",
+                }}
+              />
+            ))}
           </div>
-        </Sec>
+        </Panel>
       )}
 
-      {/* ---------- besok apa ---------- */}
-      {d.nextStep && (
-        <Sec title="Langkah berikutnya" page="diri">
-          <div style={big}>{d.nextStep}</div>
-        </Sec>
-      )}
-    </>
+      {/* ================= insight + langkah ================= */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12 }}>
+        {insight && (
+          <Panel style={{ background: "linear-gradient(135deg, var(--green-bg), var(--card))", borderColor: "var(--green-border)" }}>
+            <Label>Insight</Label>
+            <div style={{ fontSize: 17, fontWeight: 600, lineHeight: 1.35 }}>{insight.t}</div>
+            <div style={{ ...S.dumpHint, marginBottom: 0, marginTop: 8 }}>{insight.s}</div>
+          </Panel>
+        )}
+        {d.nextStep && (
+          <Panel style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <Label>Langkah berikutnya</Label>
+            <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-0.02em", lineHeight: 1.25 }}>
+              {d.nextStep}
+            </div>
+            <button style={{ ...S.btnGhost, alignSelf: "flex-start", padding: "10px 16px", fontSize: 14, color: "var(--accent)", borderColor: "var(--accent-border)" }} onClick={jadwalkan}>
+              Jadwalkan
+            </button>
+          </Panel>
+        )}
+      </div>
+
+      {msg && <div style={{ ...S.dumpHint, marginBottom: 0, textAlign: "center" }}>{msg}</div>}
+    </div>
   );
 }
 
