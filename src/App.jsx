@@ -218,6 +218,7 @@ export default function LifeHack() {
   const [passMsg, setPassMsg] = useState("");
   const [menu, setMenu] = useState(false);
   const menuRef = useRef(null);
+  const [points, setPoints] = useState(0);
 
   // tutup menu kalau nyentuh di luar atau pencet Esc
   useEffect(() => {
@@ -263,6 +264,24 @@ export default function LifeHack() {
     );
     return () => sub.subscription.unsubscribe();
   }, []);
+
+  // ---------- poin habit buat badge di header ----------
+  // Dimuat sekali di sini biar badge-nya nongol di tab mana pun, bukan cuma
+  // pas lagi di Diri. Kalau lagi di Diri, DiriPage yang ngasih angka terbaru
+  // lewat onPoints tiap kali habit-nya diketuk.
+  useEffect(() => {
+    if (!session) return;
+    (async () => {
+      const [h, e] = await Promise.all([
+        supabase.from("habits").select("*").eq("user_id", session.user.id),
+        supabase.from("habit_events").select("*")
+          .eq("user_id", session.user.id)
+          .order("created_at", { ascending: false })
+          .limit(200),
+      ]);
+      setPoints(habitPoints(h.data || [], e.data || []));
+    })();
+  }, [session]);
 
   // ---------- load + daily reset ----------
   useEffect(() => {
@@ -577,6 +596,18 @@ export default function LifeHack() {
             <h1 style={S.h1}>LifeHack</h1>
             <div style={{ fontSize: 12, color: "var(--faint)", marginTop: 2 }}>by afifi</div>
           </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          {points > 0 && (
+            <span
+              style={{ display: "flex", alignItems: "baseline", gap: 5, fontFamily: MONO }}
+              title="Poin habit"
+            >
+              <span style={{ fontSize: 17, fontWeight: 700, color: "var(--janji-ink)" }}>
+                🏅 {points.toLocaleString("id-ID")}
+              </span>
+              <span style={{ fontSize: 10, color: "var(--faint)" }}>poin</span>
+            </span>
+          )}
           <div ref={menuRef} style={{ position: "relative" }}>
             <button
               style={{ ...S.themeBtn, ...(menu ? { borderColor: "var(--accent)" } : {}) }}
@@ -627,6 +658,7 @@ export default function LifeHack() {
               </div>
             )}
           </div>
+          </div>
         </div>
 
         <GlassNav
@@ -663,7 +695,7 @@ export default function LifeHack() {
 
         {page === "barang" && <BarangPage session={session} />}
         {page === "duit" && <DuitPage session={session} />}
-        {page === "diri" && <DiriPage session={session} />}
+        {page === "diri" && <DiriPage session={session} onPoints={setPoints} />}
         {page === "home" && <HomePage session={session} go={goPage} />}
 
         {page === "tugas" && (
@@ -3603,6 +3635,23 @@ const lastTierDays = (days) => {
   return passed.length ? passed[passed.length - 1].days : 0;
 };
 
+// Total poin dari semua habit. Dipake dua tempat — badge di header sama tab
+// Skor — makanya ditaro di luar komponen biar hitungannya gak beda.
+// `events` harus urut created_at DESC: baris pertama tiap habit dipake buat
+// nentuin kapan terakhir kejadian.
+const habitPoints = (habits, events) => {
+  const evOf = (h) => events.filter((e) => e.habit_id === h.id);
+  return (habits || []).reduce((sum, h) => {
+    const ev = evOf(h);
+    if ((h.kind || "bad") === "bad") {
+      const last = ev.length > 0 ? ev[0].created_at : h.created_at;
+      return sum + streakPoints(Math.floor((Date.now() - new Date(last)) / 86400000));
+    }
+    // good habit: dihitung per tanggal, bukan per tap
+    return sum + new Set(ev.map((e) => e.date)).size * GOOD_POINT;
+  }, 0);
+};
+
 const PALETTE = [
   "#E4572E", "#3E7A46", "#B8860B", "#4A6FA5",
   "#8E5BA6", "#C0392B", "#2A9D8F", "#8A8578",
@@ -4689,7 +4738,7 @@ function PencapaianSection({ session }) {
   );
 }
 
-function DiriPage({ session }) {
+function DiriPage({ session, onPoints }) {
   const [moods, setMoods] = useState([]);
   const [habits, setHabits] = useState(null);
   const [events, setEvents] = useState([]);
@@ -4903,9 +4952,13 @@ function DiriPage({ session }) {
   const doneToday = (h) => doneDates(h).has(today);
   const goodPoints = (h) => doneDates(h).size * GOOD_POINT;
 
-  const totalPoints =
-    badHabits.reduce((s, h) => s + streakPoints(cleanDays(h)), 0) +
-    goodHabits.reduce((s, h) => s + goodPoints(h), 0);
+  const totalPoints = habitPoints(habits, events);
+
+  // badge-nya nangkring di header, jadi angkanya dikirim ke atas tiap kali
+  // habit diketuk — kalau nggak, dia bakal ketinggalan sampe app di-reload
+  useEffect(() => {
+    if (habits !== null) onPoints?.(totalPoints);
+  }, [totalPoints, habits, onPoints]);
 
   const topMood = (h) => {
     const withMood = events.filter((e) => e.habit_id === h.id && e.mood);
@@ -4926,26 +4979,6 @@ function DiriPage({ session }) {
 
   return (
     <>
-      {/* poin habit — keliatan di semua sub-tab, kecuali tab Skor yang
-          udah nampilin angkanya gede-gede */}
-      {totalPoints > 0 && !(sub === "habit" && habitSub === "skor") && (
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "flex-end",
-            alignItems: "baseline",
-            gap: 6,
-            marginBottom: 8,
-            fontFamily: MONO,
-          }}
-        >
-          <span style={{ fontSize: 18, fontWeight: 700, color: "var(--janji-ink)" }}>
-            🏅 {totalPoints.toLocaleString("id-ID")}
-          </span>
-          <span style={{ fontSize: 10, color: "var(--faint)" }}>poin</span>
-        </div>
-      )}
-
       <GlassNav
         small
         items={[
