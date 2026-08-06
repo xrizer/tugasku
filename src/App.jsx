@@ -1501,6 +1501,7 @@ function RutinView({ session, sources, onLogExpense }) {
   const [incomes, setIncomes] = useState([]);
   const [inForm, setInForm] = useState({ name: "", amount: "" });
   const [showInForm, setShowInForm] = useState(false);
+  const [dir, setDir] = useState("keluar"); // keluar | masuk
 
   useEffect(() => {
     supabase
@@ -1604,17 +1605,34 @@ function RutinView({ session, sources, onLogExpense }) {
 
   return (
     <>
-      <div style={{ marginTop: 6, textAlign: "center" }}>
-        <div style={S.eyebrow}>Keluar rutin</div>
-        <div style={{ fontSize: 26, fontWeight: 700 }}>{rupiah(total)}</div>
-        <div style={{ ...S.dumpHint, marginTop: 2 }}>
-          {unpaid.length === 0
-            ? "semua kebayar ✓"
-            : `${unpaid.length} belum dibayar`}
-        </div>
-      </div>
+      <GlassNav
+        small
+        items={[["keluar", "Keluar"], ["masuk", "Masuk"]]}
+        value={dir}
+        onChange={setDir}
+        style={{ marginTop: 4, marginBottom: 12 }}
+      />
 
-      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
+      {dir === "keluar" && (
+      <>
+      {/* nominal + tombol sebaris, labelnya udah kebaca dari sub-tab */}
+      <div
+        style={{
+          marginTop: 18,
+          display: "flex",
+          alignItems: "baseline",
+          justifyContent: "space-between",
+          gap: 12,
+        }}
+      >
+        <div>
+          <div style={{ fontSize: 30, fontWeight: 700 }}>{rupiah(total)}</div>
+          {unpaid.length > 0 && (
+            <div style={{ ...S.dumpHint, marginBottom: 0, marginTop: 2 }}>
+              {unpaid.length} belum dibayar
+            </div>
+          )}
+        </div>
         <button style={S.promAddLink} onClick={() => setShowForm((v) => !v)}>
           {showForm ? "batal" : "+ tambah"}
         </button>
@@ -1649,11 +1667,9 @@ function RutinView({ session, sources, onLogExpense }) {
         </div>
       )}
 
-      <div style={{ marginTop: 12 }}>
+      <div style={{ marginTop: 22 }}>
         {items.length === 0 && (
-          <div style={{ ...S.empty, textAlign: "center" }}>
-            Belum ada. Mulai dari yang gede: kosan, langganan bulanan.
-          </div>
+          <div style={S.empty}>Belum ada.</div>
         )}
         {items.map((it) => {
           const paid = it.last_paid === month;
@@ -1698,15 +1714,24 @@ function RutinView({ session, sources, onLogExpense }) {
         })}
       </div>
 
+      </>
+      )}
+
       {/* ===== pemasukan rutin ===== */}
-      <div style={{ marginTop: 26, textAlign: "center" }}>
-        <div style={S.eyebrow}>Masuk rutin</div>
-        <div style={{ fontSize: 26, fontWeight: 700, color: "var(--green)" }}>
+      {dir === "masuk" && (
+      <>
+      <div
+        style={{
+          marginTop: 18,
+          display: "flex",
+          alignItems: "baseline",
+          justifyContent: "space-between",
+          gap: 12,
+        }}
+      >
+        <div style={{ fontSize: 30, fontWeight: 700, color: "var(--green)" }}>
           {rupiah(incomes.reduce((s, x) => s + Number(x.amount), 0))}
         </div>
-      </div>
-
-      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
         <button style={S.promAddLink} onClick={() => setShowInForm((v) => !v)}>
           {showInForm ? "batal" : "+ tambah"}
         </button>
@@ -1732,7 +1757,8 @@ function RutinView({ session, sources, onLogExpense }) {
         </div>
       )}
 
-      <div style={{ marginTop: 10 }}>
+      <div style={{ marginTop: 22 }}>
+        {incomes.length === 0 && <div style={S.empty}>Belum ada.</div>}
         {incomes.map((it) => {
           const received = it.last_received === thisMonthStr();
           return (
@@ -1773,7 +1799,8 @@ function RutinView({ session, sources, onLogExpense }) {
           );
         })}
       </div>
-
+      </>
+      )}
     </>
   );
 }
