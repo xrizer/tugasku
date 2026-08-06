@@ -69,6 +69,18 @@ create policy "public read recent moods" on public.moods
   for select using (is_public = true and date >= current_date - 6);
 
 -- ---------------------------------------------------------------------
+-- Tab Barang: bukan cuma "barangnya di mana", tapi "barangnya gimana".
+--
+--   condition -> 'oke' | 'aus' | 'parah'; ini beda dari `status` yang ngurusin
+--                posisi barang (ada / dipinjem / rusak / servis / ilang)
+--   last_used -> tanggal terakhir dipake, buat nandain barang yang nganggur
+--   care_note -> apa yang mesti dilakuin ke barangnya (cuci, servis, jual)
+alter table public.items
+  add column if not exists condition text not null default 'oke',
+  add column if not exists last_used date,
+  add column if not exists care_note text;
+
+-- ---------------------------------------------------------------------
 -- Tiap "bikin cape" punya solusinya sendiri: satu buat nahan sekarang,
 -- satu buat ngeberesin akarnya.
 alter table public.drains

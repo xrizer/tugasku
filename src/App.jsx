@@ -1299,6 +1299,29 @@ const STATUS_META = {
   ilang: { label: "? ilang", color: "var(--red)", border: "var(--red)" },
 };
 
+// Kondisi barang — beda dari `status`. Status jawab "barangnya di mana",
+// kondisi jawab "barangnya masih layak nggak".
+const COND_ORDER = ["oke", "aus", "parah"];
+const COND_META = {
+  oke:   { label: "oke",   dot: "var(--green)",     color: "var(--muted2)" },
+  aus:   { label: "aus",   dot: "var(--janji-ink)", color: "var(--janji-ink)" },
+  parah: { label: "parah", dot: "var(--red)",       color: "var(--red)" },
+};
+
+// berapa lama barangnya gak kesentuh
+const NGANGGUR_DAYS = 60;
+const daysSince = (d) =>
+  d == null ? null : Math.floor((Date.now() - new Date(d + "T00:00:00")) / 86400000);
+const sinceLabel = (d) => {
+  const n = daysSince(d);
+  if (n == null) return "belum kecatet";
+  if (n <= 0) return "hari ini";
+  if (n === 1) return "kemarin";
+  if (n < 30) return `${n} hari lalu`;
+  if (n < 365) return `${Math.floor(n / 30)} bln lalu`;
+  return `${Math.floor(n / 365)} thn lalu`;
+};
+
 const rupiah = (n) =>
   n == null ? "" : "Rp" + n.toLocaleString("id-ID");
 
@@ -1358,6 +1381,8 @@ function BarangPage({ session }) {
   const [q, setQ] = useState("");
   const [form, setForm] = useState({ name: "", location: "", price: "" });
   const [showForm, setShowForm] = useState(false);
+  const [sub, setSub] = useState("semua"); // semua | urus | nganggur
+  const today = localToday();
 
   useEffect(() => {
     supabase
@@ -1398,16 +1423,37 @@ function BarangPage({ session }) {
     patchItem(it.id, { status: next });
   };
 
+  const cycleCond = (it) => {
+    const cur = it.condition || "oke";
+    patchItem(it.id, {
+      condition: COND_ORDER[(COND_ORDER.indexOf(cur) + 1) % COND_ORDER.length],
+    });
+  };
+
+  const markUsed = (it) =>
+    patchItem(it.id, { last_used: it.last_used === today ? null : today });
+
   if (items === null) return <div style={S.empty}>Memuat…</div>;
 
+  // butuh diurus = kondisinya udah gak oke, atau posisinya lagi gak beres
+  const needsCare = (x) =>
+    (x.condition || "oke") !== "oke" || (x.status || "ada") !== "ada";
+  // nganggur = lama gak dipake (yang belum pernah dicatet gak diitung nuduh)
+  const idle = (x) => {
+    const n = daysSince(x.last_used);
+    return n != null && n >= NGANGGUR_DAYS;
+  };
+
   const ql = q.trim().toLowerCase();
-  const shown = ql
-    ? items.filter(
-        (x) =>
-          x.name.toLowerCase().includes(ql) ||
-          (x.location || "").toLowerCase().includes(ql)
-      )
-    : items;
+  const matchQ = (x) =>
+    !ql ||
+    x.name.toLowerCase().includes(ql) ||
+    (x.location || "").toLowerCase().includes(ql);
+
+  const care = items.filter(needsCare);
+  const nganggur = items.filter(idle);
+  const base = sub === "urus" ? care : sub === "nganggur" ? nganggur : items;
+  const shown = base.filter(matchQ);
 
   const total = items.reduce((s, x) => s + (x.price || 0), 0);
 
@@ -1427,9 +1473,21 @@ function BarangPage({ session }) {
         onChange={(e) => setQ(e.target.value)}
       />
 
+      <GlassNav
+        small
+        items={[
+          ["semua", "Semua"],
+          ["urus", care.length ? `Diurus ${care.length}` : "Diurus"],
+          ["nganggur", nganggur.length ? `Nganggur ${nganggur.length}` : "Nganggur"],
+        ]}
+        value={sub}
+        onChange={setSub}
+        style={{ marginTop: 14, marginBottom: 12 }}
+      />
+
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12 }}>
         <span style={S.dumpHint}>
-          {items.length} barang · total {rupiah(total)}
+          {items.length} barang · {rupiah(total)}
         </span>
         <button style={S.promAddLink} onClick={() => setShowForm((v) => !v)}>
           {showForm ? "batal" : "+ barang baru"}
@@ -1466,48 +1524,91 @@ function BarangPage({ session }) {
       <div style={{ marginTop: 14 }}>
         {shown.length === 0 && (
           <div style={S.empty}>
-            {ql ? `Gak nemu "${q}" — belum dicatet atau beneran ilang 😅` : "Belum ada barang. Mulai dari yang sering lu cari."}
+            {ql
+              ? `Gak nemu "${q}".`
+              : sub === "urus"
+              ? "Semua barang lagi beres."
+              : sub === "nganggur"
+              ? `Gak ada yang nganggur lebih dari ${NGANGGUR_DAYS} hari.`
+              : "Belum ada barang."}
           </div>
         )}
         {shown.map((it) => {
           const m = STATUS_META[it.status] || STATUS_META.ada;
+          const cond = it.condition || "oke";
+          const cm = COND_META[cond];
+          // barisnya cuma nongol kalau emang ada yang mesti diapain — biar
+          // daftar barang yang sehat gak keisi 17 placeholder kosong
+          const showCare = needsCare(it) || idle(it) || !!it.care_note;
           return (
-            <div key={it.id} style={S.card}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <EditableText
-                  value={it.name}
-                  onSave={(v) => patchItem(it.id, { name: v })}
-                  style={S.cardTitle}
-                />
-                <div style={{ display: "flex", gap: 8, alignItems: "baseline", marginTop: 4, flexWrap: "wrap" }}>
-                  <span style={{ fontSize: 13, color: "var(--muted2)" }}>📍</span>
+            <div key={it.id} style={{ ...S.card, display: "block", marginBottom: 22 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
                   <EditableText
-                    value={it.location || "belum dicatet"}
-                    onSave={(v) => patchItem(it.id, { location: v })}
-                    style={{ fontSize: 13, color: "var(--muted2)" }}
+                    value={it.name}
+                    onSave={(v) => patchItem(it.id, { name: v })}
+                    style={S.cardTitle}
                   />
-                  {it.price != null && (
-                    <span style={S.tag}>{rupiah(it.price)}</span>
-                  )}
+                  <div style={{ display: "flex", gap: 8, alignItems: "baseline", marginTop: 4, flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 13, color: "var(--muted2)" }}>📍</span>
+                    <EditableText
+                      value={it.location || "belum dicatet"}
+                      onSave={(v) => patchItem(it.id, { location: v })}
+                      style={{ fontSize: 13, color: "var(--muted2)" }}
+                    />
+                    {it.price != null && <span style={S.tag}>{rupiah(it.price)}</span>}
+                  </div>
+                </div>
+                <div style={S.cardBtns}>
+                  <button
+                    style={{ ...S.btnGhost, color: m.color, borderColor: m.border, whiteSpace: "nowrap" }}
+                    title="Tap buat ganti status"
+                    onClick={() => cycleStatus(it)}
+                  >
+                    {m.label}
+                  </button>
+                  <button style={S.btnGhost} onClick={() => removeItem(it.id)}>✕</button>
                 </div>
               </div>
-              <div style={S.cardBtns}>
+
+              {/* kondisi & kapan terakhir dipake — dua-duanya ditap langsung */}
+              <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8, flexWrap: "wrap" }}>
                 <button
-                  style={{ ...S.btnGhost, color: m.color, borderColor: m.border, whiteSpace: "nowrap" }}
-                  title="Klik buat ganti status"
-                  onClick={() => cycleStatus(it)}
+                  style={{ ...S.chip, color: cm.color }}
+                  title="Tap buat ganti kondisi"
+                  onClick={() => cycleCond(it)}
                 >
-                  {m.label}
+                  <span
+                    style={{ width: 7, height: 7, borderRadius: "50%", background: cm.dot, flexShrink: 0 }}
+                  />
+                  {cm.label}
                 </button>
-                <button style={S.btnGhost} onClick={() => removeItem(it.id)}>✕</button>
+                <span style={{ color: "var(--faint)", fontSize: 11 }}>·</span>
+                <button
+                  style={{
+                    ...S.chip,
+                    ...(idle(it) ? { color: "var(--janji-ink)" } : {}),
+                  }}
+                  title={it.last_used === today ? "Batalin catatan hari ini" : "Catet: dipake hari ini"}
+                  onClick={() => markUsed(it)}
+                >
+                  dipake {sinceLabel(it.last_used)}
+                </button>
               </div>
+
+              {showCare && (
+                <div style={{ marginTop: 6 }}>
+                  <EditableText
+                    value={it.care_note || ""}
+                    onSave={(v) => patchItem(it.id, { care_note: v })}
+                    placeholder="harus diapain?"
+                    style={{ fontSize: 13, color: "var(--muted2)", lineHeight: 1.4 }}
+                  />
+                </div>
+              )}
             </div>
           );
         })}
-      </div>
-
-      <div style={S.footer}>
-        Pindahin barang? Tap lokasinya, edit. Status: klik buat muter ada → dipinjem → rusak → diservis → ilang.
       </div>
     </>
   );
@@ -6330,6 +6431,21 @@ const S = {
     cursor: "pointer",
   },
   menuIcon: { fontSize: 14, width: 18, textAlign: "center", flexShrink: 0 },
+  // chip kecil yang bisa ditap — dipake buat kondisi & terakhir dipake
+  chip: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    background: "transparent",
+    border: "none",
+    padding: 0,
+    fontFamily: MONO,
+    fontSize: 11,
+    letterSpacing: "0.06em",
+    color: "var(--muted)",
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+  },
   scoreNum: {
     fontFamily: MONO,
     fontSize: 17,
