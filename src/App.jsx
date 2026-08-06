@@ -5526,140 +5526,302 @@ function HomePage({ session, go }) {
       const uid = session.user.id;
       const today = localToday();
       const month = today.slice(0, 7);
+      const dstr = (x) =>
+        `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
+      const weekAgo = (() => {
+        const x = new Date();
+        x.setDate(x.getDate() - 6);
+        return dstr(x);
+      })();
 
-      const [tasks, promises, exp, fixed, moods, dreams, touches, habits, hevents, debts] =
+      const [tasks, promises, exp, fixed, income, moods, dreams, touches, habits, hevents, debts, blocks, items] =
         await Promise.all([
           supabase.from("tasks").select("title,status,daily").eq("user_id", uid),
           supabase.from("promises").select("text,to_whom,due_date").eq("done", false),
-          supabase.from("expenses").select("amount,kind").eq("user_id", uid).eq("spent_date", today),
-          supabase.from("fixed_costs").select("name,last_paid").eq("user_id", uid),
-          supabase.from("moods").select("mood,date").eq("user_id", uid).eq("date", today).order("created_at", { ascending: false }).limit(1),
+          supabase.from("expenses").select("amount,kind,spent_date").eq("user_id", uid).gte("spent_date", month + "-01"),
+          supabase.from("fixed_costs").select("name,amount,last_paid").eq("user_id", uid),
+          supabase.from("fixed_income").select("amount").eq("user_id", uid),
+          supabase.from("moods").select("mood,date").eq("user_id", uid).gte("date", weekAgo).order("created_at", { ascending: false }),
           supabase.from("dreams").select("id,name,next_step").eq("user_id", uid),
-          supabase.from("dream_touches").select("dream_id").eq("user_id", uid).eq("date", today),
-          supabase.from("habits").select("id,name,created_at").eq("user_id", uid),
-          supabase.from("habit_events").select("habit_id,created_at").eq("user_id", uid).order("created_at", { ascending: false }).limit(100),
-          supabase.from("debts").select("amount,status").eq("user_id", uid),
+          supabase.from("dream_touches").select("dream_id,date").eq("user_id", uid).gte("date", weekAgo),
+          supabase.from("habits").select("id,name,kind,created_at").eq("user_id", uid),
+          supabase.from("habit_events").select("habit_id,date,created_at").eq("user_id", uid).order("created_at", { ascending: false }).limit(200),
+          supabase.from("debts").select("amount,status,direction").eq("user_id", uid),
+          supabase.from("time_blocks").select("name,hours,wajib").eq("user_id", uid),
+          // select("*") biar tetep jalan walau migrasi kolom kondisi belum dijalanin
+          supabase.from("items").select("*").eq("user_id", uid),
         ]);
 
       const t = tasks.data || [];
-      const doing = t.find((x) => x.status === "inprogress");
       const daily = t.filter((x) => x.daily);
       const proms = promises.data || [];
-      const overdue = proms.filter((p) => p.due_date && p.due_date < today);
-      const dueToday = proms.filter((p) => p.due_date === today);
-      const out = (exp.data || []).filter((r) => (r.kind || "out") === "out").reduce((s, r) => s + r.amount, 0);
-      const unpaid = (fixed.data || []).filter((f) => f.last_paid !== month);
-      const drs = dreams.data || [];
-      const touchedIds = new Set((touches.data || []).map((x) => x.dream_id));
-      const hbs = (habits.data || []).map((h) => {
-        const ev = (hevents.data || []).filter((e) => e.habit_id === h.id);
-        const last = ev.length > 0 ? ev[0].created_at : h.created_at;
-        return { name: h.name, days: Math.floor((Date.now() - new Date(last)) / 86400000) };
-      });
-      const piutang = (debts.data || []).filter((x) => x.status !== "lunas").reduce((s, x) => s + Number(x.amount), 0);
 
-      let showMoney = false;
-      try { showMoney = localStorage.getItem("tugasku-show-total") === "1"; } catch {}
+      const ex = exp.data || [];
+      const isOut = (r) => (r.kind || "out") === "out";
+      const fx = fixed.data || [];
+      const fixedOut = fx.reduce((s, x) => s + Number(x.amount || 0), 0);
+      const fixedIn = (income.data || []).reduce((s, x) => s + Number(x.amount || 0), 0);
+
+      const ms = moods.data || [];
+      const tch = touches.data || [];
+      const drs = dreams.data || [];
+      const touchedToday = new Set(tch.filter((x) => x.date === today).map((x) => x.dream_id));
+
+      const hbs = habits.data || [];
+      const hev = hevents.data || [];
+      const goodIds = new Set(hbs.filter((h) => h.kind === "good").map((h) => h.id));
+      const bad = hbs
+        .filter((h) => (h.kind || "bad") === "bad")
+        .map((h) => {
+          const ev = hev.filter((e) => e.habit_id === h.id);
+          const last = ev.length ? ev[0].created_at : h.created_at;
+          return { name: h.name, days: Math.floor((Date.now() - new Date(last)) / 86400000) };
+        })
+        .sort((a, b) => b.days - a.days);
+
+      const db = debts.data || [];
+      const owed = (dir) =>
+        db
+          .filter((x) => x.status !== "lunas" && (x.direction || "piutang") === dir)
+          .reduce((s, x) => s + Number(x.amount), 0);
+
+      const bl = blocks.data || [];
+      const it = items.data || [];
 
       setD({
-        doing, todoCount: t.filter((x) => x.status === "todo").length,
-        dailyDone: daily.filter((x) => x.status === "done").length, dailyTotal: daily.length,
-        overdue, dueToday, promCount: proms.length,
-        out, showMoney, unpaid,
-        mood: moods.data?.[0]?.mood || null,
-        dreams: drs.map((x) => ({ ...x, touched: touchedIds.has(x.id) })),
-        habits: hbs, piutang,
+        doing: t.find((x) => x.status === "inprogress"),
+        todoCount: t.filter((x) => x.status === "todo").length,
+        dailyDone: daily.filter((x) => x.status === "done").length,
+        dailyTotal: daily.length,
+
+        overdue: proms.filter((p) => p.due_date && p.due_date < today),
+        dueToday: proms.filter((p) => p.due_date === today),
+
+        outToday: ex.filter((r) => r.spent_date === today && isOut(r)).reduce((s, r) => s + Number(r.amount), 0),
+        outMonth: ex.filter(isOut).reduce((s, r) => s + Number(r.amount), 0),
+        sisa: fixedIn - fixedOut,
+        unpaid: fx.filter((f) => f.last_paid !== month).length,
+        piutang: owed("piutang"),
+        utang: owed("utang"),
+        showMoney: (() => {
+          try { return localStorage.getItem("tugasku-show-total") === "1"; } catch { return false; }
+        })(),
+
+        moodToday: ms.find((m) => m.date === today)?.mood || null,
+        moodDays: new Set(ms.map((m) => m.date)).size,
+        last7: [...Array(7)].map((_, i) => {
+          const x = new Date();
+          x.setDate(x.getDate() - (6 - i));
+          const ds = dstr(x);
+          return { ds, mood: ms.find((m) => m.date === ds)?.mood };
+        }),
+
+        dreamTotal: drs.length,
+        dreamToday: drs.filter((x) => touchedToday.has(x.id)).length,
+        dreamDays: new Set(tch.map((x) => x.date)).size,
+        nextStep: drs.find((x) => !touchedToday.has(x.id))?.next_step || null,
+
+        goodDays: new Set(hev.filter((e) => goodIds.has(e.habit_id) && e.date >= weekAgo).map((e) => e.date)).size,
+        bestStreak: bad[0] || null,
+        points: habitPoints(hbs, hev),
+
+        jamWajib: bl.filter((b) => b.wajib).reduce((s, b) => s + Number(b.hours), 0),
+        jamKepake: bl.reduce((s, b) => s + Number(b.hours), 0),
+        blocks: bl,
+
+        careItems: it.filter(
+          (x) => (x.condition || "oke") !== "oke" || (x.status || "ada") !== "ada"
+        ).length,
       });
     })();
   }, [session]);
 
   if (!d) return <div style={S.empty}>Memuat…</div>;
 
-  const Card = ({ emoji, title, children, page, accent }) => (
-    <div
-      style={{
-        ...S.card,
-        display: "block",
-        cursor: "pointer",
-      }}
-      onClick={() => go(page)}
-    >
-      <div style={{ ...S.eyebrow, marginBottom: 6 }}>{emoji} {title}</div>
+  const big = { fontSize: 17, fontWeight: 600, lineHeight: 1.35 };
+  const sub = { ...S.dumpHint, marginBottom: 0, marginTop: 4 };
+  const Sec = ({ title, page, children }) => (
+    <div style={{ marginTop: 34, cursor: page ? "pointer" : "default" }} onClick={page ? () => go(page) : undefined}>
+      <div style={S.sectionHead}><span>{title}</span></div>
       {children}
     </div>
   );
-  const big = { fontSize: 16, fontWeight: 600, lineHeight: 1.35 };
-  const sub = { fontSize: 12, color: "var(--muted2)", marginTop: 3 };
+
+  // satu daftar buat semua yang nyangkut, dari tab mana pun asalnya —
+  // ini inti dashboardnya: gak perlu keliling lima tab buat nyari yang telat
+  const nyangkut = [
+    d.overdue.length && { t: `${d.overdue.length} janji telat`, p: "tugas", red: true },
+    d.dueToday.length && { t: `${d.dueToday.length} janji jatuh tempo hari ini`, p: "tugas" },
+    d.dailyTotal > d.dailyDone && { t: `${d.dailyTotal - d.dailyDone} wajib harian belum kelar`, p: "tugas" },
+    d.unpaid && { t: `${d.unpaid} rutin belum dibayar`, p: "duit" },
+    d.careItems && { t: `${d.careItems} barang perlu diurus`, p: "barang" },
+    !d.moodToday && { t: "belum check-in mood", p: "diri" },
+    d.dreamTotal > 0 && d.dreamToday === 0 && { t: "belum nyentuh mimpi hari ini", p: "diri" },
+  ].filter(Boolean);
+
+  const burn = d.sisa > 0 ? Math.min(100, Math.round((d.outMonth / d.sisa) * 100)) : 0;
+  const jamBebas = Math.max(0, 24 - d.jamKepake);
 
   return (
     <>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-        <div style={{ gridColumn: "1 / -1" }}>
-          <Card emoji="🔥" title="Fokus sekarang" page="tugas" accent>
-            <div style={big}>
-              {d.doing ? d.doing.title : "Gak ada yang nyala — pilih satu dari " + d.todoCount + " todo"}
-            </div>
-            {d.dailyTotal > 0 && (
-              <div style={sub}>
-                wajib harian: <b style={{ color: d.dailyDone === d.dailyTotal ? "var(--green)" : "var(--ink)" }}>{d.dailyDone}/{d.dailyTotal}</b> kelar
-              </div>
-            )}
-          </Card>
+      {/* ---------- sekarang ---------- */}
+      <div style={{ marginTop: 4, cursor: "pointer" }} onClick={() => go("tugas")}>
+        <div style={S.sectionHead}><span>🔥 Fokus sekarang</span></div>
+        <div style={big}>
+          {d.doing ? d.doing.title : `Gak ada yang nyala — pilih satu dari ${d.todoCount} todo`}
         </div>
+        {d.dailyTotal > 0 && (
+          <div style={sub}>
+            wajib harian{" "}
+            <b style={{ color: d.dailyDone === d.dailyTotal ? "var(--green)" : "var(--ink)" }}>
+              {d.dailyDone}/{d.dailyTotal}
+            </b>
+          </div>
+        )}
+      </div>
 
-        <Card emoji="🤝" title="Janji" page="tugas">
-          <div style={big}>
-            {d.overdue.length > 0 ? (
-              <span style={{ color: "var(--red)" }}>{d.overdue.length} TELAT</span>
-            ) : d.dueToday.length > 0 ? (
-              <span style={{ color: "var(--janji-ink)" }}>{d.dueToday.length} hari ini</span>
-            ) : d.promCount > 0 ? (
-              `${d.promCount} jalan`
-            ) : (
-              "aman ✓"
+      {/* ---------- yang nyangkut ---------- */}
+      <Sec title="Butuh diurus">
+        {nyangkut.length === 0 ? (
+          <div style={{ ...big, color: "var(--green)" }}>Beres semua ✓</div>
+        ) : (
+          nyangkut.map((x) => (
+            <div
+              key={x.t}
+              style={{ ...S.card, marginBottom: 12, cursor: "pointer" }}
+              onClick={() => go(x.p)}
+            >
+              <span style={{ flex: 1, fontSize: 15, ...(x.red ? { color: "var(--red)" } : {}) }}>
+                {x.t}
+              </span>
+              <span style={{ fontFamily: MONO, fontSize: 11, color: "var(--faint)" }}>{x.p} ›</span>
+            </div>
+          ))
+        )}
+      </Sec>
+
+      {/* ---------- minggu ini ---------- */}
+      <Sec title="Minggu ini" page="diri">
+        <div style={{ display: "flex", gap: 7, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
+          {d.last7.map((x) => (
+            <div
+              key={x.ds}
+              title={x.ds}
+              style={{
+                width: 24,
+                height: 24,
+                borderRadius: "50%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 13,
+                background: x.mood ? "var(--card2)" : "transparent",
+                border: "1px dashed var(--border2)",
+              }}
+            >
+              {x.mood ? moodEmoji(x.mood) : ""}
+            </div>
+          ))}
+        </div>
+        <div style={{ fontFamily: MONO, fontSize: 12, color: "var(--muted)" }}>
+          check-in <b style={{ color: "var(--ink)" }}>{d.moodDays}/7</b>
+          {d.dreamTotal > 0 && <> · mimpi <b style={{ color: "var(--ink)" }}>{d.dreamDays}/7</b></>}
+          {" · good habit "}<b style={{ color: "var(--ink)" }}>{d.goodDays}/7</b>
+        </div>
+        {d.bestStreak && (
+          <div style={sub}>
+            bersih terpanjang: {d.bestStreak.name}{" "}
+            <b style={{ color: "var(--green)" }}>{d.bestStreak.days} hari</b>
+            {d.points > 0 && <> · 🏅 {d.points.toLocaleString("id-ID")}</>}
+          </div>
+        )}
+      </Sec>
+
+      {/* ---------- bulan ini ---------- */}
+      <Sec title="Bulan ini" page="duit">
+        <div style={big}>
+          {d.showMoney ? rupiah(d.outMonth) : "Rp ••••"}
+          {d.sisa > 0 && d.showMoney && (
+            <span style={{ fontSize: 13, fontWeight: 500, color: "var(--muted)" }}>
+              {" "}dari {rupiah(d.sisa)} sisa bebas
+            </span>
+          )}
+        </div>
+        {d.sisa > 0 && (
+          <div
+            style={{
+              height: 6,
+              borderRadius: 99,
+              background: "var(--badge)",
+              overflow: "hidden",
+              marginTop: 10,
+            }}
+          >
+            <div
+              style={{
+                height: "100%",
+                width: `${Math.max(2, burn)}%`,
+                borderRadius: 99,
+                background: burn >= 100 ? "var(--red)" : burn >= 75 ? "var(--janji-ink)" : "var(--green)",
+              }}
+            />
+          </div>
+        )}
+        <div style={sub}>
+          {d.showMoney ? `hari ini ${rupiah(d.outToday)}` : "hari ini ••••"}
+          {d.showMoney && d.piutang > 0 && <> · piutang {rupiah(d.piutang)}</>}
+          {d.showMoney && d.utang > 0 && <> · utang {rupiah(d.utang)}</>}
+        </div>
+      </Sec>
+
+      {/* ---------- sehari ---------- */}
+      {d.blocks.length > 0 && (
+        <Sec title="Sehari" page="diri">
+          <div
+            style={{
+              display: "flex",
+              height: 22,
+              borderRadius: 8,
+              overflow: "hidden",
+              border: "1px solid var(--border)",
+            }}
+          >
+            {d.blocks.map((b, i) => (
+              <div
+                key={i}
+                title={`${b.name} — ${b.hours} jam`}
+                style={{
+                  width: `${(Number(b.hours) / 24) * 100}%`,
+                  background: b.wajib ? "var(--janji-ink)" : "var(--green-dark)",
+                  minWidth: 2,
+                }}
+              />
+            ))}
+            {jamBebas > 0 && (
+              <div
+                style={{
+                  width: `${(jamBebas / 24) * 100}%`,
+                  background:
+                    "repeating-linear-gradient(45deg, transparent, transparent 4px, var(--border) 4px, var(--border) 6px)",
+                }}
+              />
             )}
           </div>
-          {(d.overdue[0] || d.dueToday[0]) && (
-            <div style={sub}>
-              {(d.overdue[0] || d.dueToday[0]).text}
-              {(d.overdue[0] || d.dueToday[0]).to_whom && <> · ke <b>{(d.overdue[0] || d.dueToday[0]).to_whom}</b></>}
-            </div>
-          )}
-        </Card>
-
-        <Card emoji="💸" title="Duit hari ini" page="duit">
-          <div style={big}>{d.showMoney ? rupiah(d.out) : "Rp ••••"}</div>
           <div style={sub}>
-            {d.unpaid.length > 0 ? `${d.unpaid.length} rutin belum dibayar` : "rutin bulan ini beres ✓"}
-            {d.piutang > 0 && d.showMoney && <> · piutang {rupiah(d.piutang)}</>}
+            wajib {d.jamWajib.toFixed(1)} jam ·{" "}
+            <b style={{ color: jamBebas > 0 ? "var(--green)" : "var(--red)" }}>
+              {jamBebas.toFixed(1)} jam bebas
+            </b>
           </div>
-        </Card>
+        </Sec>
+      )}
 
-        <Card emoji={d.mood ? moodEmoji(d.mood) : "🫥"} title="Mood" page="diri">
-          <div style={big}>{d.mood || "belum check-in"}</div>
-          {d.habits.length > 0 && (
-            <div style={sub}>
-              {d.habits.slice(0, 2).map((h, i) => (
-                <span key={h.name}>{i > 0 && " · "}{h.name}: <b style={{ color: "var(--green)" }}>{h.days}h</b></span>
-              ))}
-            </div>
-          )}
-        </Card>
-
-        <Card emoji="⭐" title="Mimpi" page="diri">
-          <div style={big}>
-            {d.dreams.length === 0
-              ? "belum ada"
-              : `${d.dreams.filter((x) => x.touched).length}/${d.dreams.length} kesentuh`}
-          </div>
-          {d.dreams.find((x) => !x.touched) && (
-            <div style={sub}>
-              next: {d.dreams.find((x) => !x.touched).next_step || d.dreams.find((x) => !x.touched).name}
-            </div>
-          )}
-        </Card>
-      </div>
-      <div style={S.footer}>Tap kartu buat buka tab-nya. Satu layar, cukup.</div>
+      {/* ---------- besok apa ---------- */}
+      {d.nextStep && (
+        <Sec title="⭐ Langkah berikutnya" page="diri">
+          <div style={big}>{d.nextStep}</div>
+        </Sec>
+      )}
     </>
   );
 }
