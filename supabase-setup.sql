@@ -69,6 +69,25 @@ create policy "public read recent moods" on public.moods
   for select using (is_public = true and date >= current_date - 6);
 
 -- ---------------------------------------------------------------------
+-- Riwayat total aset per bulan, buat grafik batang di tab Aset.
+--
+-- Baris ditulis pas halaman Aset dibuka, satu per bulan. Artinya grafiknya
+-- keisi maju ke depan — bulan-bulan sebelum tabel ini ada emang gak kesimpen
+-- di mana pun, jadi gak bisa direka ulang.
+create table if not exists public.asset_snapshots (
+  user_id    uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  month      text not null,                          -- 'YYYY-MM'
+  total      bigint not null,
+  updated_at timestamptz not null default now(),
+  primary key (user_id, month)
+);
+
+alter table public.asset_snapshots enable row level security;
+
+create policy "own asset snapshots" on public.asset_snapshots
+  for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+-- ---------------------------------------------------------------------
 -- Tab Barang: bukan cuma "barangnya di mana", tapi "barangnya gimana".
 --
 --   condition -> 'oke' | 'aus' | 'parah'; ini beda dari `status` yang ngurusin

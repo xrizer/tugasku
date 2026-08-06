@@ -2728,8 +2728,10 @@ function MikirView({ session, onLogExpense }) {
 function AsetView({ session, sources }) {
   const [assets, setAssets] = useState(null);
   const [balances, setBalances] = useState([]);
+  const [snaps, setSnaps] = useState([]);
   const [form, setForm] = useState({ name: "", value: "" });
   const [showForm, setShowForm] = useState(false);
+  const [sortBig, setSortBig] = useState(true);
   const [show, setShow] = useState(() => {
     try {
       return localStorage.getItem("tugasku-show-assets") === "1";
@@ -2757,6 +2759,13 @@ function AsetView({ session, sources }) {
       .select("*")
       .eq("user_id", session.user.id)
       .then(({ data, error }) => setBalances(error ? [] : data));
+    supabase
+      .from("asset_snapshots")
+      .select("month,total")
+      .eq("user_id", session.user.id)
+      .order("month", { ascending: true })
+      .limit(24)
+      .then(({ data, error }) => setSnaps(error ? [] : data || []));
   }, [session]);
 
   const setBalance = async (source, amount) => {
@@ -2788,9 +2797,7 @@ function AsetView({ session, sources }) {
 
   const patchAsset = async (id, patch) => {
     const withTime = { ...patch, updated_at: new Date().toISOString() };
-    setAssets((xs) =>
-      xs.map((x) => (x.id === id ? { ...x, ...withTime } : x))
-    );
+    setAssets((xs) => xs.map((x) => (x.id === id ? { ...x, ...withTime } : x)));
     await supabase.from("assets").update(withTime).eq("id", id);
   };
 
@@ -2799,144 +2806,354 @@ function AsetView({ session, sources }) {
     await supabase.from("assets").delete().eq("id", id);
   };
 
+  const daysAgo = (ts) => Math.floor((Date.now() - new Date(ts)) / 86400000);
   const ago = (ts) => {
-    const days = Math.floor((Date.now() - new Date(ts)) / 86400000);
+    const days = daysAgo(ts);
     if (days === 0) return "hari ini";
     if (days === 1) return "kemarin";
     return `${days} hari lalu`;
   };
 
+  const saldoTotal = balances.reduce((s, b) => s + Number(b.amount), 0);
+  const otherTotal = (assets || []).reduce((s, x) => s + Number(x.value), 0);
+  const total = saldoTotal + otherTotal;
+
+  // Snapshot bulanan: dicatet pas halamannya dibuka, satu baris per bulan.
+  // Grafiknya baru keisi seiring waktu — gak ada cara bikin riwayat mundur
+  // dari data yang emang gak pernah disimpen.
+  useEffect(() => {
+    if (assets === null || total <= 0) return;
+    const month = thisMonthStr();
+    if (snaps.some((x) => x.month === month && Number(x.total) === total)) return;
+    supabase
+      .from("asset_snapshots")
+      .upsert(
+        { user_id: session.user.id, month, total, updated_at: new Date().toISOString() },
+        { onConflict: "user_id,month" }
+      )
+      .then(() =>
+        setSnaps((xs) => [...xs.filter((x) => x.month !== month), { month, total }]
+          .sort((a, b) => a.month.localeCompare(b.month)))
+      );
+  }, [assets, total]);
+
   if (assets === null) return <div style={S.empty}>Memuat…</div>;
 
-  const saldoTotal = balances.reduce((s, b) => s + Number(b.amount), 0);
-  const total = assets.reduce((s, x) => s + x.value, 0) + saldoTotal;
+  const money = (n) => (show ? rupiah(n) : "••••");
+  const short = (n) => {
+    if (!show) return "••••";
+    if (n >= 1e9) return "Rp" + (n / 1e9).toFixed(1).replace(".", ",") + " M";
+    if (n >= 1e6) return "Rp" + (n / 1e6).toFixed(1).replace(".", ",") + " jt";
+    if (n >= 1e3) return "Rp" + Math.round(n / 1e3) + " rb";
+    return rupiah(n);
+  };
+  const pct = (a) => (total > 0 ? (a / total) * 100 : 0);
+
+  // ---- riwayat ----
+  const hist = snaps.slice(-7);
+  const prev = hist.length >= 2 ? Number(hist[hist.length - 2].total) : null;
+  const delta = prev != null ? total - prev : null;
+  const hMax = Math.max(...hist.map((h) => Number(h.total)), 1);
+  const hMin = Math.min(...hist.map((h) => Number(h.total)), hMax);
+  const monthLabel = (m) =>
+    ["JAN", "FEB", "MAR", "APR", "MEI", "JUN", "JUL", "AGU", "SEP", "OKT", "NOV", "DES"][
+      Number(m.slice(5, 7)) - 1
+    ] || m;
+
+  // ---- komposisi: saldo dulu, terus tiap aset jadi irisannya sendiri ----
+  const comp = [
+    { name: "Likuid", note: `saldo di ${sources.length} sumber`, v: saldoTotal, color: "var(--accent)" },
+    ...assets.map((a, i) => ({
+      name: a.name,
+      note: `update ${ago(a.updated_at)}`,
+      v: Number(a.value),
+      color: `var(--src-${i % 8})`,
+    })),
+  ].filter((c) => c.v > 0);
+
+  // ---- saldo ----
+  const maxBal = Math.max(...sources.map((s) => Number(balanceOf(s)?.amount || 0)), 1);
+  const STALE_DAYS = 20;
+  const sorted = [...sources].sort((a, b) =>
+    sortBig
+      ? Number(balanceOf(b)?.amount || 0) - Number(balanceOf(a)?.amount || 0)
+      : a.localeCompare(b)
+  );
+  const stale = sources.filter((s) => {
+    const b = balanceOf(s);
+    return !b || daysAgo(b.updated_at) >= STALE_DAYS;
+  });
 
   return (
     <>
-      <div style={{ marginTop: 6, textAlign: "center" }}>
-        <div style={S.eyebrow}>Total aset (saldo + lainnya)</div>
-        <div
-          style={{
-            fontSize: 32,
-            fontWeight: 700,
-            letterSpacing: show ? "-0.02em" : "0.15em",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 10,
-          }}
-        >
-          <span>{show ? rupiah(total) : "Rp ••••••"}</span>
-          <button
-            style={{ ...S.btnGhost, padding: "6px 8px", lineHeight: 0 }}
-            title={show ? "Sembunyiin" : "Liat"}
-            onClick={toggleShow}
-          >
-            <Eye off={show} />
-          </button>
+      {/* ===== total ===== */}
+      <div style={{ marginTop: 14, display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
+        <div style={{ fontSize: 34, fontWeight: 700, letterSpacing: show ? "-0.02em" : "0.12em" }}>
+          {show ? rupiah(total) : "Rp ••••••"}
         </div>
-      </div>
-
-      {/* ===== saldo per sumber ===== */}
-      <div style={{ ...S.sectionHead, marginTop: 18, marginBottom: 8 }}>
-        <span>Saldo</span>
-        <span style={{ ...S.count, fontWeight: 400 }}>
-          {show ? rupiah(saldoTotal) : "••••"}
-        </span>
-      </div>
-      {sources.map((s) => {
-        const b = balanceOf(s);
-        return (
-          <div key={s} style={{ ...S.card, padding: "10px 14px" }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <span style={{ fontSize: 13, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                {s}
-              </span>
-              {b && (
-                <span style={{ ...S.dumpHint, marginLeft: 8 }}>
-                  update {Math.floor((Date.now() - new Date(b.updated_at)) / 86400000) === 0
-                    ? "hari ini"
-                    : `${Math.floor((Date.now() - new Date(b.updated_at)) / 86400000)} hari lalu`}
-                </span>
-              )}
-            </div>
-            <EditableText
-              value={b ? (show ? rupiah(Number(b.amount)) : "••••") : "isi saldo…"}
-              onSave={(v) => {
-                const n = parseInt(v.replace(/\D/g, ""), 10);
-                if (!isNaN(n)) setBalance(s, n);
-              }}
-              style={{ fontSize: 15, fontWeight: 700, textAlign: "right", minWidth: 90 }}
-            />
-          </div>
-        );
-      })}
-      <div style={{ ...S.dumpHint, marginBottom: 4 }}>
-        Nama sumber ngikutin chip di tab Catet (edit lewat ✎ di sana).
-      </div>
-
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 18 }}>
-        <div style={S.sectionHead}><span>Aset lainnya</span></div>
-        <button style={S.promAddLink} onClick={() => setShowForm((v) => !v)}>
-          {showForm ? "batal" : "+ aset baru"}
+        <button
+          style={{ ...S.iconBtn, alignSelf: "center" }}
+          title={show ? "Sembunyiin" : "Liat"}
+          onClick={toggleShow}
+        >
+          <Eye off={show} />
         </button>
       </div>
 
-      {showForm && (
-        <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
-          <input
-            style={{ ...S.input, flex: 2, minWidth: 0 }}
-            placeholder="Nama (misal: BCA, emas, WBSA)"
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-          />
-          <input
-            style={{ ...S.input, flex: 1, minWidth: 0 }}
-            placeholder="Nilai"
-            inputMode="numeric"
-            value={form.value}
-            onChange={(e) => setForm({ ...form, value: e.target.value })}
-            onKeyDown={(e) => e.key === "Enter" && addAsset()}
-          />
-          <button style={{ ...S.addBtn, width: 60 }} onClick={addAsset}>OK</button>
+      {delta != null && (
+        <div style={{ ...S.dumpHint, marginBottom: 0, marginTop: 4 }}>
+          <b style={{ color: delta >= 0 ? "var(--green)" : "var(--red)" }}>
+            {delta >= 0 ? "▲" : "▼"} {short(Math.abs(delta))}
+          </b>{" "}
+          dari bulan lalu{prev > 0 && ` · ${delta >= 0 ? "+" : "−"}${Math.abs((delta / prev) * 100).toFixed(1)}%`}
         </div>
       )}
 
-      <div style={{ marginTop: 10 }}>
-        {assets.length === 0 && (
-          <div style={{ ...S.empty, textAlign: "center" }}>
-            Belum ada. Mulai dari yang gede: rekening, cash, investasi.
+      {hist.length >= 2 && (
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 78, marginTop: 16 }}>
+          {hist.map((h, i) => (
+            <div key={h.month} style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "flex-end", alignItems: "center", gap: 7 }}>
+              <div
+                title={show ? rupiah(Number(h.total)) : ""}
+                style={{
+                  width: "100%",
+                  height: `${Math.round(12 + ((Number(h.total) - hMin) / Math.max(hMax - hMin, 1)) * 42)}px`,
+                  background: "var(--accent)",
+                  borderRadius: "6px 6px 3px 3px",
+                  opacity: i === hist.length - 1 ? 1 : 0.4,
+                }}
+              />
+              <div style={{ fontFamily: MONO, fontSize: 9, color: "var(--faint)" }}>{monthLabel(h.month)}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ===== komposisi ===== */}
+      {total > 0 && (
+        <div style={{ marginTop: 34 }}>
+          <div style={S.sectionHead}><span>Komposisi</span></div>
+          <div style={{ display: "flex", gap: 3, height: 14, borderRadius: 99, overflow: "hidden", marginTop: 14 }}>
+            {comp.map((c) => (
+              <div key={c.name} style={{ width: `${pct(c.v)}%`, background: c.color, borderRadius: 99 }} />
+            ))}
+          </div>
+          <div style={{ marginTop: 16 }}>
+            {comp.map((c) => (
+              <div key={c.name} style={{ ...S.card, marginBottom: 14 }}>
+                <span style={{ width: 10, height: 10, borderRadius: 3, background: c.color, flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 15, fontWeight: 600 }}>{c.name}</div>
+                  <div style={{ ...S.dumpHint, marginBottom: 0, marginTop: 2 }}>{c.note}</div>
+                </div>
+                <div style={{ textAlign: "right", flexShrink: 0 }}>
+                  <div style={{ fontFamily: MONO, fontSize: 14, fontWeight: 700 }}>{short(c.v)}</div>
+                  <div style={{ fontFamily: MONO, fontSize: 11, color: "var(--muted)" }}>
+                    {pct(c.v).toFixed(1)}%
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          {/* satu-satunya angka yang beneran ngasih tau kondisi hari ini */}
+          <div style={{ ...S.dumpHint, marginBottom: 0, lineHeight: 1.5 }}>
+            Cuma <b style={{ color: "var(--accent)" }}>{pct(saldoTotal).toFixed(1)}%</b> yang bisa dipake hari ini
+            — sisanya nyangkut di aset.
+          </div>
+        </div>
+      )}
+
+      {/* ===== perlu diupdate ===== */}
+      {stale.length > 0 && (
+        <div style={{ marginTop: 34 }}>
+          <div style={S.sectionHead}><span>Perlu diupdate</span></div>
+          <div
+            style={{
+              background: "var(--card)",
+              border: "1px solid var(--border)",
+              borderRadius: 14,
+              padding: "16px 16px 14px",
+              marginTop: 14,
+            }}
+          >
+            <div style={{ fontSize: 14, lineHeight: 1.5 }}>
+              {stale.length} sumber saldo belum diupdate {STALE_DAYS}+ hari.
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+              {stale.map((s) => (
+                <span
+                  key={s}
+                  style={{
+                    fontFamily: MONO,
+                    fontSize: 11,
+                    letterSpacing: "0.06em",
+                    textTransform: "uppercase",
+                    color: "var(--janji-ink)",
+                    border: "1px solid var(--janji-border)",
+                    borderRadius: 999,
+                    padding: "4px 10px",
+                  }}
+                >
+                  {s}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== saldo per sumber ===== */}
+      <div style={{ marginTop: 34 }}>
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10 }}>
+          <div style={S.sectionHead}><span>Saldo</span></div>
+          <button style={S.promAddLink} onClick={() => setSortBig((v) => !v)}>
+            {sortBig ? "terbesar dulu" : "A–Z"}
+          </button>
+        </div>
+        <div style={{ ...S.dumpHint, marginTop: -4, marginBottom: 16 }}>
+          {sources.length} sumber · {money(saldoTotal)}
+        </div>
+
+        {sorted.map((s) => {
+          const b = balanceOf(s);
+          const amt = Number(b?.amount || 0);
+          const isStale = !b || daysAgo(b.updated_at) >= STALE_DAYS;
+          return (
+            <div key={s} style={{ padding: "4px 2px", marginBottom: 16 }}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+                <span
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                    color: amt > 0 ? "var(--ink)" : "var(--faint)",
+                  }}
+                >
+                  {s}
+                </span>
+                {b && (
+                  <span style={{ fontFamily: MONO, fontSize: 10, color: isStale ? "var(--janji-ink)" : "var(--faint)" }}>
+                    {ago(b.updated_at)}
+                  </span>
+                )}
+                <span style={{ flex: 1 }} />
+                <EditableText
+                  value={b ? money(amt) : ""}
+                  onSave={(v) => {
+                    const n = parseInt(v.replace(/\D/g, ""), 10);
+                    if (!isNaN(n)) setBalance(s, n);
+                  }}
+                  placeholder="isi saldo…"
+                  style={{
+                    fontFamily: MONO,
+                    fontSize: 15,
+                    fontWeight: 700,
+                    textAlign: "right",
+                    color: amt > 0 ? "var(--ink)" : "var(--faint)",
+                  }}
+                />
+              </div>
+              {/* bar cuma nongol pas angkanya keliatan — kalau disembunyiin
+                  panjangnya sendiri udah bocorin siapa yang paling gede */}
+              {show && (
+                <div style={{ height: 5, borderRadius: 99, background: "var(--badge)", overflow: "hidden", marginTop: 7 }}>
+                  <div
+                    style={{
+                      height: "100%",
+                      width: `${Math.max(amt > 0 ? 1.5 : 0, (amt / maxBal) * 100)}%`,
+                      borderRadius: 99,
+                      background: amt / maxBal > 0.5 ? "var(--accent)" : "var(--muted)",
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+          );
+        })}
+        <div style={{ ...S.dumpHint, marginBottom: 0 }}>
+          Nama sumber ngikutin chip di tab Catet.
+        </div>
+      </div>
+
+      {/* ===== aset lainnya ===== */}
+      <div style={{ marginTop: 34 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
+          <div style={S.sectionHead}><span>Aset lainnya</span></div>
+          <button style={S.promAddLink} onClick={() => setShowForm((v) => !v)}>
+            {showForm ? "batal" : "+ aset baru"}
+          </button>
+        </div>
+        <div style={{ ...S.dumpHint, marginTop: -4, marginBottom: 16 }}>
+          {assets.length} aset · {money(otherTotal)}
+        </div>
+
+        {showForm && (
+          <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
+            <input
+              style={{ ...S.input, flex: 2, minWidth: 0 }}
+              placeholder="Nama (misal: emas, dana haji)"
+              autoFocus
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+            />
+            <input
+              style={{ ...S.input, flex: 1, minWidth: 0 }}
+              placeholder="Nilai"
+              inputMode="numeric"
+              value={form.value}
+              onChange={(e) => setForm({ ...form, value: e.target.value })}
+              onKeyDown={(e) => e.key === "Enter" && addAsset()}
+            />
+            <button style={{ ...S.addBtn, width: 60 }} onClick={addAsset}>OK</button>
           </div>
         )}
-        {assets.map((a) => (
-          <div key={a.id} style={S.card}>
+
+        {assets.length === 0 && !showForm && <div style={S.empty}>Belum ada.</div>}
+
+        {assets.map((a, i) => (
+          <div key={a.id} style={{ ...S.card, marginBottom: 16 }}>
+            <span
+              style={{
+                width: 38,
+                height: 38,
+                borderRadius: 11,
+                flexShrink: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontFamily: MONO,
+                fontSize: 12,
+                fontWeight: 700,
+                textTransform: "uppercase",
+                background: `color-mix(in srgb, var(--src-${i % 8}) 20%, var(--bg))`,
+                color: `var(--src-${i % 8})`,
+              }}
+            >
+              {a.name.slice(0, 2)}
+            </span>
             <div style={{ flex: 1, minWidth: 0 }}>
               <EditableText
                 value={a.name}
                 onSave={(v) => patchAsset(a.id, { name: v })}
-                style={S.cardTitle}
+                style={{ fontSize: 15, fontWeight: 600 }}
               />
-              <div style={{ ...S.dumpHint, marginBottom: 0, marginTop: 3 }}>
-                update {ago(a.updated_at)}
+              <div style={{ ...S.dumpHint, marginBottom: 0, marginTop: 2 }}>
+                {ago(a.updated_at)}
+                {total > 0 && ` · ${pct(Number(a.value)).toFixed(0)}% dari total`}
               </div>
             </div>
-            <div style={S.cardBtns}>
-              <EditableText
-                value={show ? rupiah(a.value) : "••••"}
-                onSave={(v) => {
-                  const n = parseInt(v.replace(/\D/g, ""), 10);
-                  if (!isNaN(n)) patchAsset(a.id, { value: n });
-                }}
-                style={{ fontSize: 15, fontWeight: 700, textAlign: "right", minWidth: 90 }}
-              />
-              <button style={S.btnGhost} onClick={() => removeAsset(a.id)}>✕</button>
-            </div>
+            <EditableText
+              value={money(a.value)}
+              onSave={(v) => {
+                const n = parseInt(v.replace(/\D/g, ""), 10);
+                if (!isNaN(n)) patchAsset(a.id, { value: n });
+              }}
+              style={{ fontFamily: MONO, fontSize: 15, fontWeight: 700, textAlign: "right" }}
+            />
+            <button style={S.btnGhost} onClick={() => removeAsset(a.id)}>✕</button>
           </div>
         ))}
-      </div>
-
-      <div style={S.footer}>
-        Update pas nilainya berubah aja — gak usah tiap hari. Tap angkanya buat edit.
       </div>
     </>
   );
