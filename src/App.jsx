@@ -2378,6 +2378,7 @@ function MikirView({ session, onLogExpense }) {
   const [price, setPrice] = useState("");
   const [months, setMonths] = useState("");
   const [plans, setPlans] = useState([]);
+  const [showForm, setShowForm] = useState(false);
 
   useEffect(() => {
     supabase
@@ -2396,6 +2397,7 @@ function MikirView({ session, onLogExpense }) {
     setName("");
     setPrice("");
     setMonths("");
+    setShowForm(false);
     const { data, error } = await supabase
       .from("purchase_plans")
       .insert({ name: nm, price: p2, months: m2 })
@@ -2464,51 +2466,70 @@ function MikirView({ session, onLogExpense }) {
 
   return (
     <>
-      <div style={{ ...S.dump, marginTop: 6 }}>
-        <Row label="Pemasukan rutin" value={rupiah(fixedIn)} />
-        <Row label="Beban rutin" value={`${rupiah(fixedOut)} (${pct(fixedOut, fixedIn)}% dari income)`} />
-        <Row label="Sisa bebas per bulan" value={rupiah(sisa)} strong />
-        {(fixedIn === 0 || fixedOut === 0) && (
-          <div style={{ ...S.dumpHint, marginTop: 6 }}>
-            Isi dulu pemasukan & biaya rutin di tab Rutin biar hitungannya bener.
+      {/* sisa bebas yang dipake buat semua hitungan di bawah — itu yang
+          dinaikin, dua angka penyusunnya cukup jadi satu baris kecil */}
+      <div
+        style={{
+          marginTop: 18,
+          display: "flex",
+          alignItems: "baseline",
+          justifyContent: "space-between",
+          gap: 12,
+        }}
+      >
+        <div>
+          <div style={{ fontSize: 30, fontWeight: 700 }}>{rupiah(sisa)}</div>
+          <div style={{ ...S.dumpHint, marginBottom: 0, marginTop: 2 }}>
+            sisa bebas · masuk {rupiah(fixedIn)} − beban {rupiah(fixedOut)} ({pct(fixedOut, fixedIn)}%)
           </div>
-        )}
-      </div>
-
-      <div style={{ marginTop: 16 }}>
-        <div style={S.eyebrow}>Mau beli sesuatu yang gede?</div>
-        <input
-          style={{ ...S.input, width: "100%", boxSizing: "border-box", marginTop: 8 }}
-          placeholder="Barangnya apa? (misal: iPhone, motor)"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-        <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
-          <input
-            style={{ ...S.input, flex: 2, minWidth: 0 }}
-            placeholder="Harganya berapa?"
-            inputMode="numeric"
-            value={price}
-            onChange={(e) => setPrice(e.target.value)}
-          />
-          <input
-            style={{ ...S.input, flex: 1, minWidth: 0 }}
-            placeholder="Cicil? (bln)"
-            inputMode="numeric"
-            value={months}
-            onChange={(e) => setMonths(e.target.value)}
-          />
         </div>
+        <button style={S.promAddLink} onClick={() => setShowForm((v) => !v)}>
+          {showForm ? "batal" : "+ rencana"}
+        </button>
       </div>
 
-      {p > 0 && (
-        <div style={{ ...S.dump, marginTop: 12 }}>
+      {(fixedIn === 0 || fixedOut === 0) && (
+        <div style={{ ...S.dumpHint, marginTop: 10 }}>
+          Isi dulu tab Rutin biar hitungannya bener.
+        </div>
+      )}
+
+      {showForm && (
+        <div style={{ marginTop: 18 }}>
+          <input
+            style={{ ...S.input, width: "100%", boxSizing: "border-box" }}
+            placeholder="Barangnya apa?"
+            autoFocus
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+          <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+            <input
+              style={{ ...S.input, flex: 2, minWidth: 0 }}
+              placeholder="Harga"
+              inputMode="numeric"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+            />
+            <input
+              style={{ ...S.input, flex: 1, minWidth: 0 }}
+              placeholder="Cicil (bln)"
+              inputMode="numeric"
+              value={months}
+              onChange={(e) => setMonths(e.target.value)}
+            />
+          </div>
+        </div>
+      )}
+
+      {showForm && p > 0 && (
+        <div style={{ marginTop: 18 }}>
           {m > 1 ? (
             <>
-              <Row label={`Cicilan (${m} bulan)`} value={`${rupiah(Math.ceil(p / m))}/bulan`} strong />
+              <Row label={`Cicilan ${m} bulan`} value={`${rupiah(Math.ceil(p / m))}/bln`} strong />
               <Row
-                label="Beban rutin baru"
-                value={`${rupiah(fixedOut + Math.ceil(p / m))} (${pct(fixedOut + Math.ceil(p / m), fixedIn)}% dari income)`}
+                label="Beban rutin jadi"
+                value={`${rupiah(fixedOut + Math.ceil(p / m))} (${pct(fixedOut + Math.ceil(p / m), fixedIn)}%)`}
               />
               <Row
                 label="Sisa bebas jadi"
@@ -2520,31 +2541,24 @@ function MikirView({ session, onLogExpense }) {
           ) : (
             <>
               <Row label="Harga" value={rupiah(p)} strong />
-              <Row
-                label="Setara sisa bebas"
-                value={sisa > 0 ? `${(p / sisa).toFixed(1)} bulan` : "—"}
-              />
-              <Row label="Persen dari income sebulan" value={`${pct(p, fixedIn)}%`} />
+              <Row label="Setara" value={sisa > 0 ? `${(p / sisa).toFixed(1)} bulan sisa bebas` : "—"} />
+              <Row label="Dari income sebulan" value={`${pct(p, fixedIn)}%`} />
             </>
           )}
-          <div style={{ ...S.dumpHint, marginTop: 8 }}>
-            Angkanya gitu — keputusannya tetep di lu. Gak ada yang nge-judge di sini.
-          </div>
-          <button style={{ ...S.focusBtn, marginTop: 10 }} onClick={savePlan}>
-            Simpan sebagai rencana
+          <button style={{ ...S.focusBtn, marginTop: 14 }} onClick={savePlan}>
+            Simpan
           </button>
         </div>
       )}
 
       {/* ===== daftar rencana ===== */}
       {plans.length > 0 && (
-        <div style={{ marginTop: 20 }}>
-          <div style={S.eyebrow}>Rencana pembelian</div>
+        <div style={{ marginTop: 30 }}>
           {plans.map((pl) => {
             const perMonth = pl.months && pl.months > 1 ? Math.ceil(Number(pl.price) / pl.months) : null;
             const bought = pl.status === "kebeli";
             return (
-              <div key={pl.id} style={{ ...S.card, marginTop: 8, ...(bought ? { opacity: 0.55 } : {}) }}>
+              <div key={pl.id} style={{ ...S.card, ...(bought ? { opacity: 0.55 } : {}) }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ ...S.cardTitle, ...(bought ? { textDecoration: "line-through" } : {}) }}>
                     {pl.name}
@@ -2552,9 +2566,9 @@ function MikirView({ session, onLogExpense }) {
                   <div style={{ ...S.dumpHint, marginBottom: 0, marginTop: 3 }}>
                     {rupiah(Number(pl.price))}
                     {perMonth
-                      ? ` · cicil ${pl.months} bln (${rupiah(perMonth)}/bln) · sisa bebas jadi ${rupiah(sisa - perMonth)}`
+                      ? ` · ${pl.months} bln × ${rupiah(perMonth)} · sisa ${rupiah(sisa - perMonth)}`
                       : sisa > 0
-                      ? ` · cash — setara ${(Number(pl.price) / sisa).toFixed(1)} bulan sisa bebas`
+                      ? ` · cash · setara ${(Number(pl.price) / sisa).toFixed(1)} bulan`
                       : ""}
                   </div>
                 </div>
@@ -6246,6 +6260,9 @@ const S = {
     fontWeight: 700,
     cursor: "pointer",
     padding: 0,
+    // dia duduk di seberang angka gede — jangan sampe kepotong dua baris
+    whiteSpace: "nowrap",
+    flexShrink: 0,
   },
   themeBtn: {
     background: "transparent",
