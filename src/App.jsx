@@ -4229,20 +4229,18 @@ function MimpiSection({ session }) {
 
   return (
     <>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
-        <div style={{ ...S.sectionHead, color: "var(--janji-ink)" }}>
-          <span>✨ Mimpi</span>
-        </div>
-        <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexShrink: 0 }}>
-          {dreams.length > 0 && (
-            <span style={{ fontSize: 12, color: "var(--muted)" }}>
-              {touchedTodayCount}/{dreams.length} hari ini
-            </span>
-          )}
-          <button style={S.promAddLink} onClick={() => setShowDreamForm((v) => !v)}>
-            {showDreamForm ? "batal" : "+ mimpi"}
-          </button>
-        </div>
+      {/* judul "✨ Mimpi" udah kebaca dari sub-tab yang lagi aktif */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, marginTop: 4 }}>
+        {dreams.length > 0 ? (
+          <span style={{ fontSize: 12, color: "var(--muted)" }}>
+            {touchedTodayCount}/{dreams.length} disentuh hari ini
+          </span>
+        ) : (
+          <span />
+        )}
+        <button style={S.promAddLink} onClick={() => setShowDreamForm((v) => !v)}>
+          {showDreamForm ? "batal" : "+ mimpi"}
+        </button>
       </div>
 
       {showDreamForm && (
@@ -4266,11 +4264,7 @@ function MimpiSection({ session }) {
         return (
           <div
             key={dr.id}
-            style={{
-              ...S.card,
-              display: "block",
-              ...(doneToday ? { borderColor: "var(--janji-border)" } : {}),
-            }}
+            style={{ ...S.card, display: "block", marginBottom: 26 }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -4292,9 +4286,7 @@ function MimpiSection({ session }) {
                       }}
                     />
                   ))}
-                  <span style={{ fontSize: 11, color: "var(--muted)", marginLeft: 4 }}>
-                    {days}/7 minggu ini
-                  </span>
+                  {/* titiknya udah ngitungin sendiri, gak usah ditulis lagi */}
                 </div>
               </div>
               <button
