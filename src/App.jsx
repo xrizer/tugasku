@@ -2124,7 +2124,7 @@ function UtangView({ session, sources, onLogExpense }) {
   );
 }
 
-function GrupView({ session }) {
+function GrupView({ session, sources, onLogExpense }) {
   const me = usernameOf(session);
   const [groups, setGroups] = useState(null);
   const [gid, setGid] = useState(null);
@@ -2210,7 +2210,17 @@ function GrupView({ session }) {
     const row = { group_id: gid, amount, note: gNote.trim() || null, by_name: me, spent_date: localToday() };
     setGAmt(""); setGNote("");
     const { data, error } = await supabase.from("group_expenses").insert(row).select().single();
-    if (!error) setExpenses((xs) => [data, ...xs]);
+    if (error) return;
+    setExpenses((xs) => [data, ...xs]);
+    // duitnya beneran keluar dari kantong lu, jadi kecatet juga di Catet —
+    // sama kayak Rutin sama Utang. Bagi-baginya urusan belakangan.
+    onLogExpense?.({
+      amount,
+      kind: "out",
+      source: sources?.[0] || "cash",
+      note: `${g?.name || "grup"}: ${row.note || "patungan"}`,
+      spent_date: row.spent_date,
+    });
   };
 
   const leaveGroup = async () => {
@@ -2512,6 +2522,7 @@ function MikirView({ session, onLogExpense }) {
   const [months, setMonths] = useState("");
   const [plans, setPlans] = useState([]);
   const [showForm, setShowForm] = useState(false);
+  const [likuid, setLikuid] = useState(null);
 
   useEffect(() => {
     supabase
@@ -2582,6 +2593,15 @@ function MikirView({ session, onLogExpense }) {
       .eq("user_id", session.user.id)
       .then(({ data }) =>
         setFixedIn((data || []).reduce((s, x) => s + Number(x.amount), 0))
+      );
+    // saldo dari tab Aset — sisa bebas itu arus bulanan, ini duit yang
+    // beneran ada sekarang. Beli cash butuh yang kedua, bukan yang pertama.
+    supabase
+      .from("balances")
+      .select("amount")
+      .eq("user_id", session.user.id)
+      .then(({ data, error }) =>
+        setLikuid(error ? null : (data || []).reduce((s, x) => s + Number(x.amount), 0))
       );
   }, [session]);
 
@@ -2674,6 +2694,13 @@ function MikirView({ session, onLogExpense }) {
           ) : (
             <>
               <Row label="Harga" value={rupiah(p)} strong />
+              {likuid != null && (
+                <Row
+                  label="Saldo sekarang"
+                  value={likuid >= p ? `${rupiah(likuid)} — cukup` : `${rupiah(likuid)} — kurang ${rupiah(p - likuid)}`}
+                  color={likuid >= p ? "var(--green)" : "var(--red)"}
+                />
+              )}
               <Row label="Setara" value={sisa > 0 ? `${(p / sisa).toFixed(1)} bulan sisa bebas` : "—"} />
               <Row label="Dari income sebulan" value={`${pct(p, fixedIn)}%`} />
             </>
@@ -2729,6 +2756,7 @@ function AsetView({ session, sources }) {
   const [assets, setAssets] = useState(null);
   const [balances, setBalances] = useState([]);
   const [snaps, setSnaps] = useState([]);
+  const [moves, setMoves] = useState([]);
   const [form, setForm] = useState({ name: "", value: "" });
   const [showForm, setShowForm] = useState(false);
   const [sortBig, setSortBig] = useState(true);
@@ -2766,6 +2794,15 @@ function AsetView({ session, sources }) {
       .order("month", { ascending: true })
       .limit(24)
       .then(({ data, error }) => setSnaps(error ? [] : data || []));
+    // transaksi Catet dipake buat ngitung selisih sejak saldo terakhir diisi
+    const since = new Date();
+    since.setDate(since.getDate() - 180);
+    supabase
+      .from("expenses")
+      .select("amount,kind,source,spent_date")
+      .eq("user_id", session.user.id)
+      .gte("spent_date", since.toISOString().slice(0, 10))
+      .then(({ data, error }) => setMoves(error ? [] : data || []));
   }, [session]);
 
   const setBalance = async (source, amount) => {
@@ -2780,6 +2817,18 @@ function AsetView({ session, sources }) {
   };
 
   const balanceOf = (source) => balances.find((b) => b.source === source);
+
+  // Selisih Catet sejak saldo terakhir diisi. Cuma transaksi yang tanggalnya
+  // LEWAT dari hari update yang diitung — yang di hari yang sama kemungkinan
+  // besar udah kehitung pas angkanya diketik, jadi jangan dihitung dua kali.
+  const driftOf = (source) => {
+    const b = balanceOf(source);
+    if (!b) return 0;
+    const since = String(b.updated_at).slice(0, 10);
+    return moves
+      .filter((m) => m.source === source && m.spent_date > since)
+      .reduce((t, m) => t + ((m.kind || "out") === "in" ? 1 : -1) * Number(m.amount), 0);
+  };
 
   const addAsset = async () => {
     const name = form.name.trim();
@@ -3017,6 +3066,7 @@ function AsetView({ session, sources }) {
         {sorted.map((s) => {
           const b = balanceOf(s);
           const amt = Number(b?.amount || 0);
+          const drift = driftOf(s);
           const isStale = !b || daysAgo(b.updated_at) >= STALE_DAYS;
           return (
             <div key={s} style={{ padding: "4px 2px", marginBottom: 16 }}>
@@ -3054,6 +3104,25 @@ function AsetView({ session, sources }) {
                   }}
                 />
               </div>
+              {/* apa yang udah kecatet di Catet sejak saldo ini terakhir diisi */}
+              {show && drift !== 0 && (
+                <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 5, flexWrap: "wrap" }}>
+                  <span style={{ fontFamily: MONO, fontSize: 11, color: "var(--muted)" }}>
+                    <b style={{ color: drift < 0 ? "var(--red)" : "var(--green)" }}>
+                      {drift < 0 ? "−" : "+"}{rupiah(Math.abs(drift))}
+                    </b>{" "}
+                    di Catet · jadi {rupiah(amt + drift)}
+                  </span>
+                  <button
+                    style={{ ...S.promAddLink, fontSize: 11 }}
+                    title="Set saldo ke angka itu"
+                    onClick={() => setBalance(s, amt + drift)}
+                  >
+                    pakai
+                  </button>
+                </div>
+              )}
+
               {/* bar cuma nongol pas angkanya keliatan — kalau disembunyiin
                   panjangnya sendiri udah bocorin siapa yang paling gede */}
               {show && (
@@ -3392,7 +3461,9 @@ function DuitPage({ session }) {
       {sub === "utang" && (
         <UtangView session={session} sources={sources} onLogExpense={logExpense} />
       )}
-      {sub === "grup" && <GrupView session={session} />}
+      {sub === "grup" && (
+        <GrupView session={session} sources={sources} onLogExpense={logExpense} />
+      )}
 
       {sub === "keluar" && (
       <>
