@@ -5685,17 +5685,30 @@ function HomePage({ session, go }) {
         {nyangkut.length === 0 ? (
           <div style={{ ...big, color: "var(--green)" }}>Beres semua ✓</div>
         ) : (
+          // yang nyangkut pakai kartu — sisa app-nya rata, jadi kotak di sini
+          // yang bikin dia kebaca duluan pas buka Home
           nyangkut.map((x) => (
             <div
               key={x.t}
-              style={{ ...S.card, marginBottom: 12, cursor: "pointer" }}
+              className="tap-tile"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                background: x.red ? "var(--red-bg)" : "var(--card)",
+                border: `1px solid ${x.red ? "var(--red)" : "var(--border)"}`,
+                borderRadius: 14,
+                padding: "14px 16px",
+                marginBottom: 10,
+                cursor: "pointer",
+              }}
               onClick={() => go(x.p)}
             >
               <span style={{ flex: 1, fontSize: 15, ...(x.red ? { color: "var(--red)" } : {}) }}>
                 {x.t}
               </span>
               {/* nama tabnya udah ketebak dari kalimatnya — panahnya cukup */}
-              <span style={{ fontSize: 13, color: "var(--faint)" }}>›</span>
+              <span style={{ fontSize: 15, color: "var(--faint)", flexShrink: 0 }}>›</span>
             </div>
           ))
         )}
