@@ -5694,7 +5694,8 @@ function HomePage({ session, go }) {
               <span style={{ flex: 1, fontSize: 15, ...(x.red ? { color: "var(--red)" } : {}) }}>
                 {x.t}
               </span>
-              <span style={{ fontFamily: MONO, fontSize: 11, color: "var(--faint)" }}>{x.p} ›</span>
+              {/* nama tabnya udah ketebak dari kalimatnya — panahnya cukup */}
+              <span style={{ fontSize: 13, color: "var(--faint)" }}>›</span>
             </div>
           ))
         )}
@@ -5728,11 +5729,10 @@ function HomePage({ session, go }) {
           {d.dreamTotal > 0 && <> · mimpi <b style={{ color: "var(--ink)" }}>{d.dreamDays}/7</b></>}
           {" · good habit "}<b style={{ color: "var(--ink)" }}>{d.goodDays}/7</b>
         </div>
+        {/* poinnya udah nangkring di header, gak usah dicetak lagi di sini */}
         {d.bestStreak && (
           <div style={sub}>
-            bersih terpanjang: {d.bestStreak.name}{" "}
-            <b style={{ color: "var(--green)" }}>{d.bestStreak.days} hari</b>
-            {d.points > 0 && <> · 🏅 {d.points.toLocaleString("id-ID")}</>}
+            {d.bestStreak.name} <b style={{ color: "var(--green)" }}>{d.bestStreak.days} hari</b> bersih
           </div>
         )}
       </Sec>
@@ -5767,11 +5767,15 @@ function HomePage({ session, go }) {
             />
           </div>
         )}
-        <div style={sub}>
-          {d.showMoney ? `hari ini ${rupiah(d.outToday)}` : "hari ini ••••"}
-          {d.showMoney && d.piutang > 0 && <> · piutang {rupiah(d.piutang)}</>}
-          {d.showMoney && d.utang > 0 && <> · utang {rupiah(d.utang)}</>}
-        </div>
+        {/* pengeluaran hari ini tinggal di tab Duit — di sini yang dicari
+            angka sebulannya */}
+        {d.showMoney && (d.piutang > 0 || d.utang > 0) && (
+          <div style={sub}>
+            {d.piutang > 0 && <>piutang {rupiah(d.piutang)}</>}
+            {d.piutang > 0 && d.utang > 0 && " · "}
+            {d.utang > 0 && <>utang {rupiah(d.utang)}</>}
+          </div>
+        )}
       </Sec>
 
       {/* ---------- sehari ---------- */}
@@ -5818,7 +5822,7 @@ function HomePage({ session, go }) {
 
       {/* ---------- besok apa ---------- */}
       {d.nextStep && (
-        <Sec title="⭐ Langkah berikutnya" page="diri">
+        <Sec title="Langkah berikutnya" page="diri">
           <div style={big}>{d.nextStep}</div>
         </Sec>
       )}
