@@ -3398,6 +3398,22 @@ function DuitPage({ session }) {
     await supabase.from("expenses").delete().eq("id", id);
   };
 
+  const patchRow = async (id, patch) => {
+    setRows((xs) => xs.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+    const { error } = await supabase.from("expenses").update(patch).eq("id", id);
+    if (error) toast("Gagal nyimpen: " + error.message);
+  };
+
+  // sumber diketuk buat muter ke sumber berikutnya — bikin dropdown di tiap
+  // baris log kebanyakan buat ngebenerin satu salah pilih
+  const cycleSrc = (r, field) => {
+    const cur = r[field] || sources[0];
+    const pool = field === "to_source" ? sources.filter((x) => x !== r.source) : sources;
+    const i = pool.indexOf(cur);
+    const next = pool[(i + 1) % pool.length];
+    if (next && next !== cur) patchRow(r.id, { [field]: next });
+  };
+
   const logExpense = async (row) => {
     const { data, error } = await supabase
       .from("expenses")
@@ -4046,9 +4062,14 @@ function DuitPage({ session }) {
                         alignSelf: "center",
                       }}
                     />
-                    <span style={{ fontSize: 15, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {r.note || (pindah ? "pindah dana" : masuk ? "masuk" : "keluar")}
-                    </span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <EditableText
+                        value={r.note || ""}
+                        onSave={(v) => patchRow(r.id, { note: v.trim() || null })}
+                        placeholder={pindah ? "pindah dana" : masuk ? "masuk" : "keluar"}
+                        style={{ fontSize: 15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                      />
+                    </div>
                     <span
                       style={{
                         fontFamily: MONO,
@@ -4058,15 +4079,26 @@ function DuitPage({ session }) {
                         flexShrink: 0,
                       }}
                     >
-                      <span style={{ color: srcVar(r.source, sources) }}>{r.source}</span>
+                      <span
+                        style={{ color: srcVar(r.source, sources), cursor: "pointer" }}
+                        title="Tap buat ganti sumber"
+                        onClick={() => cycleSrc(r, "source")}
+                      >
+                        {r.source}
+                      </span>
                       {pindah && (
                         <>
                           <span style={{ color: "var(--faint)" }}> → </span>
-                          <span style={{ color: srcVar(r.to_source, sources) }}>{r.to_source}</span>
+                          <span
+                            style={{ color: srcVar(r.to_source, sources), cursor: "pointer" }}
+                            title="Tap buat ganti tujuan"
+                            onClick={() => cycleSrc(r, "to_source")}
+                          >
+                            {r.to_source}
+                          </span>
                         </>
                       )}
                     </span>
-                    <span style={{ flex: 1 }} />
                     <span
                       style={{
                         fontFamily: MONO,
@@ -4077,7 +4109,20 @@ function DuitPage({ session }) {
                         ...(masuk ? { color: "var(--green)" } : pindah ? { color: "var(--muted)" } : {}),
                       }}
                     >
-                      {showTotal ? `${masuk ? "+" : ""}${rupiah(Number(r.amount))}` : "••••"}
+                      {/* pas angkanya lagi ditutup, jangan dibikin bisa diketuk —
+                          input-nya bakal ngebuka nominal yang lagi disembunyiin */}
+                      {showTotal ? (
+                        <EditableText
+                          value={`${masuk ? "+" : ""}${rupiah(Number(r.amount))}`}
+                          onSave={(v) => {
+                            const n = parseInt(v.replace(/\D/g, ""), 10);
+                            if (!isNaN(n) && n > 0) patchRow(r.id, { amount: n });
+                          }}
+                          style={{ fontFamily: MONO, fontSize: 14, fontWeight: 700, textAlign: "right" }}
+                        />
+                      ) : (
+                        "••••"
+                      )}
                     </span>
                     <button style={S.btnGhost} onClick={() => remove(r.id)}>✕</button>
                   </div>
