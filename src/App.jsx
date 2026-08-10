@@ -3387,6 +3387,29 @@ function DuitPage({ session }) {
 
   const today = localToday();
   const isOut = (r) => (r.kind || "out") === "out";
+
+  // log: transaksi dikelompokin per tanggal, terbaru di atas. Urutan di dalam
+  // sehari ngikutin created_at dari query, jadi yang barusan dicatet paling atas.
+  const logDays = Object.entries(
+    rows.reduce((acc, r) => {
+      (acc[r.spent_date] ||= []).push(r);
+      return acc;
+    }, {})
+  ).sort((a, b) => b[0].localeCompare(a[0]));
+
+  const logLabel = (ds) => {
+    if (ds === today) return "hari ini";
+    const y = new Date();
+    y.setDate(y.getDate() - 1);
+    const ystr = `${y.getFullYear()}-${String(y.getMonth() + 1).padStart(2, "0")}-${String(y.getDate()).padStart(2, "0")}`;
+    if (ds === ystr) return "kemarin";
+    return new Date(ds + "T00:00:00").toLocaleDateString("id-ID", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+    });
+  };
+
   const viewDate = spentDate || today;
   const isToday = viewDate === today;
   const dayLabel = isToday
@@ -3476,7 +3499,7 @@ function DuitPage({ session }) {
       <>
       <GlassNav
         small
-        items={[["catet", "Catet"], ["struk", "Struk"], ["kalender", "Kalender"]]}
+        items={[["catet", "Catet"], ["struk", "Struk"], ["log", "Log"], ["kalender", "Kalender"]]}
         value={catetSub}
         onChange={setCatetSub}
         style={{ marginBottom: 14 }}
@@ -3896,6 +3919,109 @@ function DuitPage({ session }) {
         </div>
       )}
 
+      </>
+      )}
+
+      {/* ===== log: semua transaksi, dikelompokin per tanggal ===== */}
+      {catetSub === "log" && (
+      <>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
+          <span style={S.dumpHint}>
+            {rows.length} catatan · 40 hari terakhir
+          </span>
+          <button
+            style={{ ...S.iconBtn, ...(showTotal ? {} : { borderColor: "var(--janji-border)", color: "var(--janji-ink)" }) }}
+            title={showTotal ? "Sembunyiin angka" : "Liat angka"}
+            onClick={toggleTotal}
+          >
+            <Eye off={showTotal} />
+          </button>
+        </div>
+
+        {rows.length === 0 && <div style={{ ...S.empty, marginTop: 20 }}>Belum ada catatan.</div>}
+
+        {logDays.map(([date, list]) => {
+          const out = list.filter((r) => (r.kind || "out") === "out").reduce((t, r) => t + Number(r.amount), 0);
+          const inc = list.filter((r) => (r.kind || "out") === "in").reduce((t, r) => t + Number(r.amount), 0);
+          return (
+            <div key={date} style={{ marginTop: 30 }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "baseline",
+                  justifyContent: "space-between",
+                  gap: 10,
+                  marginBottom: 14,
+                }}
+              >
+                <span style={{ ...S.eyebrow, color: date === today ? "var(--accent)" : "var(--muted2)" }}>
+                  {logLabel(date)}
+                </span>
+                <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}>
+                  {showTotal ? (
+                    <>
+                      {out > 0 && <span>−{rupiah(out)}</span>}
+                      {out > 0 && inc > 0 && <span style={{ color: "var(--faint)" }}> · </span>}
+                      {inc > 0 && <span style={{ color: "var(--green)" }}>+{rupiah(inc)}</span>}
+                    </>
+                  ) : (
+                    "••••"
+                  )}
+                </span>
+              </div>
+
+              {list.map((r) => {
+                const masuk = (r.kind || "out") === "in";
+                return (
+                  <div
+                    key={r.id}
+                    style={{ display: "flex", alignItems: "baseline", gap: 10, padding: "4px 2px", marginBottom: 14 }}
+                  >
+                    <span
+                      style={{
+                        width: 7,
+                        height: 7,
+                        borderRadius: "50%",
+                        background: srcVar(r.source, sources),
+                        flexShrink: 0,
+                        alignSelf: "center",
+                      }}
+                    />
+                    <span style={{ fontSize: 15, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {r.note || (masuk ? "masuk" : "keluar")}
+                    </span>
+                    <span
+                      style={{
+                        fontFamily: MONO,
+                        fontSize: 10,
+                        letterSpacing: "0.08em",
+                        textTransform: "uppercase",
+                        color: srcVar(r.source, sources),
+                        flexShrink: 0,
+                      }}
+                    >
+                      {r.source}
+                    </span>
+                    <span style={{ flex: 1 }} />
+                    <span
+                      style={{
+                        fontFamily: MONO,
+                        fontSize: 14,
+                        fontWeight: 700,
+                        whiteSpace: "nowrap",
+                        flexShrink: 0,
+                        ...(masuk ? { color: "var(--green)" } : {}),
+                      }}
+                    >
+                      {showTotal ? `${masuk ? "+" : ""}${rupiah(Number(r.amount))}` : "••••"}
+                    </span>
+                    <button style={S.btnGhost} onClick={() => remove(r.id)}>✕</button>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
       </>
       )}
 
@@ -5144,6 +5270,24 @@ function DiriPage({ session, onPoints }) {
   const [moodErr, setMoodErr] = useState("");
   const [sub, setSub] = useState("mood");
   const [habitSub, setHabitSub] = useState("bad"); // bad | good | skor
+  // bad habit sering isinya hal pribadi — defaultnya ketutup, sama kayak
+  // total duit. Pilihannya disimpen biar gak kebuka lagi tiap reload.
+  const [showBad, setShowBad] = useState(() => {
+    try { return localStorage.getItem("tugasku-show-bad") === "1"; } catch { return false; }
+  });
+  const toggleBad = () =>
+    setShowBad((v) => {
+      try { localStorage.setItem("tugasku-show-bad", v ? "0" : "1"); } catch {}
+      return !v;
+    });
+  // pas ketutup namanya diganti titik dan gak bisa diketuk — kalau tetep
+  // EditableText, sekali tap malah ngebuka nama aslinya di kotak input
+  const badName = (h) =>
+    showBad ? (
+      <EditableText value={h.name} onSave={(v) => patchHabit(h.id, { name: v })} style={S.cardTitle} />
+    ) : (
+      <span style={{ ...S.cardTitle, letterSpacing: "0.15em", color: "var(--muted)" }}>••••••</span>
+    );
   const [justLogged, setJustLogged] = useState(null); // habit_id yang baru dicatet
 
   useEffect(() => {
@@ -5529,7 +5673,14 @@ function DiriPage({ session, onPoints }) {
         {habitSub === "bad" && (
         <>
         {/* judulnya udah kebaca dari tab, sisain tombol tambahnya doang */}
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
+        <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 12, marginTop: 4 }}>
+          <button
+            style={{ ...S.iconBtn, ...(showBad ? {} : { borderColor: "var(--janji-border)", color: "var(--janji-ink)" }) }}
+            title={showBad ? "Sembunyiin nama" : "Liat nama"}
+            onClick={toggleBad}
+          >
+            <Eye off={showBad} />
+          </button>
           <button
             style={S.promAddLink}
             onClick={() => setShowHabitForm((v) => (v === "bad" ? null : "bad"))}
@@ -5574,11 +5725,7 @@ function DiriPage({ session, onPoints }) {
                   <div style={{ fontFamily: MONO, fontSize: 9, color: "var(--faint)" }}>hari</div>
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <EditableText
-                    value={h.name}
-                    onSave={(v) => patchHabit(h.id, { name: v })}
-                    style={S.cardTitle}
-                  />
+                  {badName(h)}
                   {tm && (
                     <div style={{ ...S.dumpHint, marginBottom: 0, marginTop: 3 }}>
                       biasanya pas {tm} {moodEmoji(tm)}
@@ -5736,7 +5883,9 @@ function DiriPage({ session, onPoints }) {
                 return (
                   <div key={h.id} style={{ ...S.card, marginBottom: 14 }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 15, fontWeight: 600 }}>{h.name}</div>
+                      <div style={{ fontSize: 15, fontWeight: 600, ...(showBad ? {} : { letterSpacing: "0.15em", color: "var(--muted)" }) }}>
+                        {showBad ? h.name : "••••••"}
+                      </div>
                       <div style={{ ...S.dumpHint, marginBottom: 0, marginTop: 3 }}>
                         {days} hari bersih{next ? ` · ${next.label} lagi +${next.pts}` : " · maks 🎉"}
                       </div>
@@ -5936,6 +6085,11 @@ function HomePage({ session, go }) {
       showMoney: (() => {
         try { return localStorage.getItem("tugasku-show-total") === "1"; } catch { return false; }
       })(),
+      // Home ikut nutup nama bad habit — percuma ada mata di tab Diri kalau
+      // namanya tetep kecetak di halaman pertama
+      showBad: (() => {
+        try { return localStorage.getItem("tugasku-show-bad") === "1"; } catch { return false; }
+      })(),
 
       moodToday: moodDates.has(today),
       moodDates, touchDates, goodDates, slipDates,
@@ -6024,7 +6178,7 @@ function HomePage({ session, go }) {
     todayDone < todayChecks.length && { t: `${todayChecks.length - todayDone} check-in diri belum kelar hari ini.`, s: `${todayDone}/${todayChecks.length} selesai`, c: "var(--src-3)", p: "diri" },
     d.sisa > 0 && d.outMonth > d.sisa && { t: "Pengeluaran bulan ini udah lewat sisa bebas.", s: `${money(d.outMonth)} dari ${money(d.sisa)}`, c: "var(--red)", p: "duit" },
     d.jamKepake > 24 && { t: "Peta sehari lu kelebihan waktu.", s: `kepake ${d.jamKepake.toFixed(1)} dari 24 jam`, c: "var(--red)", p: "diri" },
-    d.bestStreak && d.bestStreak.days >= 3 && { t: `${d.bestStreak.name} udah ${d.bestStreak.days} hari bersih.`, s: "jangan diputus", c: "var(--green)", p: "diri" },
+    d.bestStreak && d.bestStreak.days >= 3 && { t: `${d.showBad ? d.bestStreak.name : "Streak terpanjang"} udah ${d.bestStreak.days} hari bersih.`, s: "jangan diputus", c: "var(--green)", p: "diri" },
   ].filter(Boolean).slice(0, 3);
 
   const Panel = ({ children, style }) => (
