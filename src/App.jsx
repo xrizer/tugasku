@@ -5941,6 +5941,8 @@ function HomePage({ session, go }) {
       moodDates, touchDates, goodDates, slipDates,
       hasBad: badIds.size > 0,
       hasGood: goodIds.size > 0,
+      habitToday: goodDates.has(today),
+      cleanToday: badIds.size > 0 && !slipDates.has(today),
 
       dreamTotal: drs.length,
       dreamToday: drs.filter((x) => touchedToday.has(x.id)).length,
@@ -5982,6 +5984,14 @@ function HomePage({ session, go }) {
     if (!error) load();
   };
 
+  const todayChecks = [
+    { key: "mood", label: "Mood", done: d.moodToday, detail: "check-in", color: "var(--janji-ink)", p: "diri" },
+    d.dreamTotal > 0 && { key: "mimpi", label: "Mimpi", done: d.dreamToday > 0, detail: `${d.dreamToday}/${d.dreamTotal} disentuh`, color: "var(--src-3)", p: "diri" },
+    d.hasGood && { key: "habit", label: "Habit", done: d.habitToday, detail: "good habit", color: "var(--green)", p: "diri" },
+    d.hasBad && { key: "bersih", label: "Bersih", done: d.cleanToday, detail: "tanpa slip", color: "var(--src-4)", p: "diri" },
+  ].filter(Boolean);
+  const todayDone = todayChecks.filter((item) => item.done).length;
+
   const nyangkut = [
     d.overdue.length && { t: `${d.overdue.length} janji telat`, v: d.overdue[0].text, tag: "MENDESAK", c: "var(--red)", p: "tugas" },
     d.unpaid && { t: `${d.unpaid} rutin belum dibayar`, v: money(d.unpaidAmount), tag: "MENDESAK", c: "var(--red)", p: "duit" },
@@ -5995,35 +6005,27 @@ function HomePage({ session, go }) {
   const upto = (day) => day <= d.today;
   // label sengaja pendek — kolomnya cuma 66px biar 7 kotak tetep muat di hp
   const rows = [
-    { key: "mood", color: "var(--janji-ink)", on: (day) => d.moodDates.has(day) },
-    d.dreamTotal > 0 && { key: "mimpi", color: "var(--src-3)", on: (day) => d.touchDates.has(day) },
-    d.hasGood && { key: "habit", color: "var(--green)", on: (day) => d.goodDates.has(day) },
+    { key: "mood", label: "Mood", color: "var(--janji-ink)", on: (day) => d.moodDates.has(day), p: "diri" },
+    d.dreamTotal > 0 && { key: "mimpi", label: "Mimpi", color: "var(--src-3)", on: (day) => d.touchDates.has(day), p: "diri" },
+    d.hasGood && { key: "habit", label: "Habit", color: "var(--green)", on: (day) => d.goodDates.has(day), p: "diri" },
     // "bersih" cuma masuk akal kalau emang ada bad habit yang dilacak
-    d.hasBad && { key: "bersih", color: "var(--src-4)", on: (day) => upto(day) && !d.slipDates.has(day) },
+    d.hasBad && { key: "bersih", label: "Bersih", color: "var(--src-4)", on: (day) => upto(day) && !d.slipDates.has(day), p: "diri" },
   ].filter(Boolean);
   const hits = (r) => d.week.filter((day) => upto(day) && r.on(day)).length;
   const DAYS = ["SEN", "SEL", "RAB", "KAM", "JUM", "SAB", "MIN"];
-  const kosong = rows.find((r) => hits(r) === 0);
+  const weekDone = rows.reduce((total, row) => total + hits(row), 0);
+  const weekPossible = rows.length * (d.todayIdx + 1);
 
-  // ---- insight: ambil yang paling nyolok, satu aja ----
-  const insight = (() => {
-    if (d.showMoney && d.unpaidAmount > 0 && d.outMonth > 0 && d.unpaidAmount > d.outMonth * 2)
-      return {
-        t: `Rutin yang belum dibayar ${(d.unpaidAmount / d.outMonth).toFixed(0)}x lebih gede dari semua pengeluaran bulan ini.`,
-        s: `${rupiah(d.unpaidAmount)} vs ${rupiah(d.outMonth)}`,
-      };
-    if (d.sisa > 0 && d.outMonth > d.sisa)
-      return { t: "Pengeluaran bulan ini udah lewat sisa bebas.", s: `${money(d.outMonth)} dari ${money(d.sisa)}` };
-    if (d.jamKepake > 24)
-      return { t: "Peta 24 jam lu kelebihan — totalnya lewat 24 jam.", s: `kepake ${d.jamKepake.toFixed(1)} jam` };
-    if (jamBebas <= 0)
-      return { t: "Gak ada jam bebas tersisa di peta harian lu.", s: `wajib ${d.jamWajib.toFixed(1)} jam` };
-    if (kosong)
-      return { t: `${kosong.key} satu-satunya yang masih kosong minggu ini.`, s: "0 dari 7 hari" };
-    if (d.bestStreak && d.bestStreak.days >= 3)
-      return { t: `${d.bestStreak.name} udah ${d.bestStreak.days} hari bersih.`, s: "jangan diputus" };
-    return null;
-  })();
+  // ---- insight: urutkan yang butuh keputusan dulu, jangan cuma satu sinyal ----
+  const insights = [
+    d.overdue.length > 0 && { t: `${d.overdue.length} janji udah lewat jatuh tempo.`, s: d.overdue[0].text, c: "var(--red)", p: "tugas" },
+    d.unpaid > 0 && { t: `${d.unpaid} biaya rutin belum dibayar.`, s: money(d.unpaidAmount), c: "var(--red)", p: "duit" },
+    d.dailyTotal > d.dailyDone && { t: `${d.dailyTotal - d.dailyDone} wajib harian masih tersisa.`, s: `${d.dailyDone}/${d.dailyTotal} selesai`, c: "var(--janji-ink)", p: "tugas" },
+    todayDone < todayChecks.length && { t: `${todayChecks.length - todayDone} check-in diri belum kelar hari ini.`, s: `${todayDone}/${todayChecks.length} selesai`, c: "var(--src-3)", p: "diri" },
+    d.sisa > 0 && d.outMonth > d.sisa && { t: "Pengeluaran bulan ini udah lewat sisa bebas.", s: `${money(d.outMonth)} dari ${money(d.sisa)}`, c: "var(--red)", p: "duit" },
+    d.jamKepake > 24 && { t: "Peta sehari lu kelebihan waktu.", s: `kepake ${d.jamKepake.toFixed(1)} dari 24 jam`, c: "var(--red)", p: "diri" },
+    d.bestStreak && d.bestStreak.days >= 3 && { t: `${d.bestStreak.name} udah ${d.bestStreak.days} hari bersih.`, s: "jangan diputus", c: "var(--green)", p: "diri" },
+  ].filter(Boolean).slice(0, 3);
 
   const Panel = ({ children, style }) => (
     <div
@@ -6095,6 +6097,38 @@ function HomePage({ session, go }) {
         </div>
       </Panel>
 
+      {/* ================= check-in hari ini ================= */}
+      <Panel style={{ padding: 18 }}>
+        <Label right={`${todayDone}/${todayChecks.length} selesai`}>Check-in hari ini</Label>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 8 }}>
+          {todayChecks.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => go(item.p)}
+              style={{
+                appearance: "none",
+                textAlign: "left",
+                cursor: "pointer",
+                border: `1px solid ${item.done ? item.color : "var(--border)"}`,
+                borderRadius: 12,
+                background: item.done ? "var(--card2)" : "transparent",
+                color: "var(--ink)",
+                padding: "11px 12px",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                <span style={{ fontSize: 14, fontWeight: 700 }}>{item.label}</span>
+                <span style={{ color: item.done ? item.color : "var(--faint)", fontFamily: MONO, fontSize: 14 }}>
+                  {item.done ? "✓" : "○"}
+                </span>
+              </div>
+              <div style={{ fontFamily: MONO, fontSize: 10, color: "var(--muted)", marginTop: 5 }}>{item.detail}</div>
+            </button>
+          ))}
+        </div>
+      </Panel>
+
       {/* ================= butuh diurus ================= */}
       {nyangkut.length > 0 ? (
         <div>
@@ -6137,7 +6171,11 @@ function HomePage({ session, go }) {
 
       {/* ================= minggu ini ================= */}
       <Panel>
-        <Label right={`${d.todayIdx + 1} hari jalan`}>Minggu ini</Label>
+        <Label right={`${weekDone}/${weekPossible} tercatat`}>Minggu ini</Label>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginTop: -6, marginBottom: 14 }}>
+          <span style={{ fontSize: 12, color: "var(--muted)" }}>Warna berarti tercatat. Ketuk baris untuk lanjut.</span>
+          <span style={{ fontFamily: MONO, fontSize: 10, color: "var(--faint)", whiteSpace: "nowrap" }}>{d.todayIdx + 1} hari jalan</span>
+        </div>
         <div style={{ display: "grid", gridTemplateColumns: "66px repeat(7, minmax(0, 1fr))", gap: 5, alignItems: "center" }}>
           <div />
           {DAYS.map((n, i) => (
@@ -6156,25 +6194,53 @@ function HomePage({ session, go }) {
           ))}
           {rows.map((r) => (
             <React.Fragment key={r.key}>
-              <div style={{ fontFamily: MONO, fontSize: 10, color: "var(--muted2)", whiteSpace: "nowrap" }}>
-                {r.key} <b style={{ color: "var(--ink)" }}>{hits(r)}</b>/7
-              </div>
+              <button
+                type="button"
+                title={`Buka ${r.label}`}
+                onClick={() => go(r.p)}
+                style={{
+                  appearance: "none",
+                  border: 0,
+                  padding: 0,
+                  background: "transparent",
+                  cursor: "pointer",
+                  textAlign: "left",
+                  fontFamily: MONO,
+                  fontSize: 10,
+                  color: "var(--muted2)",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {r.label} <b style={{ color: r.color }}>{hits(r)}</b>/{d.todayIdx + 1}
+              </button>
               {d.week.map((day, i) => {
                 const future = day > d.today;
                 const on = !future && r.on(day);
                 return (
-                  <div
+                  <button
+                    type="button"
                     key={day}
-                    title={day}
+                    title={`${r.label} · ${day} · ${future ? "belum berlangsung" : on ? "tercatat" : "belum tercatat"}`}
+                    aria-label={`${r.label} pada ${day}: ${future ? "belum berlangsung" : on ? "tercatat" : "belum tercatat"}`}
+                    onClick={() => go(r.p)}
                     style={{
+                      appearance: "none",
+                      cursor: "pointer",
                       height: 24,
                       borderRadius: 7,
                       background: on ? r.color : future ? "transparent" : "var(--badge)",
                       border: `1px solid ${on ? r.color : "var(--border)"}`,
                       opacity: future ? 0.4 : 1,
                       boxShadow: i === d.todayIdx ? "inset 0 0 0 1px var(--accent)" : "none",
+                      color: "var(--on-accent)",
+                      fontFamily: MONO,
+                      fontSize: 11,
+                      fontWeight: 700,
+                      padding: 0,
                     }}
-                  />
+                  >
+                    {on ? "✓" : ""}
+                  </button>
                 );
               })}
             </React.Fragment>
@@ -6296,11 +6362,33 @@ function HomePage({ session, go }) {
 
       {/* ================= insight + langkah ================= */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12 }}>
-        {insight && (
+        {insights.length > 0 && (
           <Panel style={{ background: "linear-gradient(135deg, var(--green-bg), var(--card))", borderColor: "var(--green-border)" }}>
-            <Label>Insight</Label>
-            <div style={{ fontSize: 17, fontWeight: 600, lineHeight: 1.35 }}>{insight.t}</div>
-            <div style={{ ...S.dumpHint, marginBottom: 0, marginTop: 8 }}>{insight.s}</div>
+            <Label right={`${insights.length} sinyal`}>Yang perlu dilihat</Label>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {insights.map((item) => (
+                <button
+                  key={item.t}
+                  type="button"
+                  onClick={() => go(item.p)}
+                  style={{
+                    appearance: "none",
+                    width: "100%",
+                    textAlign: "left",
+                    cursor: "pointer",
+                    background: "var(--card2)",
+                    border: "1px solid var(--border)",
+                    borderLeft: `3px solid ${item.c}`,
+                    borderRadius: 10,
+                    color: "var(--ink)",
+                    padding: "10px 12px",
+                  }}
+                >
+                  <div style={{ fontSize: 14, fontWeight: 700, lineHeight: 1.3 }}>{item.t}</div>
+                  <div style={{ fontFamily: MONO, fontSize: 10, color: "var(--muted)", marginTop: 5 }}>{item.s} · buka ›</div>
+                </button>
+              ))}
+            </div>
           </Panel>
         )}
         {d.nextStep && (
