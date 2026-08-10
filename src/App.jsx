@@ -6458,45 +6458,37 @@ function HomePage({ session, go }) {
       {d.jamKepake > 0 && (
         <Panel>
           <Label right="24 jam">Sehari</Label>
-          <div style={{ display: "flex", height: 32, borderRadius: 11, overflow: "hidden", border: "1px solid var(--border)" }}>
-            <div
-              style={{
-                flex: Math.max(d.jamKepake, 0.01),
-                background: "var(--accent)",
-                color: "var(--on-accent)",
-                display: "flex",
-                alignItems: "center",
-                paddingLeft: 12,
-                fontFamily: MONO,
-                fontSize: 11,
-                fontWeight: 700,
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-              }}
-            >
-              kepake {d.jamKepake.toFixed(1)} jam
-            </div>
+          {/* keterangannya ditaro di bawah, bukan di dalem batangnya — jam
+              bebas yang tinggal seiprit bikin potongannya terlalu sempit
+              buat nampung teksnya, dan di hp itu kepotong terus */}
+          <div style={{ display: "flex", height: 26, borderRadius: 9, overflow: "hidden", border: "1px solid var(--border)" }}>
+            <div style={{ flex: Math.max(d.jamKepake, 0.01), minWidth: 0, background: "var(--accent)" }} />
             {jamBebas > 0 && (
               <div
                 style={{
                   flex: jamBebas,
+                  minWidth: 0,
                   background:
                     "repeating-linear-gradient(45deg, transparent, transparent 5px, var(--border) 5px, var(--border) 10px)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "flex-end",
-                  paddingRight: 12,
-                  fontFamily: MONO,
-                  fontSize: 11,
-                  fontWeight: 700,
-                  color: "var(--green)",
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
                 }}
-              >
-                {jamBebas.toFixed(1)} jam bebas
-              </div>
+              />
             )}
+          </div>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 10,
+              fontFamily: MONO,
+              fontSize: 11,
+              fontWeight: 700,
+              marginTop: 8,
+            }}
+          >
+            <span style={{ color: "var(--accent)" }}>kepake {d.jamKepake.toFixed(1)} jam</span>
+            <span style={{ color: jamBebas > 0 ? "var(--green)" : "var(--red)" }}>
+              {jamBebas.toFixed(1)} jam bebas
+            </span>
           </div>
           <div style={{ display: "flex", gap: 3, marginTop: 10 }}>
             {[...Array(24)].map((_, i) => (
