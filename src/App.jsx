@@ -6900,7 +6900,330 @@ function PublicView({ userId, themeVars }) {
   );
 }
 
+function Landing({ onMasuk }) {
+  const Chip = ({ children }) => (
+    <span
+      style={{
+        fontFamily: MONO,
+        fontSize: 10,
+        letterSpacing: "0.1em",
+        textTransform: "uppercase",
+        color: "var(--muted)",
+        border: "1px solid var(--border)",
+        borderRadius: 999,
+        padding: "5px 10px",
+        whiteSpace: "nowrap",
+      }}
+    >
+      {children}
+    </span>
+  );
+
+  const Eyebrow = ({ children }) => (
+    <div
+      style={{
+        fontFamily: MONO,
+        fontSize: 11,
+        letterSpacing: "0.2em",
+        textTransform: "uppercase",
+        color: "var(--muted)",
+        marginBottom: 14,
+      }}
+    >
+      {children}
+    </div>
+  );
+
+  const Card = ({ children, style }) => (
+    <div
+      style={{
+        background: "var(--card)",
+        border: "1px solid var(--border)",
+        borderRadius: 18,
+        padding: 22,
+        ...style,
+      }}
+    >
+      {children}
+    </div>
+  );
+
+  const TABS = [
+    {
+      icon: "🏠",
+      name: "Home",
+      lead: "Satu layar buat tau lu lagi gimana.",
+      items: [
+        "Fokus sekarang + timer 25 menit yang tetep jalan walau pindah tab",
+        "Butuh diurus — semua yang nyangkut dari tab mana pun, dikumpulin jadi satu",
+        "Minggu ini — grid mood, mimpi, habit, hari bersih per hari",
+        "Bulan ini — kepakai vs sisa bebas, plus rutin yang belum dibayar",
+        "Insight otomatis dari angka lu sendiri",
+      ],
+    },
+    {
+      icon: "✅",
+      name: "Tugas",
+      lead: "Papan tugas, janji ke orang, sama tempat buang resah.",
+      items: [
+        "Todo → in progress → kelar, plus tugas harian yang reset tiap hari",
+        "Janji: siapa, apa, kapan — yang telat ditandain merah",
+        "Resah: tulis yang bikin kepikiran, gak usah rapi",
+        "Tandain publik per tugas buat dibagi lewat link",
+      ],
+    },
+    {
+      icon: "📦",
+      name: "Barang",
+      lead: "Bukan cuma barangnya di mana, tapi barangnya gimana.",
+      items: [
+        "Cari cepet: nama atau lokasi",
+        "Status: ada · dipinjem · rusak · diservis · ilang",
+        "Kondisi: oke · aus · parah, plus catatan harus diapain",
+        "Sub-tab Diurus & Nganggur — yang butuh perhatian nongol sendiri",
+      ],
+    },
+    {
+      icon: "💸",
+      name: "Duit",
+      lead: "Enam bagian yang saling nyambung, bukan enam aplikasi.",
+      items: [
+        "Catet: keypad gede, keluar / masuk / pindah antar sumber",
+        "Struk, Log per tanggal, sama Kalender warna per pengeluaran",
+        "Rutin: tagihan & pemasukan bulanan, sekali tap langsung kecatet",
+        "Rencana: sanggup gak beli ini? diukur dari sisa bebas & saldo asli",
+        "Utang & piutang, patungan grup, sama aset + riwayat kekayaan",
+      ],
+    },
+    {
+      icon: "🧠",
+      name: "Diri",
+      lead: "Bagian yang jarang ada di app duit.",
+      items: [
+        "Mood: 14 rasa, strip 7 hari, plus AI yang bacain polanya",
+        "Mimpi: langkah kecil berikutnya, dilacak per minggu",
+        "Habit: bad & good, poin naik makin lama makin gede",
+        "Energi: apa yang bikin cape + solusi sementara & jangka panjang",
+        "Waktu: peta 24 jam sama jam analog yang bisa ditarik pakai jari",
+      ],
+    },
+  ];
+
+  const LINKS = [
+    ["Rutin → Catet", "Tap Bayar, langsung jadi pengeluaran hari ini."],
+    ["Catet → Aset", "Saldo tau berapa yang udah kepake sejak terakhir diisi."],
+    ["Rencana ↔ Aset", "Beli cash dicek ke saldo asli, bukan cuma gaji bulanan."],
+    ["Grup → Catet", "Patungan ikut masuk buku lu sendiri."],
+    ["Utang → Catet", "Lunas otomatis kecatet: piutang masuk, utang keluar."],
+    ["Diri → Tugas", "Langkah mimpi bisa dijadwalin jadi tugas beneran."],
+  ];
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 44, paddingBottom: 60 }}>
+      {/* ================= hero ================= */}
+      <div style={{ paddingTop: 28 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+          <span className="lh-pulse" style={{ width: 8, height: 8, borderRadius: 999, background: "var(--accent)" }} />
+          <span style={{ fontFamily: MONO, fontSize: 11, letterSpacing: "0.2em", color: "var(--accent)" }}>
+            LIFEHACK
+          </span>
+        </div>
+        <h1 style={{ fontSize: 40, fontWeight: 700, letterSpacing: "-0.03em", lineHeight: 1.05, margin: 0 }}>
+          Hidup lu ada di
+          <br />
+          lima tab.
+        </h1>
+        <p style={{ fontSize: 17, lineHeight: 1.5, color: "var(--muted2)", marginTop: 16, maxWidth: 460 }}>
+          Tugas, barang, duit, sama kondisi diri — dicatet di satu tempat yang saling
+          ngomong. Bukan lima aplikasi yang masing-masing cuma tau sepotong.
+        </p>
+        <div style={{ display: "flex", gap: 10, marginTop: 24, flexWrap: "wrap" }}>
+          <button style={{ ...S.focusBtn, width: "auto", padding: "14px 26px" }} onClick={onMasuk}>
+            Masuk →
+          </button>
+          <a
+            href="#fitur"
+            style={{ ...S.btnGhost, padding: "14px 20px", fontSize: 15, textDecoration: "none", display: "inline-block" }}
+          >
+            Lihat fiturnya
+          </a>
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 22 }}>
+          <Chip>gelap &amp; terang</Chip>
+          <Chip>semua bisa diketuk-edit</Chip>
+          <Chip>link publik</Chip>
+          <Chip>bahasa manusia</Chip>
+        </div>
+      </div>
+
+      {/* ================= cuplikan ================= */}
+      <Card style={{ background: "linear-gradient(135deg, var(--accent-bg) 0%, var(--card) 70%)", borderColor: "var(--accent-border)" }}>
+        <Eyebrow>Sekali buka, langsung kebaca</Eyebrow>
+        <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.02em", lineHeight: 1.25 }}>
+          benerin deskripsi linkedin
+        </div>
+        <div style={{ ...S.dumpHint, marginBottom: 0, marginTop: 6 }}>wajib harian 2/5 · 3 di antrian</div>
+        <div style={{ display: "flex", gap: 6, marginTop: 18, flexWrap: "wrap" }}>
+          {[
+            ["2 rutin belum dibayar", "var(--red)"],
+            ["4 barang perlu diurus", "var(--janji-ink)"],
+            ["belum check-in mood", "var(--src-3)"],
+          ].map(([t, c]) => (
+            <span
+              key={t}
+              style={{
+                fontFamily: MONO,
+                fontSize: 10,
+                letterSpacing: "0.08em",
+                color: c,
+                border: `1px solid ${c}`,
+                borderRadius: 999,
+                padding: "5px 10px",
+              }}
+            >
+              {t}
+            </span>
+          ))}
+        </div>
+        <div style={{ display: "flex", height: 10, borderRadius: 999, overflow: "hidden", background: "var(--badge)", marginTop: 20 }}>
+          <div style={{ width: "18%", background: "var(--green)" }} />
+          <div
+            style={{
+              width: "24%",
+              background:
+                "repeating-linear-gradient(45deg, var(--janji-ink), var(--janji-ink) 4px, var(--janji-border) 4px, var(--janji-border) 8px)",
+            }}
+          />
+        </div>
+        <div style={{ ...S.dumpHint, marginBottom: 0, marginTop: 8 }}>
+          kepakai bulan ini · rutin yang belum dibayar
+        </div>
+      </Card>
+
+      {/* ================= fitur per tab ================= */}
+      <div id="fitur">
+        <Eyebrow>Lima tab, isinya lengkap</Eyebrow>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 12 }}>
+          {TABS.map((t) => (
+            <Card key={t.name}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 20 }}>{t.icon}</span>
+                <span style={{ fontSize: 19, fontWeight: 700, letterSpacing: "-0.01em" }}>{t.name}</span>
+              </div>
+              <div style={{ fontSize: 14, color: "var(--muted2)", marginTop: 8, lineHeight: 1.45 }}>{t.lead}</div>
+              <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 9 }}>
+                {t.items.map((it) => (
+                  <div key={it} style={{ display: "flex", gap: 9, alignItems: "flex-start" }}>
+                    <span style={{ color: "var(--accent)", fontSize: 13, lineHeight: 1.5, flexShrink: 0 }}>▸</span>
+                    <span style={{ fontSize: 14, lineHeight: 1.5 }}>{it}</span>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          ))}
+        </div>
+      </div>
+
+      {/* ================= yang bikin beda ================= */}
+      <div>
+        <Eyebrow>Yang bikin beda</Eyebrow>
+        <h2 style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.02em", lineHeight: 1.25, margin: 0 }}>
+          Tabnya saling ngomong.
+        </h2>
+        <p style={{ fontSize: 15, color: "var(--muted2)", lineHeight: 1.5, marginTop: 10, maxWidth: 460 }}>
+          Kebanyakan app nyimpen data di kotak masing-masing. Di sini satu ketukan
+          di satu tab kerasa di tab lain.
+        </p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 10, marginTop: 18 }}>
+          {LINKS.map(([a, b]) => (
+            <Card key={a} style={{ padding: 16 }}>
+              <div style={{ fontFamily: MONO, fontSize: 12, fontWeight: 700, color: "var(--accent)" }}>{a}</div>
+              <div style={{ fontSize: 14, color: "var(--muted2)", marginTop: 6, lineHeight: 1.45 }}>{b}</div>
+            </Card>
+          ))}
+        </div>
+      </div>
+
+      {/* ================= poin ================= */}
+      <Card style={{ background: "linear-gradient(135deg, var(--green-bg), var(--card))", borderColor: "var(--green-border)" }}>
+        <Eyebrow>Kebiasaan dapet poin</Eyebrow>
+        <div style={{ fontSize: 20, fontWeight: 700, lineHeight: 1.3 }}>
+          Makin lama bertahan, makin gede hadiahnya.
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 16 }}>
+          {[
+            ["3 hari", "+3"],
+            ["1 minggu", "+10"],
+            ["1 bulan", "+60"],
+            ["3 bulan", "+250"],
+            ["1 tahun", "+1500"],
+          ].map(([d, p]) => (
+            <span
+              key={d}
+              style={{
+                fontFamily: MONO,
+                fontSize: 11,
+                border: "1px solid var(--border)",
+                borderRadius: 999,
+                padding: "6px 11px",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {d} <b style={{ color: "var(--janji-ink)" }}>{p}</b>
+            </span>
+          ))}
+        </div>
+        <div style={{ ...S.dumpHint, marginBottom: 0, marginTop: 14, lineHeight: 1.5 }}>
+          Good habit dapet poin tiap hari dikerjain. Bad habit dapet poin dari
+          lamanya bersih — sekali kejadian, hitungannya mulai lagi.
+        </div>
+      </Card>
+
+      {/* ================= privasi ================= */}
+      <div>
+        <Eyebrow>Privasi</Eyebrow>
+        <h2 style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.02em", lineHeight: 1.25, margin: 0 }}>
+          Lu yang nentuin apa yang keliatan.
+        </h2>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 10, marginTop: 18 }}>
+          {[
+            ["Tombol mata di mana-mana", "Total duit, saldo per bank, sama nama bad habit bisa ditutup — dan pas ditutup, gak bisa keketuk kebuka gak sengaja."],
+            ["Link publik itu pilihan", "Default-nya gak ada yang kebagi. Lu tandain sendiri tugas mana, peta 24 jam, atau strip mood yang boleh keliatan."],
+            ["Cuma 7 hari yang kebagi", "Walau strip mood dinyalain, yang kebaca dari luar tetep cuma seminggu terakhir. Riwayat setahun gak ikut kebuka."],
+            ["Daftar pakai undangan", "Bukan app rame-rame. Butuh kode buat bikin akun."],
+          ].map(([t, b]) => (
+            <Card key={t} style={{ padding: 16 }}>
+              <div style={{ fontSize: 15, fontWeight: 700 }}>{t}</div>
+              <div style={{ fontSize: 14, color: "var(--muted2)", marginTop: 6, lineHeight: 1.45 }}>{b}</div>
+            </Card>
+          ))}
+        </div>
+      </div>
+
+      {/* ================= penutup ================= */}
+      <Card style={{ textAlign: "center", padding: 30 }}>
+        <div style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.02em", lineHeight: 1.3 }}>
+          Mulai dari satu hal yang hari ini nyangkut.
+        </div>
+        <div style={{ ...S.dumpHint, marginBottom: 0, marginTop: 10 }}>
+          Butuh kode undangan buat bikin akun baru.
+        </div>
+        <button style={{ ...S.focusBtn, width: "auto", padding: "14px 28px", marginTop: 20 }} onClick={onMasuk}>
+          Masuk →
+        </button>
+      </Card>
+
+      <div style={{ ...S.dumpHint, marginBottom: 0, textAlign: "center" }}>LifeHack · by afifi</div>
+    </div>
+  );
+}
+
 function Login({ themeVars }) {
+  // yang udah pernah masuk langsung ketemu form — landing page cuma buat
+  // yang baru pertama nyampe sini
+  const [showForm, setShowForm] = useState(() => {
+    try { return localStorage.getItem("tugasku-pernah-masuk") === "1"; } catch { return false; }
+  });
   const [mode, setMode] = useState("login");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -6948,7 +7271,20 @@ function Login({ themeVars }) {
     });
     setBusy(false);
     if (error) setErr("Username atau password salah.");
+    else {
+      try { localStorage.setItem("tugasku-pernah-masuk", "1"); } catch {}
+    }
   };
+
+  if (!showForm)
+    return (
+      <div style={{ ...S.page, ...themeVars }}>
+        <style>{FIRE_CSS}</style>
+        <div className="lh-wrap">
+          <Landing onMasuk={() => setShowForm(true)} />
+        </div>
+      </div>
+    );
 
   return (
     <div
@@ -6961,6 +7297,12 @@ function Login({ themeVars }) {
       }}
     >
       <div style={{ width: "100%", maxWidth: 340, padding: 16 }}>
+        <button
+          style={{ ...S.promAddLink, marginBottom: 14 }}
+          onClick={() => setShowForm(false)}
+        >
+          ‹ balik
+        </button>
         <div style={S.eyebrow}>{mode === "register" ? "Bikin akun baru" : "Masuk dulu"}</div>
         <h1 style={{ ...S.h1, marginBottom: 4 }}>LifeHack</h1>
         <div style={{ fontSize: 12, color: "var(--faint)", marginBottom: 14 }}>by afifi</div>
