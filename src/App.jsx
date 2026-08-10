@@ -1315,8 +1315,8 @@ const COND_META = {
   parah: { label: "parah", dot: "var(--red)",       color: "var(--red)" },
 };
 
-// berapa lama barangnya gak kesentuh
-const NGANGGUR_DAYS = 60;
+// barang dianggap nganggur setelah seminggu gak dipake
+const NGANGGUR_DAYS = 7;
 const daysSince = (d) =>
   d == null ? null : Math.floor((Date.now() - new Date(d + "T00:00:00")) / 86400000);
 const sinceLabel = (d) => {
