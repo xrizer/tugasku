@@ -2806,7 +2806,7 @@ function AsetView({ session, sources }) {
     since.setDate(since.getDate() - 180);
     supabase
       .from("expenses")
-      .select("amount,kind,source,spent_date")
+      .select("amount,kind,source,to_source,spent_date")
       .eq("user_id", session.user.id)
       .gte("spent_date", since.toISOString().slice(0, 10))
       .then(({ data, error }) => setMoves(error ? [] : data || []));
@@ -2833,8 +2833,15 @@ function AsetView({ session, sources }) {
     if (!b) return 0;
     const since = String(b.updated_at).slice(0, 10);
     return moves
-      .filter((m) => m.source === source && m.spent_date > since)
-      .reduce((t, m) => t + ((m.kind || "out") === "in" ? 1 : -1) * Number(m.amount), 0);
+      .filter((m) => m.spent_date > since && (m.source === source || m.to_source === source))
+      .reduce((t, m) => {
+        const k = m.kind || "out";
+        // pindah dana ngurangin asalnya dan nambahin tujuannya — bukan
+        // pengeluaran, tapi tetep geser saldo dua-duanya
+        if (k === "pindah") return t + (m.to_source === source ? 1 : -1) * Number(m.amount);
+        if (m.source !== source) return t;
+        return t + (k === "in" ? 1 : -1) * Number(m.amount);
+      }, 0);
   };
 
   const addAsset = async () => {
@@ -3238,7 +3245,8 @@ function AsetView({ session, sources }) {
 function DuitPage({ session }) {
   const [rows, setRows] = useState(null);
   const [amount, setAmount] = useState("");
-  const [kind, setKind] = useState("out");
+  const [kind, setKind] = useState("out"); // out | in | pindah
+  const [toSource, setToSource] = useState(null);
   const [spentDate, setSpentDate] = useState(localToday());
   const [addedMsg, setAddedMsg] = useState("");
   const [sources, setSources] = useState(DEFAULT_SOURCES);
@@ -3348,10 +3356,20 @@ function DuitPage({ session }) {
       toast("Isi nominalnya dulu ya 😉");
       return;
     }
+    // pindah dana: duitnya cuma geser antar sumber, jadi bukan keluar dan
+    // bukan masuk. kind-nya sendiri biar gak keitung di total harian/bulanan.
+    const dest = toSource || sources.find((x) => x !== source);
+    if (kind === "pindah") {
+      if (!dest || dest === source) {
+        toast("Pilih tujuan yang beda dulu.");
+        return;
+      }
+    }
     const row = {
       amount: amt,
       kind,
       source,
+      to_source: kind === "pindah" ? dest : null,
       note: note.trim() || null,
       spent_date: spentDate || localToday(),
     };
@@ -3359,7 +3377,13 @@ function DuitPage({ session }) {
     setNote("");
     setKind("out");
     setTotalKey((k) => k + 1);
-    toast(kind === "out" ? `✓ Kecatet! ${rupiah(amt)}` : `✓ Masuk ${rupiah(amt)} 🎉`);
+    toast(
+      kind === "out"
+        ? `✓ Kecatet! ${rupiah(amt)}`
+        : kind === "in"
+        ? `✓ Masuk ${rupiah(amt)} 🎉`
+        : `✓ ${rupiah(amt)} pindah ke ${dest}`
+    );
     // tanggal gak di-reset — biar bisa nyatet beberapa entry di hari yang sama
     const { data, error } = await supabase
       .from("expenses")
@@ -3409,6 +3433,9 @@ function DuitPage({ session }) {
       month: "short",
     });
   };
+
+  // tujuan pindah: kalau belum dipilih, ambil sumber pertama yang bukan asal
+  const dest = toSource && toSource !== source ? toSource : sources.find((x) => x !== source) || null;
 
   const viewDate = spentDate || today;
   const isToday = viewDate === today;
@@ -3526,7 +3553,7 @@ function DuitPage({ session }) {
           </button>
         )}
         <div style={{ display: "flex", gap: 6, background: "var(--badge)", borderRadius: 12, padding: 4 }}>
-          {[["out", "− Keluar"], ["in", "+ Masuk"]].map(([k, label]) => (
+          {[["out", "− Keluar"], ["in", "+ Masuk"], ["pindah", "⇄ Pindah"]].map(([k, label]) => (
             <button key={k} style={segBtn(kind === k, k === "in")} onClick={() => setKind(k)}>
               {label}
             </button>
@@ -3557,10 +3584,18 @@ function DuitPage({ session }) {
           />
           <div style={{ fontFamily: MONO, fontSize: 11, color: "var(--faint)", marginTop: 2 }}>
             {amountNum ? (
-              <>
-                {kind === "out" ? "keluar" : "masuk"} ·{" "}
-                <span style={{ color: srcVar(source, sources), fontWeight: 700 }}>{source}</span>
-              </>
+              kind === "pindah" ? (
+                <>
+                  <span style={{ color: srcVar(source, sources), fontWeight: 700 }}>{source}</span>
+                  {" → "}
+                  <span style={{ color: srcVar(dest, sources), fontWeight: 700 }}>{dest || "—"}</span>
+                </>
+              ) : (
+                <>
+                  {kind === "out" ? "keluar" : "masuk"} ·{" "}
+                  <span style={{ color: srcVar(source, sources), fontWeight: 700 }}>{source}</span>
+                </>
+              )
             ) : (
               "ketik atau pencet angkanya 👇"
             )}
@@ -3568,7 +3603,7 @@ function DuitPage({ session }) {
         </div>
 
         {!editSrc ? (
-          <div style={{ display: "flex", gap: 6 }}>
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
             <select
               style={{
                 ...S.input,
@@ -3586,6 +3621,28 @@ function DuitPage({ session }) {
                 <option key={s} value={s}>{s}</option>
               ))}
             </select>
+            {kind === "pindah" && (
+              <>
+                <span style={{ color: "var(--faint)", fontSize: 15, flexShrink: 0 }}>→</span>
+                <select
+                  style={{
+                    ...S.input,
+                    flex: 1,
+                    minWidth: 0,
+                    textTransform: "uppercase",
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: srcVar(dest, sources),
+                  }}
+                  value={dest || ""}
+                  onChange={(e) => setToSource(e.target.value)}
+                >
+                  {sources.filter((x) => x !== source).map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </>
+            )}
             <button
               style={{ ...S.btnGhost, padding: "7px 10px" }}
               title="Edit daftar sumber"
@@ -3631,7 +3688,7 @@ function DuitPage({ session }) {
         </div>
 
         <button className="submit-key" style={submitBtn(amountNum > 0)} onClick={add}>
-          {kind === "out" ? "Catet keluar" : "Catet masuk"}
+          {kind === "out" ? "Catet keluar" : kind === "in" ? "Catet masuk" : "Pindahin"}
         </button>
       </div>
 
@@ -3971,7 +4028,9 @@ function DuitPage({ session }) {
               </div>
 
               {list.map((r) => {
-                const masuk = (r.kind || "out") === "in";
+                const k = r.kind || "out";
+                const masuk = k === "in";
+                const pindah = k === "pindah";
                 return (
                   <div
                     key={r.id}
@@ -3988,7 +4047,7 @@ function DuitPage({ session }) {
                       }}
                     />
                     <span style={{ fontSize: 15, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {r.note || (masuk ? "masuk" : "keluar")}
+                      {r.note || (pindah ? "pindah dana" : masuk ? "masuk" : "keluar")}
                     </span>
                     <span
                       style={{
@@ -3996,11 +4055,16 @@ function DuitPage({ session }) {
                         fontSize: 10,
                         letterSpacing: "0.08em",
                         textTransform: "uppercase",
-                        color: srcVar(r.source, sources),
                         flexShrink: 0,
                       }}
                     >
-                      {r.source}
+                      <span style={{ color: srcVar(r.source, sources) }}>{r.source}</span>
+                      {pindah && (
+                        <>
+                          <span style={{ color: "var(--faint)" }}> → </span>
+                          <span style={{ color: srcVar(r.to_source, sources) }}>{r.to_source}</span>
+                        </>
+                      )}
                     </span>
                     <span style={{ flex: 1 }} />
                     <span
@@ -4010,7 +4074,7 @@ function DuitPage({ session }) {
                         fontWeight: 700,
                         whiteSpace: "nowrap",
                         flexShrink: 0,
-                        ...(masuk ? { color: "var(--green)" } : {}),
+                        ...(masuk ? { color: "var(--green)" } : pindah ? { color: "var(--muted)" } : {}),
                       }}
                     >
                       {showTotal ? `${masuk ? "+" : ""}${rupiah(Number(r.amount))}` : "••••"}

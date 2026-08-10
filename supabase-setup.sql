@@ -69,6 +69,17 @@ create policy "public read recent moods" on public.moods
   for select using (is_public = true and date >= current_date - 6);
 
 -- ---------------------------------------------------------------------
+-- Pindah dana antar sumber (misal danamon -> cash).
+--
+-- Dicatet di tabel expenses juga, tapi kind-nya 'pindah' — bukan 'out' dan
+-- bukan 'in'. Semua hitungan keluar/masuk nyaring pakai kind, jadi pindah
+-- dana otomatis gak keitung sebagai pengeluaran maupun pemasukan. Yang
+-- kegeser cuma saldo di tab Aset: berkurang di `source`, nambah di
+-- `to_source`.
+alter table public.expenses
+  add column if not exists to_source text;
+
+-- ---------------------------------------------------------------------
 -- Riwayat total aset per bulan, buat grafik batang di tab Aset.
 --
 -- Baris ditulis pas halaman Aset dibuka, satu per bulan. Artinya grafiknya
