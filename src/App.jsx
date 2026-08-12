@@ -1462,9 +1462,12 @@ function BarangPage({ session }) {
 
   if (items === null) return <div style={S.empty}>Memuat…</div>;
 
-  // butuh diurus = kondisinya udah gak oke, atau posisinya lagi gak beres
+  // Butuh diurus = kondisinya udah gak oke, atau posisinya lagi gak beres.
+  // Yang ilang gak masuk sini — udah punya tabnya sendiri, dan gak ada yang
+  // bisa diurus dari barang yang barangnya aja gak ada.
+  const isLost = (x) => (x.status || "ada") === "ilang";
   const needsCare = (x) =>
-    (x.condition || "oke") !== "oke" || (x.status || "ada") !== "ada";
+    !isLost(x) && ((x.condition || "oke") !== "oke" || (x.status || "ada") !== "ada");
   // nganggur = lama gak dipake (yang belum pernah dicatet gak diitung nuduh)
   const idle = (x) => {
     const n = daysSince(x.last_used);
@@ -1479,7 +1482,7 @@ function BarangPage({ session }) {
 
   const care = items.filter(needsCare);
   const nganggur = items.filter(idle);
-  const lost = items.filter((x) => (x.status || "ada") === "ilang");
+  const lost = items.filter(isLost);
   const base =
     sub === "urus" ? care : sub === "nganggur" ? nganggur : sub === "ilang" ? lost : items;
   const shown = base.filter(matchQ);
@@ -1582,8 +1585,9 @@ function BarangPage({ session }) {
           const cond = it.condition || "oke";
           const cm = COND_META[cond];
           // barisnya cuma nongol kalau emang ada yang mesti diapain — biar
-          // daftar barang yang sehat gak keisi 17 placeholder kosong
-          const showCare = needsCare(it) || idle(it) || !!it.care_note;
+          // daftar barang yang sehat gak keisi 17 placeholder kosong. Yang
+          // ilang tetep dikasih: catatan "lapor ke siapa" masih kepake.
+          const showCare = needsCare(it) || isLost(it) || idle(it) || !!it.care_note;
           return (
             <div key={it.id} style={{ ...S.card, display: "block", marginBottom: 18 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -6277,7 +6281,13 @@ function HomePage({ session, go }) {
 
       jamWajib: bl.filter((b) => b.wajib).reduce((s, b) => s + Number(b.hours), 0),
       jamKepake: bl.reduce((s, b) => s + Number(b.hours), 0),
-      careItems: it.filter((x) => (x.condition || "oke") !== "oke" || (x.status || "ada") !== "ada").length,
+      // aturannya harus sama persis kayak tab Diurus di Barang — kalau beda,
+      // Home bilang 4 tapi tabnya nunjukin 2
+      careItems: it.filter(
+        (x) =>
+          (x.status || "ada") !== "ilang" &&
+          ((x.condition || "oke") !== "oke" || (x.status || "ada") !== "ada")
+      ).length,
     });
   };
 
