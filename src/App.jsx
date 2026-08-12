@@ -1479,10 +1479,13 @@ function BarangPage({ session }) {
 
   const care = items.filter(needsCare);
   const nganggur = items.filter(idle);
-  const base = sub === "urus" ? care : sub === "nganggur" ? nganggur : items;
+  const lost = items.filter((x) => (x.status || "ada") === "ilang");
+  const base =
+    sub === "urus" ? care : sub === "nganggur" ? nganggur : sub === "ilang" ? lost : items;
   const shown = base.filter(matchQ);
 
   const total = items.reduce((s, x) => s + (x.price || 0), 0);
+  const lostTotal = lost.reduce((s, x) => s + (x.price || 0), 0);
 
   return (
     <>
@@ -1506,6 +1509,7 @@ function BarangPage({ session }) {
           ["semua", "Semua"],
           ["urus", care.length ? `Diurus ${care.length}` : "Diurus"],
           ["nganggur", nganggur.length ? `Nganggur ${nganggur.length}` : "Nganggur"],
+          ["ilang", lost.length ? `Ilang ${lost.length}` : "Ilang"],
         ]}
         value={sub}
         onChange={setSub}
@@ -1513,8 +1517,19 @@ function BarangPage({ session }) {
       />
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12 }}>
+        {/* pas lagi di tab Ilang yang dicari bukan berapa punya, tapi berapa
+            yang melayang */}
         <span style={S.dumpHint}>
-          {items.length} barang · {rupiah(total)}
+          {sub === "ilang" ? (
+            <>
+              {lost.length} barang ilang ·{" "}
+              <b style={{ color: "var(--red)" }}>{rupiah(lostTotal)}</b> melayang
+            </>
+          ) : (
+            <>
+              {items.length} barang · {rupiah(total)}
+            </>
+          )}
         </span>
         <button style={S.promAddLink} onClick={() => setShowForm((v) => !v)}>
           {showForm ? "batal" : "+ barang baru"}
@@ -1557,6 +1572,8 @@ function BarangPage({ session }) {
               ? "Semua barang lagi beres."
               : sub === "nganggur"
               ? `Gak ada yang nganggur lebih dari ${NGANGGUR_DAYS} hari.`
+              : sub === "ilang"
+              ? "Gak ada yang ilang. Aman."
               : "Belum ada barang."}
           </div>
         )}
@@ -1568,7 +1585,7 @@ function BarangPage({ session }) {
           // daftar barang yang sehat gak keisi 17 placeholder kosong
           const showCare = needsCare(it) || idle(it) || !!it.care_note;
           return (
-            <div key={it.id} style={{ ...S.card, display: "block", marginBottom: 22 }}>
+            <div key={it.id} style={{ ...S.card, display: "block", marginBottom: 18 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <EditableText
@@ -1576,50 +1593,49 @@ function BarangPage({ session }) {
                     onSave={(v) => patchItem(it.id, { name: v })}
                     style={S.cardTitle}
                   />
-                  <div style={{ display: "flex", gap: 8, alignItems: "baseline", marginTop: 4, flexWrap: "wrap" }}>
-                    <span style={{ fontSize: 13, color: "var(--muted2)" }}>📍</span>
-                    <EditableText
-                      value={it.location || "belum dicatet"}
-                      onSave={(v) => patchItem(it.id, { location: v })}
-                      style={{ fontSize: 13, color: "var(--muted2)" }}
-                    />
-                    {it.price != null && <span style={S.tag}>{rupiah(it.price)}</span>}
-                  </div>
                 </div>
-                <div style={S.cardBtns}>
-                  <button
-                    style={{ ...S.btnGhost, color: m.color, borderColor: m.border, whiteSpace: "nowrap" }}
-                    title="Tap buat ganti status"
-                    onClick={() => cycleStatus(it)}
-                  >
-                    {m.label}
-                  </button>
-                  <button style={S.btnGhost} onClick={() => removeItem(it.id)}>✕</button>
-                </div>
+                {/* status jadi teks berwarna, bukan kotak — dua tombol
+                    berbingkai per baris bikin daftarnya berat */}
+                <button
+                  style={{ ...S.chip, color: m.color, fontWeight: 700 }}
+                  title="Tap buat ganti status"
+                  onClick={() => cycleStatus(it)}
+                >
+                  {m.label}
+                </button>
+                <button style={{ ...S.iconPlain, fontSize: 15 }} onClick={() => removeItem(it.id)}>✕</button>
               </div>
 
-              {/* kondisi & kapan terakhir dipake — dua-duanya ditap langsung */}
-              <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8, flexWrap: "wrap" }}>
+              {/* semua keterangannya satu baris, dibiarin wrap kalau sempit */}
+              <div style={{ display: "flex", gap: 7, alignItems: "baseline", marginTop: 5, flexWrap: "wrap" }}>
+                <EditableText
+                  value={it.location || ""}
+                  onSave={(v) => patchItem(it.id, { location: v })}
+                  placeholder="di mana?"
+                  style={{ fontSize: 13, color: "var(--muted2)" }}
+                />
+                {it.price != null && (
+                  <>
+                    <span style={{ color: "var(--faint)", fontSize: 11 }}>·</span>
+                    <span style={S.tag}>{rupiah(it.price)}</span>
+                  </>
+                )}
+                <span style={{ color: "var(--faint)", fontSize: 11 }}>·</span>
                 <button
                   style={{ ...S.chip, color: cm.color }}
                   title="Tap buat ganti kondisi"
                   onClick={() => cycleCond(it)}
                 >
-                  <span
-                    style={{ width: 7, height: 7, borderRadius: "50%", background: cm.dot, flexShrink: 0 }}
-                  />
+                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: cm.dot, flexShrink: 0 }} />
                   {cm.label}
                 </button>
                 <span style={{ color: "var(--faint)", fontSize: 11 }}>·</span>
                 <button
-                  style={{
-                    ...S.chip,
-                    ...(idle(it) ? { color: "var(--janji-ink)" } : {}),
-                  }}
+                  style={{ ...S.chip, ...(idle(it) ? { color: "var(--janji-ink)" } : {}) }}
                   title={it.last_used === today ? "Batalin catatan hari ini" : "Catet: dipake hari ini"}
                   onClick={() => markUsed(it)}
                 >
-                  dipake {sinceLabel(it.last_used)}
+                  {it.last_used ? `dipake ${sinceLabel(it.last_used)}` : "belum dipake"}
                 </button>
               </div>
 
