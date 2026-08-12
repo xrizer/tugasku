@@ -4070,7 +4070,7 @@ function DuitPage({ session }) {
                 return (
                   <div
                     key={r.id}
-                    style={{ display: "flex", alignItems: "baseline", gap: 10, padding: "4px 2px", marginBottom: 14 }}
+                    style={{ display: "flex", alignItems: "center", gap: 10, padding: "4px 2px", marginBottom: 16 }}
                   >
                     <span
                       style={{
@@ -4079,9 +4079,10 @@ function DuitPage({ session }) {
                         borderRadius: "50%",
                         background: srcVar(r.source, sources),
                         flexShrink: 0,
-                        alignSelf: "center",
                       }}
                     />
+                    {/* catatan di atas, sumbernya jadi baris kecil di bawah —
+                        sebaris berempat bikin catatannya kepotong tiga huruf */}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <EditableText
                         value={r.note || ""}
@@ -4089,36 +4090,36 @@ function DuitPage({ session }) {
                         placeholder={pindah ? "pindah dana" : masuk ? "masuk" : "keluar"}
                         style={{ fontSize: 15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
                       />
-                    </div>
-                    <span
-                      style={{
-                        fontFamily: MONO,
-                        fontSize: 10,
-                        letterSpacing: "0.08em",
-                        textTransform: "uppercase",
-                        flexShrink: 0,
-                      }}
-                    >
-                      <span
-                        style={{ color: srcVar(r.source, sources), cursor: "pointer" }}
-                        title="Tap buat ganti sumber"
-                        onClick={() => cycleSrc(r, "source")}
+                      <div
+                        style={{
+                          fontFamily: MONO,
+                          fontSize: 10,
+                          letterSpacing: "0.08em",
+                          textTransform: "uppercase",
+                          marginTop: 3,
+                        }}
                       >
-                        {r.source}
-                      </span>
-                      {pindah && (
-                        <>
-                          <span style={{ color: "var(--faint)" }}> → </span>
-                          <span
-                            style={{ color: srcVar(r.to_source, sources), cursor: "pointer" }}
-                            title="Tap buat ganti tujuan"
-                            onClick={() => cycleSrc(r, "to_source")}
-                          >
-                            {r.to_source}
-                          </span>
-                        </>
-                      )}
-                    </span>
+                        <span
+                          style={{ color: srcVar(r.source, sources), cursor: "pointer" }}
+                          title="Tap buat ganti sumber"
+                          onClick={() => cycleSrc(r, "source")}
+                        >
+                          {r.source}
+                        </span>
+                        {pindah && (
+                          <>
+                            <span style={{ color: "var(--faint)" }}> → </span>
+                            <span
+                              style={{ color: srcVar(r.to_source, sources), cursor: "pointer" }}
+                              title="Tap buat ganti tujuan"
+                              onClick={() => cycleSrc(r, "to_source")}
+                            >
+                              {r.to_source}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </div>
                     <span
                       style={{
                         fontFamily: MONO,
@@ -4146,10 +4147,7 @@ function DuitPage({ session }) {
                     </span>
                     {/* pindah tanggal: input date asli biar hp-nya ngasih
                         picker bawaan, tapi yang keliatan cuma tombol kecil */}
-                    <label
-                      style={{ ...S.btnGhost, padding: "6px 8px", lineHeight: 0, cursor: "pointer", position: "relative" }}
-                      title="Pindahin ke tanggal lain"
-                    >
+                    <label style={{ ...S.iconPlain, position: "relative" }} title="Pindahin ke tanggal lain">
                       <Cal />
                       <input
                         type="date"
@@ -4165,7 +4163,7 @@ function DuitPage({ session }) {
                         }}
                       />
                     </label>
-                    <button style={S.btnGhost} onClick={() => remove(r.id)}>✕</button>
+                    <button style={{ ...S.iconPlain, fontSize: 15 }} onClick={() => remove(r.id)}>✕</button>
                   </div>
                 );
               })}
@@ -7828,6 +7826,19 @@ const S = {
     color: "var(--muted)",
     cursor: "pointer",
     whiteSpace: "nowrap",
+  },
+  // aksi baris log: dua tombol per baris kalau dikasih border bikin daftarnya
+  // keliatan kayak grid kotak — cukup ikonnya aja
+  iconPlain: {
+    background: "transparent",
+    border: "none",
+    color: "var(--faint)",
+    padding: 4,
+    lineHeight: 0,
+    cursor: "pointer",
+    flexShrink: 0,
+    display: "inline-flex",
+    alignItems: "center",
   },
   scoreNum: {
     fontFamily: MONO,
