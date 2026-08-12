@@ -1139,6 +1139,26 @@ function Gear() {
   );
 }
 
+function Cal() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{ display: "block" }}
+      aria-hidden="true"
+    >
+      <rect x="3" y="5" width="18" height="16" rx="3" />
+      <path d="M3 10h18M8 3v4M16 3v4" />
+    </svg>
+  );
+}
+
 function Eye({ off }) {
   return (
     <svg
@@ -4124,6 +4144,27 @@ function DuitPage({ session }) {
                         "••••"
                       )}
                     </span>
+                    {/* pindah tanggal: input date asli biar hp-nya ngasih
+                        picker bawaan, tapi yang keliatan cuma tombol kecil */}
+                    <label
+                      style={{ ...S.btnGhost, padding: "6px 8px", lineHeight: 0, cursor: "pointer", position: "relative" }}
+                      title="Pindahin ke tanggal lain"
+                    >
+                      <Cal />
+                      <input
+                        type="date"
+                        value={r.spent_date}
+                        onChange={(e) => e.target.value && patchRow(r.id, { spent_date: e.target.value })}
+                        style={{
+                          position: "absolute",
+                          inset: 0,
+                          opacity: 0,
+                          width: "100%",
+                          height: "100%",
+                          cursor: "pointer",
+                        }}
+                      />
+                    </label>
                     <button style={S.btnGhost} onClick={() => remove(r.id)}>✕</button>
                   </div>
                 );
