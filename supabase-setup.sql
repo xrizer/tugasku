@@ -69,6 +69,30 @@ create policy "public read recent moods" on public.moods
   for select using (is_public = true and date >= current_date - 6);
 
 -- ---------------------------------------------------------------------
+-- Nandain pengeluaran yang asalnya dari tagihan Rutin.
+--
+-- Kalender di tab Catat ngewarnain tanggal dibanding rata-rata harian. Sekali
+-- bayar kosan nominalnya jauh di atas belanja harian, jadi rata-ratanya
+-- ketarik dan semua hari biasa keliatan sama aja. Baris yang ditandain
+-- is_rutin tetep keitung di struk dan total bulanan — cuma gak ikut ngewarnain
+-- kalender.
+alter table public.expenses
+  add column if not exists is_rutin boolean not null default false;
+
+-- Backfill sekali jalan buat baris lama. `markPaid` selalu nulis note persis
+-- sama nama tagihannya, jadi kecocokan nama ini cukup akurat. Baris yang
+-- notenya udah keburu diedit manual gak ketangkep — tandain sendiri kalau ada.
+update public.expenses e
+   set is_rutin = true
+ where coalesce(e.kind, 'out') = 'out'
+   and e.is_rutin = false
+   and exists (
+     select 1 from public.fixed_costs f
+      where f.user_id = e.user_id
+        and f.name = e.note
+   );
+
+-- ---------------------------------------------------------------------
 -- Pindah dana antar sumber (misal danamon -> cash).
 --
 -- Dicatet di tabel expenses juga, tapi kind-nya 'pindah' — bukan 'out' dan

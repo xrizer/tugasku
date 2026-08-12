@@ -1763,13 +1763,15 @@ function RutinView({ session, sources, onLogExpense }) {
   const markPaid = async (it) => {
     const month = thisMonthStr();
     patchItem(it.id, { last_paid: month });
-    // sekalian kecatet ke pengeluaran — gak perlu nyatet dua kali
+    // sekalian kecatet ke pengeluaran — gak perlu nyatet dua kali.
+    // is_rutin bikin tagihan bulanan gak ikut ngewarnain kalender harian.
     onLogExpense({
       amount: Number(it.amount),
       kind: "out",
       source: it.source || sources[0] || "cash",
       note: it.name,
       spent_date: localToday(),
+      is_rutin: true,
     });
   };
 
@@ -4192,10 +4194,13 @@ function DuitPage({ session }) {
       {catetSub === "kalender" && (
       <>
       {(() => {
-        // total keluar per tanggal (dari data yang keload, ~40 hari)
+        // Total keluar per tanggal (dari data yang keload, ~40 hari).
+        // Tagihan rutin dikecualiin: nominalnya jauh lebih gede dari belanja
+        // harian, jadi sekali bayar kosan seluruh skala warnanya ketarik dan
+        // hari-hari biasa jadi keliatan sama semua.
         const perDay = {};
         rows.forEach((r) => {
-          if ((r.kind || "out") === "out")
+          if ((r.kind || "out") === "out" && !r.is_rutin)
             perDay[r.spent_date] = (perDay[r.spent_date] || 0) + r.amount;
         });
         const vals = Object.values(perDay).filter((v) => v > 0);
@@ -4272,6 +4277,9 @@ function DuitPage({ session }) {
                   </button>
                 );
               })}
+            </div>
+            <div style={{ ...S.dumpHint, marginBottom: 0, marginTop: 16, textAlign: "center" }}>
+              Warna dibanding rata-rata harian. Tagihan rutin gak diitung.
             </div>
           </div>
         );
