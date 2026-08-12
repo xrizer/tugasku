@@ -1,4 +1,8 @@
--- Run this once in Supabase SQL Editor (Dashboard → SQL Editor → New query)
+-- Jalanin di Supabase SQL Editor (Dashboard → SQL Editor → New query).
+--
+-- Aman dijalanin berkali-kali: semua tabel/kolom pakai "if not exists", dan
+-- tiap policy di-drop dulu sebelum dibikin ulang. Yang GAK aman diulang cuma
+-- dua blok paling bawah — "create table tasks" sama seed-nya.
 
 create table tasks (
   id uuid primary key default gen_random_uuid(),
@@ -15,6 +19,7 @@ alter table tasks enable row level security;
 -- App personal tanpa login: izinkan semua operasi via anon key.
 -- Catatan: siapa pun yang punya URL + anon key bisa edit. Cukup aman
 -- untuk personal use selama gak share link repo publik dengan .env.
+drop policy if exists "allow all" on tasks;
 create policy "allow all" on tasks
   for all using (true) with check (true);
 
@@ -25,6 +30,7 @@ create policy "allow all" on tasks
 -- INSERT ("self join") dan UPDATE ("self update member") — tapi belum
 -- DELETE. Tanpa policy di bawah, RLS nolak hapus baris keanggotaan dan
 -- tombol "Keluar dari grup" selalu gagal (0 baris kehapus, tanpa error).
+drop policy if exists "self leave" on public.group_members;
 create policy "self leave" on public.group_members
   for delete using (user_id = auth.uid());
 
@@ -39,6 +45,8 @@ alter table public.time_blocks
   add column if not exists start_min int,
   add column if not exists end_min int;
 
+alter table public.time_blocks drop constraint if exists time_blocks_start_min_range;
+alter table public.time_blocks drop constraint if exists time_blocks_end_min_range;
 alter table public.time_blocks
   add constraint time_blocks_start_min_range check (start_min between 0 and 1439) not valid,
   add constraint time_blocks_end_min_range   check (end_min   between 0 and 1439) not valid;
@@ -52,6 +60,7 @@ alter table public.time_blocks
 alter table public.time_blocks
   add column if not exists is_public boolean not null default false;
 
+drop policy if exists "public read time blocks" on public.time_blocks;
 create policy "public read time blocks" on public.time_blocks
   for select using (is_public = true);
 
@@ -65,6 +74,7 @@ create policy "public read time blocks" on public.time_blocks
 alter table public.moods
   add column if not exists is_public boolean not null default false;
 
+drop policy if exists "public read recent moods" on public.moods;
 create policy "public read recent moods" on public.moods
   for select using (is_public = true and date >= current_date - 6);
 
@@ -98,9 +108,11 @@ create table if not exists public.role_days (
 alter table public.roles     enable row level security;
 alter table public.role_days enable row level security;
 
+drop policy if exists "own roles" on public.roles;
 create policy "own roles" on public.roles
   for all using (user_id = auth.uid()) with check (user_id = auth.uid());
 
+drop policy if exists "own role days" on public.role_days;
 create policy "own role days" on public.role_days
   for all using (user_id = auth.uid()) with check (user_id = auth.uid());
 
@@ -155,6 +167,7 @@ create table if not exists public.asset_snapshots (
 
 alter table public.asset_snapshots enable row level security;
 
+drop policy if exists "own asset snapshots" on public.asset_snapshots;
 create policy "own asset snapshots" on public.asset_snapshots
   for all using (user_id = auth.uid()) with check (user_id = auth.uid());
 
