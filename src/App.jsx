@@ -5082,6 +5082,269 @@ function MimpiSection({ session }) {
   );
 }
 
+// Berapa berat perhatian yang kekasih ke satu peran dalam sehari. Diketuk
+// muter: kosong -> dikit -> sedang -> penuh -> kosong lagi.
+const LOAD = [
+  { w: 1, label: "dikit", dots: "●" },
+  { w: 2, label: "sedang", dots: "●●" },
+  { w: 3, label: "penuh", dots: "●●●" },
+];
+const PERAN_DAYS = 28;
+
+function PeranSection({ session }) {
+  const [roles, setRoles] = useState(null);
+  const [days, setDays] = useState([]);
+  const [form, setForm] = useState({ name: "", target: "" });
+  const [showForm, setShowForm] = useState(false);
+  const [err, setErr] = useState("");
+
+  const today = localToday();
+  const since = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() - (PERAN_DAYS - 1));
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  })();
+
+  useEffect(() => {
+    supabase
+      .from("roles").select("*")
+      .eq("user_id", session.user.id)
+      .order("created_at", { ascending: true })
+      .then(({ data, error }) => setRoles(error ? [] : data || []));
+    supabase
+      .from("role_days").select("role_id,date,weight")
+      .eq("user_id", session.user.id)
+      .gte("date", since)
+      .then(({ data, error }) => setDays(error ? [] : data || []));
+  }, [session]);
+
+  const addRole = async () => {
+    const name = form.name.trim();
+    if (!name) return;
+    const target = Math.max(0, Math.min(100, parseInt(form.target, 10) || 0));
+    setForm({ name: "", target: "" });
+    setShowForm(false);
+    setErr("");
+    const { data, error } = await supabase
+      .from("roles").insert({ name, target }).select().single();
+    if (error) { setErr(error.message); return; }
+    setRoles((xs) => [...xs, data]);
+  };
+
+  const patchRole = async (id, patch) => {
+    setRoles((xs) => xs.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+    const { error } = await supabase.from("roles").update(patch).eq("id", id);
+    if (error) setErr(error.message);
+  };
+
+  const removeRole = async (id) => {
+    setRoles((xs) => xs.filter((x) => x.id !== id));
+    setDays((xs) => xs.filter((x) => x.role_id !== id));
+    await supabase.from("roles").delete().eq("id", id);
+  };
+
+  const weightOn = (roleId, date) =>
+    days.find((x) => x.role_id === roleId && x.date === date)?.weight || 0;
+
+  // ketuk = naik satu tingkat; dari penuh balik ke kosong (barisnya dihapus)
+  const cycleDay = async (roleId, date) => {
+    const cur = weightOn(roleId, date);
+    const next = cur >= 3 ? 0 : cur + 1;
+    setDays((xs) => {
+      const rest = xs.filter((x) => !(x.role_id === roleId && x.date === date));
+      return next ? [...rest, { role_id: roleId, date, weight: next }] : rest;
+    });
+    setErr("");
+    if (!next) {
+      await supabase.from("role_days").delete()
+        .eq("user_id", session.user.id).eq("role_id", roleId).eq("date", date);
+      return;
+    }
+    const { error } = await supabase.from("role_days").upsert(
+      { user_id: session.user.id, role_id: roleId, date, weight: next },
+      { onConflict: "user_id,role_id,date" }
+    );
+    if (error) setErr(error.message);
+  };
+
+  if (roles === null) return <div style={S.empty}>Memuat…</div>;
+
+  const week = [...Array(7)].map((_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (6 - i));
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  });
+
+  const loadOf = (r) =>
+    days.filter((x) => x.role_id === r.id).reduce((s, x) => s + Number(x.weight), 0);
+  const totalLoad = roles.reduce((s, r) => s + loadOf(r), 0);
+  const totalTarget = roles.reduce((s, r) => s + Number(r.target || 0), 0);
+
+  const nyataPct = (r) => (totalLoad ? (loadOf(r) / totalLoad) * 100 : 0);
+  // target dinormalin — kalau totalnya gak pas 100 tetep kebandingin adil
+  const targetPct = (r) => (totalTarget ? (Number(r.target || 0) / totalTarget) * 100 : 0);
+  const colorOf = (i) => `var(--src-${i % 8})`;
+
+  const Bar = ({ label, pctOf }) => (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ fontFamily: MONO, fontSize: 10, color: "var(--faint)", marginBottom: 5 }}>{label}</div>
+      <div style={{ display: "flex", gap: 3, height: 12, borderRadius: 99, overflow: "hidden", background: "var(--badge)" }}>
+        {roles.map((r, i) => (
+          <div key={r.id} style={{ width: `${pctOf(r)}%`, background: colorOf(i), borderRadius: 99 }} />
+        ))}
+      </div>
+    </div>
+  );
+
+  return (
+    <>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, marginTop: 4 }}>
+        <div style={{ ...S.sectionHead, color: "var(--accent)" }}>
+          <span>🎯 Jatah perhatian</span>
+        </div>
+        <button style={S.promAddLink} onClick={() => setShowForm((v) => !v)}>
+          {showForm ? "batal" : "+ peran"}
+        </button>
+      </div>
+
+      {showForm && (
+        <div style={{ display: "flex", gap: 6, marginTop: 12, marginBottom: 6 }}>
+          <input
+            style={{ ...S.input, flex: 2, minWidth: 0 }}
+            placeholder="Peran (misal: cloud engineer BRI)"
+            autoFocus
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+          />
+          <input
+            style={{ ...S.input, flex: 1, minWidth: 0 }}
+            placeholder="Target %"
+            inputMode="numeric"
+            value={form.target}
+            onChange={(e) => setForm({ ...form, target: e.target.value.replace(/\D/g, "").slice(0, 3) })}
+            onKeyDown={(e) => e.key === "Enter" && addRole()}
+          />
+          <button style={{ ...S.addBtn, width: 56 }} onClick={addRole}>OK</button>
+        </div>
+      )}
+
+      {roles.length === 0 && !showForm && (
+        <div style={{ ...S.empty, marginTop: 14 }}>
+          Belum ada peran. Mulai dari yang beneran makan waktu lu.
+        </div>
+      )}
+
+      {roles.length > 0 && (
+        <>
+          <div style={{ marginTop: 18 }}>
+            <Bar label="YANG LU MAU" pctOf={targetPct} />
+            {totalLoad > 0 && <Bar label={`YANG KEJADIAN · ${PERAN_DAYS} HARI`} pctOf={nyataPct} />}
+          </div>
+
+          {roles.map((r, i) => {
+            const nyata = nyataPct(r);
+            const target = targetPct(r);
+            const gap = totalLoad ? Math.round(nyata - target) : null;
+            return (
+              <div key={r.id} style={{ ...S.card, display: "block", marginBottom: 20 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                  <span style={{ width: 9, height: 9, borderRadius: 3, background: colorOf(i), flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <EditableText
+                      value={r.name}
+                      onSave={(v) => patchRole(r.id, { name: v })}
+                      style={{ fontSize: 15, fontWeight: 600 }}
+                    />
+                  </div>
+                  {gap != null && (
+                    <span
+                      style={{
+                        fontFamily: MONO,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        whiteSpace: "nowrap",
+                        color: Math.abs(gap) <= 5 ? "var(--green)" : gap > 0 ? "var(--janji-ink)" : "var(--red)",
+                      }}
+                      title="Selisih dari target"
+                    >
+                      {gap > 0 ? "+" : ""}{gap}
+                    </span>
+                  )}
+                  <button style={{ ...S.iconPlain, fontSize: 15 }} onClick={() => removeRole(r.id)}>✕</button>
+                </div>
+
+                <div style={{ display: "flex", gap: 7, alignItems: "baseline", marginTop: 5, flexWrap: "wrap" }}>
+                  <span style={{ ...S.chip, cursor: "default" }}>
+                    mau{" "}
+                    <EditableText
+                      value={String(r.target ?? 0)}
+                      onSave={(v) => {
+                        const n = parseInt(v.replace(/\D/g, ""), 10);
+                        if (!isNaN(n)) patchRole(r.id, { target: Math.max(0, Math.min(100, n)) });
+                      }}
+                      style={{ display: "inline-block", fontFamily: MONO, fontSize: 11, fontWeight: 700 }}
+                    />
+                    %
+                  </span>
+                  {totalLoad > 0 && (
+                    <>
+                      <span style={{ color: "var(--faint)", fontSize: 11 }}>·</span>
+                      <span style={{ ...S.chip, cursor: "default", color: "var(--ink)" }}>
+                        nyata {Math.round(nyata)}%
+                      </span>
+                    </>
+                  )}
+                </div>
+
+                {/* 7 hari terakhir — ketuk buat naikin bebannya hari itu */}
+                <div style={{ display: "flex", gap: 5, marginTop: 10 }}>
+                  {week.map((d) => {
+                    const w = weightOn(r.id, d);
+                    return (
+                      <button
+                        key={d}
+                        title={`${d} · ${w ? LOAD[w - 1].label : "kosong"}`}
+                        onClick={() => cycleDay(r.id, d)}
+                        style={{
+                          flex: 1,
+                          height: 26,
+                          borderRadius: 7,
+                          cursor: "pointer",
+                          padding: 0,
+                          background: w ? colorOf(i) : "var(--badge)",
+                          opacity: w ? 0.3 + w * 0.234 : 1,
+                          border: `1px solid ${w ? colorOf(i) : "var(--border)"}`,
+                          boxShadow: d === today ? "inset 0 0 0 1px var(--accent)" : "none",
+                        }}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+
+          <div style={{ ...S.dumpHint, marginBottom: 0, lineHeight: 1.5 }}>
+            Ketuk kotak harinya buat naikin beban: dikit → sedang → penuh → kosong.
+            Angka di kanan itu selisih dari target — minus berarti kurang jatah.
+          </div>
+        </>
+      )}
+
+      {err && (
+        <div style={{ color: "var(--red)", fontSize: 12, marginTop: 10 }}>
+          {err}
+          {/relation|column|does not exist/i.test(err) && (
+            <> — jalanin dulu bagian <code>roles</code> di supabase-setup.sql.</>
+          )}
+        </div>
+      )}
+
+      <div style={{ marginTop: 40 }} />
+    </>
+  );
+}
+
 function DrainSection({ session }) {
   const [drains, setDrains] = useState([]);
   const [drainEvents, setDrainEvents] = useState([]);
@@ -6129,7 +6392,12 @@ function DiriPage({ session, onPoints }) {
       </>
       )}
 
-      {sub === "energi" && <DrainSection session={session} />}
+      {sub === "energi" && (
+        <>
+          <PeranSection session={session} />
+          <DrainSection session={session} />
+        </>
+      )}
 
       {sub === "trofi" && <PencapaianSection session={session} />}
 

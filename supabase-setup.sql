@@ -69,6 +69,42 @@ create policy "public read recent moods" on public.moods
   for select using (is_public = true and date >= current_date - 6);
 
 -- ---------------------------------------------------------------------
+-- Jatah perhatian: peran yang lu jalanin, plus berapa berat tiap harinya.
+--
+--   roles.target  -> persen perhatian yang LU MAU dikasih ke peran itu
+--   role_days     -> satu baris per peran per hari, weight 1..3
+--                    (1 dikit, 2 sedang, 3 penuh)
+--
+-- Sengaja ngitung "berapa hari dan seberat apa", bukan jam. Nyatet jam itu
+-- ribet dan bakal ditinggalin; sekali ketuk per hari masih kekejar, dan yang
+-- dicari emang perbandingannya, bukan angka absolutnya.
+create table if not exists public.roles (
+  id         uuid primary key default gen_random_uuid(),
+  user_id    uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  name       text not null,
+  target     int  not null default 0,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.role_days (
+  id      uuid primary key default gen_random_uuid(),
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  role_id uuid not null references public.roles(id) on delete cascade,
+  date    date not null,
+  weight  int  not null default 1 check (weight between 1 and 3),
+  unique (user_id, role_id, date)
+);
+
+alter table public.roles     enable row level security;
+alter table public.role_days enable row level security;
+
+create policy "own roles" on public.roles
+  for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+create policy "own role days" on public.role_days
+  for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+-- ---------------------------------------------------------------------
 -- Nandain pengeluaran yang asalnya dari tagihan Rutin.
 --
 -- Kalender di tab Catat ngewarnain tanggal dibanding rata-rata harian. Sekali
