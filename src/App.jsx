@@ -3307,6 +3307,11 @@ function DuitPage({ session }) {
   const [analysis, setAnalysis] = useState(null); // null | "..." | text
   const [calMonth, setCalMonth] = useState(() => localToday().slice(0, 7)); // 'YYYY-MM'
   const [catetSub, setCatetSub] = useState("catet");
+  // rentang buat tab Log. Fetch-nya dipakai bareng sama Struk & Kalender —
+  // mereka cuma butuh 40 hari, kelebihan data gak ganggu.
+  const [range, setRange] = useState("1B");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [totalKey, setTotalKey] = useState(0); // ganti = total-nya ngedenyut
   const toastRef = useRef(null);
@@ -3370,18 +3375,25 @@ function DuitPage({ session }) {
   };
 
   useEffect(() => {
-    // ambil 40 hari terakhir — cukup buat cover bulan berjalan penuh
-    const since = new Date();
-    since.setDate(since.getDate() - 40);
-    const sinceStr = since.toISOString().slice(0, 10);
+    // minimal 40 hari — Struk & Kalender ngandelin jendela itu, jadi rentang
+    // yang lebih pendek di Log gak boleh bikin fetch-nya nyusut
+    const days = { "1M": 40, "1B": 40, "3B": 90, "1T": 366 }[range] || 40;
+    let from;
+    if (range === "custom" && customFrom) {
+      from = customFrom;
+    } else {
+      const d = new Date();
+      d.setDate(d.getDate() - days);
+      from = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    }
     supabase
       .from("expenses")
       .select("*")
       .eq("user_id", session.user.id)
-      .gte("spent_date", sinceStr)
+      .gte("spent_date", from)
       .order("created_at", { ascending: false })
       .then(({ data, error }) => setRows(error ? [] : data));
-  }, [session]);
+  }, [session, range, customFrom]);
 
   const toast = (msg) => {
     clearTimeout(toastRef.current);
@@ -3470,10 +3482,36 @@ function DuitPage({ session }) {
   const today = localToday();
   const isOut = (r) => (r.kind || "out") === "out";
 
+  const RANGES = [
+    ["1M", "1 minggu", 7],
+    ["1B", "1 bulan", 30],
+    ["3B", "3 bulan", 90],
+    ["1T", "1 tahun", 365],
+    ["custom", "Tanggal", null],
+  ];
+
+  const dstr = (d) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+  // jendela tanggal yang lagi diliat — semua di tab Log ngikut ini
+  const win = (() => {
+    if (range === "custom" && customFrom) {
+      const to = customTo || today;
+      return { from: customFrom, to, label: `${customFrom} → ${to}` };
+    }
+    const n = (RANGES.find((r) => r[0] === range) || RANGES[1])[2];
+    const d = new Date();
+    d.setDate(d.getDate() - (n - 1));
+    return { from: dstr(d), to: today, label: `${n} hari terakhir` };
+  })();
+
+  const inWin = (ds) => ds >= win.from && ds <= win.to;
+  const winRows = rows.filter((r) => inWin(r.spent_date));
+
   // log: transaksi dikelompokin per tanggal, terbaru di atas. Urutan di dalam
   // sehari ngikutin created_at dari query, jadi yang barusan dicatet paling atas.
   const logDays = Object.entries(
-    rows.reduce((acc, r) => {
+    winRows.reduce((acc, r) => {
       (acc[r.spent_date] ||= []).push(r);
       return acc;
     }, {})
@@ -3483,34 +3521,50 @@ function DuitPage({ session }) {
   // alasannya sama kayak warna kalender: sekali bayar kosan nominalnya
   // sepuluh kali belanja biasa, garisnya jadi satu paku doang dan hari-hari
   // normal keliatan rata di dasar.
+
   const spendLine = (() => {
-    const N = 30;
+    const start = new Date(win.from + "T00:00:00");
+    const end = new Date(win.to + "T00:00:00");
+    const nDays = Math.max(1, Math.round((end - start) / 86400000) + 1);
     const day = [];
-    for (let i = N - 1; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      day.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
+    for (let i = 0; i < nDays; i++) {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      day.push(dstr(d));
     }
     const per = {};
     rows.forEach((r) => {
       if ((r.kind || "out") === "out" && !r.is_rutin)
         per[r.spent_date] = (per[r.spent_date] || 0) + Number(r.amount);
     });
-    const vals = day.map((ds) => per[ds] || 0);
-    if (!vals.some((v) => v > 0)) return { pts: [], avg: 0, avgY: 0, trend: null };
+    let vals = day.map((ds) => per[ds] || 0);
+
+    // di atas ~120 hari, satu titik per hari cuma jadi pagar rapat — dijadiin
+    // per minggu biar bentuknya masih kebaca
+    const weekly = vals.length > 120;
+    if (weekly) {
+      const buckets = [];
+      for (let i = 0; i < vals.length; i += 7)
+        buckets.push(vals.slice(i, i + 7).reduce((a, b) => a + b, 0));
+      vals = buckets;
+    }
+    if (vals.length < 2 || !vals.some((v) => v > 0))
+      return { pts: [], area: "", avg: 0, avgY: 0, trend: null, weekly };
 
     const max = Math.max(...vals);
     const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
     const y = (v) => 66 - (v / max) * 62; // 66 = dasar, sisain 4px buat titiknya
     const pts = vals.map((v, i) => ({ x: (i / (vals.length - 1)) * 300, y: y(v) }));
+    const area = `${pts.map((p) => `${p.x},${p.y}`).join(" ")} 300,70 0,70`;
 
-    // seminggu terakhir dibanding seminggu sebelumnya — itu yang bikin
-    // "naik atau turun" ada artinya, bukan bandingin satu hari ke satu hari
-    const last7 = vals.slice(-7).reduce((a, b) => a + b, 0);
-    const prev7 = vals.slice(-14, -7).reduce((a, b) => a + b, 0);
-    const trend = prev7 > 0 ? Math.round(((last7 - prev7) / prev7) * 100) : null;
+    // separuh belakang dibanding separuh depan — bandingin satu hari ke satu
+    // hari cuma ngasih derau, bukan arah
+    const h = Math.floor(vals.length / 2);
+    const late = vals.slice(-h).reduce((a, b) => a + b, 0);
+    const early = vals.slice(0, h).reduce((a, b) => a + b, 0);
+    const trend = early > 0 ? Math.round(((late - early) / early) * 100) : null;
 
-    return { pts, avg, avgY: y(avg), trend };
+    return { pts, area, avg, avgY: y(avg), trend, weekly };
   })();
 
   const logLabel = (ds) => {
@@ -4074,9 +4128,56 @@ function DuitPage({ session }) {
       {/* ===== log: semua transaksi, dikelompokin per tanggal ===== */}
       {catetSub === "log" && (
       <>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
+        {/* rentang: yang dipilih diisi solid, sisanya cuma teks */}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 4, marginBottom: 14 }}>
+          {RANGES.map(([k, label]) => (
+            <button
+              key={k}
+              onClick={() => setRange(k)}
+              style={{
+                fontFamily: MONO,
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: "0.04em",
+                padding: "7px 13px",
+                borderRadius: 999,
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+                border: `1px solid ${range === k ? "var(--accent)" : "var(--border)"}`,
+                background: range === k ? "var(--accent)" : "transparent",
+                color: range === k ? "var(--on-accent)" : "var(--muted)",
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {range === "custom" && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+            <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: "0.12em", color: "var(--faint)" }}>DARI</span>
+            <input
+              type="date"
+              value={customFrom}
+              max={customTo || today}
+              onChange={(e) => setCustomFrom(e.target.value)}
+              style={{ ...S.input, padding: "8px 2px", fontFamily: MONO, fontSize: 13, flex: 1, minWidth: 120 }}
+            />
+            <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: "0.12em", color: "var(--faint)" }}>SAMPAI</span>
+            <input
+              type="date"
+              value={customTo || today}
+              min={customFrom}
+              max={today}
+              onChange={(e) => setCustomTo(e.target.value)}
+              style={{ ...S.input, padding: "8px 2px", fontFamily: MONO, fontSize: 13, flex: 1, minWidth: 120 }}
+            />
+          </div>
+        )}
+
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={S.dumpHint}>
-            {rows.length} catatan · 40 hari terakhir
+            {winRows.length} catatan · {win.label}
           </span>
           <button
             style={{ ...S.iconBtn, ...(showTotal ? {} : { borderColor: "var(--janji-border)", color: "var(--janji-ink)" }) }}
@@ -4093,8 +4194,15 @@ function DuitPage({ session }) {
             <svg
               viewBox="0 0 300 70"
               preserveAspectRatio="none"
-              style={{ width: "100%", height: 70, display: "block", overflow: "visible" }}
+              style={{ width: "100%", height: 90, display: "block", overflow: "visible" }}
             >
+              <defs>
+                <linearGradient id="lhFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.28" />
+                  <stop offset="100%" stopColor="var(--accent)" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+              <polygon points={spendLine.area} fill="url(#lhFill)" />
               {/* garis rata-rata, biar naik-turunnya ada patokannya */}
               <line
                 x1="0" x2="300"
@@ -4121,15 +4229,29 @@ function DuitPage({ session }) {
                 vectorEffect="non-scaling-stroke"
               />
             </svg>
-            <div style={{ ...S.dumpHint, marginBottom: 0, marginTop: 8 }}>
-              rata-rata {rupiah(Math.round(spendLine.avg))}/hari
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+              <span style={{ ...S.dumpHint, marginBottom: 0 }}>
+                rata-rata {rupiah(Math.round(spendLine.avg))}/{spendLine.weekly ? "minggu" : "hari"}
+              </span>
               {spendLine.trend != null && (
-                <>
-                  {" · 7 hari terakhir "}
-                  <b style={{ color: spendLine.trend > 0 ? "var(--red)" : "var(--green)" }}>
-                    {spendLine.trend > 0 ? "naik" : "turun"} {Math.abs(spendLine.trend)}%
-                  </b>
-                </>
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
+                    fontFamily: MONO,
+                    fontSize: 11,
+                    fontWeight: 700,
+                    padding: "4px 10px",
+                    borderRadius: 999,
+                    whiteSpace: "nowrap",
+                    color: spendLine.trend > 0 ? "var(--red)" : "var(--green)",
+                    background: spendLine.trend > 0 ? "var(--red-bg)" : "var(--green-bg)",
+                  }}
+                  title="Separuh belakang rentang dibanding separuh depan"
+                >
+                  {spendLine.trend > 0 ? "↑ naik" : "↓ turun"} {Math.abs(spendLine.trend)}%
+                </span>
               )}
             </div>
           </div>
@@ -4176,15 +4298,27 @@ function DuitPage({ session }) {
                     key={r.id}
                     style={{ display: "flex", alignItems: "center", gap: 10, padding: "4px 2px", marginBottom: 16 }}
                   >
+                    {/* kotak inisial sumber — pola yang sama kayak Aset, dan
+                        pindah dana dikasih ↻ karena dia bukan punya satu sumber */}
                     <span
                       style={{
-                        width: 7,
-                        height: 7,
-                        borderRadius: "50%",
-                        background: srcVar(r.source, sources),
+                        width: 30,
+                        height: 30,
+                        borderRadius: 9,
                         flexShrink: 0,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontFamily: MONO,
+                        fontSize: pindah ? 13 : 10,
+                        fontWeight: 700,
+                        textTransform: "uppercase",
+                        background: srcTint(r.source, sources, 16),
+                        color: srcVar(r.source, sources),
                       }}
-                    />
+                    >
+                      {pindah ? "↻" : (r.source || "?").slice(0, 2)}
+                    </span>
                     {/* catatan di atas, sumbernya jadi baris kecil di bawah —
                         sebaris berempat bikin catatannya kepotong tiga huruf */}
                     <div style={{ flex: 1, minWidth: 0 }}>
