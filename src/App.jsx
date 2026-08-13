@@ -5085,9 +5085,9 @@ function MimpiSection({ session }) {
 // Berapa berat perhatian yang kekasih ke satu peran dalam sehari. Diketuk
 // muter: kosong -> dikit -> sedang -> penuh -> kosong lagi.
 const LOAD = [
-  { w: 1, label: "dikit", dots: "●" },
-  { w: 2, label: "sedang", dots: "●●" },
-  { w: 3, label: "penuh", dots: "●●●" },
+  { w: 1, label: "light", dots: "●" },
+  { w: 2, label: "medium", dots: "●●" },
+  { w: 3, label: "full", dots: "●●●" },
 ];
 const PERAN_DAYS = 28;
 
@@ -5167,7 +5167,7 @@ function PeranSection({ session }) {
     if (error) setErr(error.message);
   };
 
-  if (roles === null) return <div style={S.empty}>Memuat…</div>;
+  if (roles === null) return <div style={S.empty}>Loading…</div>;
 
   const week = [...Array(7)].map((_, i) => {
     const d = new Date();
@@ -5200,10 +5200,10 @@ function PeranSection({ session }) {
     <>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, marginTop: 4 }}>
         <div style={{ ...S.sectionHead, color: "var(--accent)" }}>
-          <span>🎯 Jatah perhatian</span>
+          <span>🎯 Attention budget</span>
         </div>
         <button style={S.promAddLink} onClick={() => setShowForm((v) => !v)}>
-          {showForm ? "batal" : "+ peran"}
+          {showForm ? "cancel" : "+ role"}
         </button>
       </div>
 
@@ -5211,7 +5211,7 @@ function PeranSection({ session }) {
         <div style={{ display: "flex", gap: 6, marginTop: 12, marginBottom: 6 }}>
           <input
             style={{ ...S.input, flex: 2, minWidth: 0 }}
-            placeholder="Peran (misal: cloud engineer BRI)"
+            placeholder="Role (e.g. cloud engineer at BRI)"
             autoFocus
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -5230,15 +5230,15 @@ function PeranSection({ session }) {
 
       {roles.length === 0 && !showForm && (
         <div style={{ ...S.empty, marginTop: 14 }}>
-          Belum ada peran. Mulai dari yang beneran makan waktu lu.
+          No roles yet. Start with the ones that actually eat your week.
         </div>
       )}
 
       {roles.length > 0 && (
         <>
           <div style={{ marginTop: 18 }}>
-            <Bar label="YANG LU MAU" pctOf={targetPct} />
-            {totalLoad > 0 && <Bar label={`YANG KEJADIAN · ${PERAN_DAYS} HARI`} pctOf={nyataPct} />}
+            <Bar label="WHAT YOU WANT" pctOf={targetPct} />
+            {totalLoad > 0 && <Bar label={`WHAT ACTUALLY HAPPENED · ${PERAN_DAYS} DAYS`} pctOf={nyataPct} />}
           </div>
 
           {roles.map((r, i) => {
@@ -5265,7 +5265,7 @@ function PeranSection({ session }) {
                         whiteSpace: "nowrap",
                         color: Math.abs(gap) <= 5 ? "var(--green)" : gap > 0 ? "var(--janji-ink)" : "var(--red)",
                       }}
-                      title="Selisih dari target"
+                      title="Gap from target"
                     >
                       {gap > 0 ? "+" : ""}{gap}
                     </span>
@@ -5275,7 +5275,7 @@ function PeranSection({ session }) {
 
                 <div style={{ display: "flex", gap: 7, alignItems: "baseline", marginTop: 5, flexWrap: "wrap" }}>
                   <span style={{ ...S.chip, cursor: "default" }}>
-                    mau{" "}
+                    want{" "}
                     <EditableText
                       value={String(r.target ?? 0)}
                       onSave={(v) => {
@@ -5290,7 +5290,7 @@ function PeranSection({ session }) {
                     <>
                       <span style={{ color: "var(--faint)", fontSize: 11 }}>·</span>
                       <span style={{ ...S.chip, cursor: "default", color: "var(--ink)" }}>
-                        nyata {Math.round(nyata)}%
+                        actual {Math.round(nyata)}%
                       </span>
                     </>
                   )}
@@ -5303,7 +5303,7 @@ function PeranSection({ session }) {
                     return (
                       <button
                         key={d}
-                        title={`${d} · ${w ? LOAD[w - 1].label : "kosong"}`}
+                        title={`${d} · ${w ? LOAD[w - 1].label : "empty"}`}
                         onClick={() => cycleDay(r.id, d)}
                         style={{
                           flex: 1,
@@ -5325,8 +5325,9 @@ function PeranSection({ session }) {
           })}
 
           <div style={{ ...S.dumpHint, marginBottom: 0, lineHeight: 1.5 }}>
-            Ketuk kotak harinya buat naikin beban: dikit → sedang → penuh → kosong.
-            Angka di kanan itu selisih dari target — minus berarti kurang jatah.
+            Tap a day to raise the load: light → medium → full → empty. The number
+            on the right is the gap from your target — a minus means that role is
+            being starved.
           </div>
         </>
       )}
@@ -5335,7 +5336,7 @@ function PeranSection({ session }) {
         <div style={{ color: "var(--red)", fontSize: 12, marginTop: 10 }}>
           {err}
           {/relation|column|does not exist/i.test(err) && (
-            <> — jalanin dulu bagian <code>roles</code> di supabase-setup.sql.</>
+            <> — run the <code>roles</code> section in supabase-setup.sql first.</>
           )}
         </div>
       )}
@@ -5403,7 +5404,7 @@ function DrainSection({ session }) {
   };
 
   const removeDrain = async (d) => {
-    if (!window.confirm(`Hapus "${d.name}"?`)) return;
+    if (!window.confirm(`Delete "${d.name}"?`)) return;
     setDrains((xs) => xs.filter((x) => x.id !== d.id));
     setDrainEvents((es) => es.filter((e) => e.drain_id !== d.id));
     await supabase.from("drains").delete().eq("id", d.id);
@@ -5435,10 +5436,10 @@ function DrainSection({ session }) {
     <>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
         <div style={S.sectionHead}>
-          <span>⚡ Bikin cape</span>
+          <span>⚡ What drains you</span>
         </div>
         <button style={S.promAddLink} onClick={() => setShowDrainForm((v) => !v)}>
-          {showDrainForm ? "batal" : "+ tambah"}
+          {showDrainForm ? "cancel" : "+ add"}
         </button>
       </div>
 
@@ -5446,7 +5447,7 @@ function DrainSection({ session }) {
         <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
           <input
             style={{ ...S.input, flex: 1, minWidth: 0 }}
-            placeholder="Apa yang bikin cape?"
+            placeholder="What drains you?"
             autoFocus
             value={newDrain}
             onChange={(e) => setNewDrain(e.target.value)}
@@ -5456,7 +5457,7 @@ function DrainSection({ session }) {
         </div>
       )}
 
-      {drains.length === 0 && !showDrainForm && <div style={S.empty}>Belum ada.</div>}
+      {drains.length === 0 && !showDrainForm && <div style={S.empty}>Nothing yet.</div>}
 
       {drains.map((d) => {
         const n = drainToday(d.id);
@@ -5479,7 +5480,7 @@ function DrainSection({ session }) {
                 />
                 {week > 0 && (
                   <div style={{ ...S.dumpHint, marginBottom: 0, marginTop: 2 }}>
-                    {week}× minggu ini{n > 0 ? ` · ${n}× hari ini` : ""}
+                    {week}× this week{n > 0 ? ` · ${n}× today` : ""}
                   </div>
                 )}
               </div>
@@ -5499,12 +5500,12 @@ function DrainSection({ session }) {
                       }
                     : {}),
                 }}
-                title="Tap tiap kejadian"
+                title="Tap each time it happens"
                 onClick={() => logDrain(d)}
               >
-                kejadian{n > 0 ? ` ·${n}` : ""}
+                happened{n > 0 ? ` ·${n}` : ""}
               </button>
-              <button style={S.btnGhost} title={`Hapus "${d.name}"`} onClick={() => removeDrain(d)}>
+              <button style={S.btnGhost} title={`Delete "${d.name}"`} onClick={() => removeDrain(d)}>
                 ✕
               </button>
             </div>
@@ -5513,14 +5514,14 @@ function DrainSection({ session }) {
               "🩹",
               d.solusi_sementara,
               (v) => patchDrain(d.id, { solusi_sementara: v }),
-              "solusi sementaranya apa nih?",
+              "quick fix for right now?",
               "var(--ink)"
             )}
             {solusi(
               "🌱",
               d.solusi_panjang,
               (v) => patchDrain(d.id, { solusi_panjang: v }),
-              "solusi jangka panjang",
+              "long-term fix",
               "var(--muted2)"
             )}
           </div>
@@ -5529,7 +5530,7 @@ function DrainSection({ session }) {
 
       {topDrains.length > 0 && (
         <div style={{ ...S.dumpHint, marginTop: 8 }}>
-          paling bikin cape:{" "}
+          drains you most:{" "}
           {topDrains.map((d, i) => (
             <span key={d.id}>
               {i > 0 && " · "}
@@ -5543,16 +5544,16 @@ function DrainSection({ session }) {
         <div style={{ color: "var(--red)", fontSize: 12, marginTop: 8 }}>
           {err}
           {/solusi|[Cc]olumn/.test(err) && (
-            <> — jalanin dulu bagian <code>drains</code> di supabase-setup.sql.</>
+            <> — run the <code>drains</code> section in supabase-setup.sql first.</>
           )}
         </div>
       )}
 
       {dailyStat && (
         <div style={{ ...S.dumpHint, marginTop: 14, textAlign: "center" }}>
-          Wajib harian hari ini:{" "}
+          Daily musts today:{" "}
           <b style={{ color: dailyStat.done === dailyStat.total ? "var(--green)" : "var(--ink)" }}>
-            {dailyStat.done}/{dailyStat.total} kelar
+            {dailyStat.done}/{dailyStat.total} done
           </b>
         </div>
       )}
