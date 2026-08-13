@@ -5237,8 +5237,13 @@ function PeranSection({ session }) {
       {roles.length > 0 && (
         <>
           <div style={{ marginTop: 18 }}>
-            <Bar label="WHAT YOU WANT" pctOf={targetPct} />
-            {totalLoad > 0 && <Bar label={`WHAT ACTUALLY HAPPENED · ${PERAN_DAYS} DAYS`} pctOf={nyataPct} />}
+            <Bar label="WANT" pctOf={targetPct} />
+            {totalLoad > 0 && <Bar label={`ACTUAL · ${PERAN_DAYS}D`} pctOf={nyataPct} />}
+            {totalTarget > 0 && totalTarget !== 100 && (
+              <div style={{ fontFamily: MONO, fontSize: 10, color: "var(--faint)" }}>
+                targets add up to {totalTarget}% — compared proportionally
+              </div>
+            )}
           </div>
 
           {roles.map((r, i) => {
@@ -5324,11 +5329,6 @@ function PeranSection({ session }) {
             );
           })}
 
-          <div style={{ ...S.dumpHint, marginBottom: 0, lineHeight: 1.5 }}>
-            Tap a day to raise the load: light → medium → full → empty. The number
-            on the right is the gap from your target — a minus means that role is
-            being starved.
-          </div>
         </>
       )}
 
