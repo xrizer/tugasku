@@ -3479,6 +3479,40 @@ function DuitPage({ session }) {
     }, {})
   ).sort((a, b) => b[0].localeCompare(a[0]));
 
+  // Tren belanja harian buat grafik di tab Log. Tagihan rutin dikecualiin —
+  // alasannya sama kayak warna kalender: sekali bayar kosan nominalnya
+  // sepuluh kali belanja biasa, garisnya jadi satu paku doang dan hari-hari
+  // normal keliatan rata di dasar.
+  const spendLine = (() => {
+    const N = 30;
+    const day = [];
+    for (let i = N - 1; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      day.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
+    }
+    const per = {};
+    rows.forEach((r) => {
+      if ((r.kind || "out") === "out" && !r.is_rutin)
+        per[r.spent_date] = (per[r.spent_date] || 0) + Number(r.amount);
+    });
+    const vals = day.map((ds) => per[ds] || 0);
+    if (!vals.some((v) => v > 0)) return { pts: [], avg: 0, avgY: 0, trend: null };
+
+    const max = Math.max(...vals);
+    const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+    const y = (v) => 66 - (v / max) * 62; // 66 = dasar, sisain 4px buat titiknya
+    const pts = vals.map((v, i) => ({ x: (i / (vals.length - 1)) * 300, y: y(v) }));
+
+    // seminggu terakhir dibanding seminggu sebelumnya — itu yang bikin
+    // "naik atau turun" ada artinya, bukan bandingin satu hari ke satu hari
+    const last7 = vals.slice(-7).reduce((a, b) => a + b, 0);
+    const prev7 = vals.slice(-14, -7).reduce((a, b) => a + b, 0);
+    const trend = prev7 > 0 ? Math.round(((last7 - prev7) / prev7) * 100) : null;
+
+    return { pts, avg, avgY: y(avg), trend };
+  })();
+
   const logLabel = (ds) => {
     if (ds === today) return "hari ini";
     const y = new Date();
@@ -4052,6 +4086,54 @@ function DuitPage({ session }) {
             <Eye off={showTotal} />
           </button>
         </div>
+
+        {/* ===== tren belanja harian ===== */}
+        {showTotal && spendLine.pts.length >= 2 && (
+          <div style={{ marginTop: 20 }}>
+            <svg
+              viewBox="0 0 300 70"
+              preserveAspectRatio="none"
+              style={{ width: "100%", height: 70, display: "block", overflow: "visible" }}
+            >
+              {/* garis rata-rata, biar naik-turunnya ada patokannya */}
+              <line
+                x1="0" x2="300"
+                y1={spendLine.avgY} y2={spendLine.avgY}
+                stroke="var(--border2)"
+                strokeWidth="1"
+                strokeDasharray="3 4"
+                vectorEffect="non-scaling-stroke"
+              />
+              <polyline
+                points={spendLine.pts.map((p) => `${p.x},${p.y}`).join(" ")}
+                fill="none"
+                stroke="var(--accent)"
+                strokeWidth="1.5"
+                strokeLinejoin="round"
+                strokeLinecap="round"
+                vectorEffect="non-scaling-stroke"
+              />
+              <circle
+                cx={spendLine.pts[spendLine.pts.length - 1].x}
+                cy={spendLine.pts[spendLine.pts.length - 1].y}
+                r="2.5"
+                fill="var(--accent)"
+                vectorEffect="non-scaling-stroke"
+              />
+            </svg>
+            <div style={{ ...S.dumpHint, marginBottom: 0, marginTop: 8 }}>
+              rata-rata {rupiah(Math.round(spendLine.avg))}/hari
+              {spendLine.trend != null && (
+                <>
+                  {" · 7 hari terakhir "}
+                  <b style={{ color: spendLine.trend > 0 ? "var(--red)" : "var(--green)" }}>
+                    {spendLine.trend > 0 ? "naik" : "turun"} {Math.abs(spendLine.trend)}%
+                  </b>
+                </>
+              )}
+            </div>
+          </div>
+        )}
 
         {rows.length === 0 && <div style={{ ...S.empty, marginTop: 20 }}>Belum ada catatan.</div>}
 
