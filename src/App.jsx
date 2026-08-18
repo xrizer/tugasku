@@ -5298,14 +5298,15 @@ function MimpiSection({ session }) {
   );
 }
 
-// Berapa berat perhatian yang kekasih ke satu peran dalam sehari. Diketuk
-// muter: kosong -> dikit -> sedang -> penuh -> kosong lagi.
-const LOAD = [
-  { w: 1, label: "light", dots: "●" },
-  { w: 2, label: "medium", dots: "●●" },
-  { w: 3, label: "full", dots: "●●●" },
-];
+// Seberat apa satu peran kerasa hari itu. Skala 1–5 ini juga yang jadi bahan
+// skor tekanan harian: rata-rata weight sehari × 20 → 0–100.
+const LOAD_CAPS = ["belum diisi", "ringan", "masih kekejar", "nuntut", "berat", "nyekek"];
 const PERAN_DAYS = 28;
+
+// tiga pita tekanan — angkanya sengaja kasar, yang dicari arahnya bukan presisi
+const band = (v) =>
+  v >= 70 ? "var(--red)" : v >= 55 ? "var(--janji-ink)" : "var(--green)";
+const bandLabel = (v) => (v >= 70 ? "berat" : v >= 55 ? "lumayan" : "aman");
 
 function PeranSection({ session }) {
   const [roles, setRoles] = useState(null);
@@ -5315,10 +5316,12 @@ function PeranSection({ session }) {
   const [err, setErr] = useState("");
 
   const today = localToday();
+  const dstr = (d) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   const since = (() => {
     const d = new Date();
     d.setDate(d.getDate() - (PERAN_DAYS - 1));
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    return dstr(d);
   })();
 
   useEffect(() => {
@@ -5362,22 +5365,22 @@ function PeranSection({ session }) {
   const weightOn = (roleId, date) =>
     days.find((x) => x.role_id === roleId && x.date === date)?.weight || 0;
 
-  // ketuk = naik satu tingkat; dari penuh balik ke kosong (barisnya dihapus)
-  const cycleDay = async (roleId, date) => {
-    const cur = weightOn(roleId, date);
-    const next = cur >= 3 ? 0 : cur + 1;
+  // ketuk angka yang udah kepilih = batalin, biar salah pencet gampang dibalikin
+  const setLevel = async (roleId, n) => {
+    const cur = weightOn(roleId, today);
+    const next = cur === n ? 0 : n;
     setDays((xs) => {
-      const rest = xs.filter((x) => !(x.role_id === roleId && x.date === date));
-      return next ? [...rest, { role_id: roleId, date, weight: next }] : rest;
+      const rest = xs.filter((x) => !(x.role_id === roleId && x.date === today));
+      return next ? [...rest, { role_id: roleId, date: today, weight: next }] : rest;
     });
     setErr("");
     if (!next) {
       await supabase.from("role_days").delete()
-        .eq("user_id", session.user.id).eq("role_id", roleId).eq("date", date);
+        .eq("user_id", session.user.id).eq("role_id", roleId).eq("date", today);
       return;
     }
     const { error } = await supabase.from("role_days").upsert(
-      { user_id: session.user.id, role_id: roleId, date, weight: next },
+      { user_id: session.user.id, role_id: roleId, date: today, weight: next },
       { onConflict: "user_id,role_id,date" }
     );
     if (error) setErr(error.message);
@@ -5385,36 +5388,138 @@ function PeranSection({ session }) {
 
   if (roles === null) return <div style={S.empty}>Loading…</div>;
 
-  const week = [...Array(7)].map((_, i) => {
+  const winDays = [...Array(PERAN_DAYS)].map((_, i) => {
     const d = new Date();
-    d.setDate(d.getDate() - (6 - i));
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    d.setDate(d.getDate() - (PERAN_DAYS - 1 - i));
+    return dstr(d);
   });
+
+  // ---- tekanan per hari: rata-rata berat yang kecatet hari itu × 20 ----
+  const pressureOn = (date) => {
+    const w = days.filter((x) => x.date === date).map((x) => Number(x.weight));
+    if (!w.length) return null;
+    return Math.round((w.reduce((a, b) => a + b, 0) / w.length) * 20);
+  };
+  const series = winDays.map((d) => ({ date: d, v: pressureOn(d) }));
+  const logged = series.filter((x) => x.v != null);
+  const todayV = pressureOn(today);
+  const avg = logged.length
+    ? Math.round(logged.reduce((s, x) => s + x.v, 0) / logged.length)
+    : null;
 
   const loadOf = (r) =>
     days.filter((x) => x.role_id === r.id).reduce((s, x) => s + Number(x.weight), 0);
   const totalLoad = roles.reduce((s, r) => s + loadOf(r), 0);
   const totalTarget = roles.reduce((s, r) => s + Number(r.target || 0), 0);
-
-  const nyataPct = (r) => (totalLoad ? (loadOf(r) / totalLoad) * 100 : 0);
-  // target dinormalin — kalau totalnya gak pas 100 tetep kebandingin adil
+  const actualPct = (r) => (totalLoad ? (loadOf(r) / totalLoad) * 100 : 0);
   const targetPct = (r) => (totalTarget ? (Number(r.target || 0) / totalTarget) * 100 : 0);
   const colorOf = (i) => `var(--src-${i % 8})`;
 
-  const Bar = ({ label, pctOf }) => (
-    <div style={{ marginBottom: 12 }}>
-      <div style={{ fontFamily: MONO, fontSize: 10, color: "var(--faint)", marginBottom: 5 }}>{label}</div>
-      <div style={{ display: "flex", gap: 3, height: 12, borderRadius: 99, overflow: "hidden", background: "var(--badge)" }}>
-        {roles.map((r, i) => (
-          <div key={r.id} style={{ width: `${pctOf(r)}%`, background: colorOf(i), borderRadius: 99 }} />
-        ))}
-      </div>
-    </div>
-  );
+  // skala bar dibikin longgar 25% biar penanda target gak pernah nempel ujung
+  const barMax =
+    Math.max(...roles.map((r) => Math.max(actualPct(r), targetPct(r))), 1) * 1.25;
+
+  // ---- siapa yang paling lewat jatah, dan udah berapa hari beruntun ----
+  const overs = roles
+    .map((r, i) => ({ r, i, over: actualPct(r) - targetPct(r) }))
+    .filter((x) => x.over > 0)
+    .sort((a, b) => b.over - a.over);
+
+  const streakOf = (role) => {
+    let n = 0;
+    for (let i = winDays.length - 1; i >= 0; i--) {
+      const d = winDays[i];
+      const all = days.filter((x) => x.date === d);
+      if (!all.length) continue; // hari kosong gak mutusin, cuma dilewatin
+      const tot = all.reduce((s, x) => s + Number(x.weight), 0);
+      const mine = all.find((x) => x.role_id === role.id);
+      const share = mine ? (Number(mine.weight) / tot) * 100 : 0;
+      if (share > targetPct(role)) n++;
+      else break;
+    }
+    return n;
+  };
+
+  const driver = (() => {
+    if (!totalLoad) return null;
+    if (!overs.length) return "Semuanya masih di dalam jatahnya.";
+    const top = overs[0];
+    const st = streakOf(top.r);
+    return `Paling banyak ${top.r.name}, lewat ${Math.round(top.over)} poin dari jatahnya${
+      st > 1 ? ` — ${st} hari beruntun` : ""
+    }.`;
+  })();
 
   return (
     <>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, marginTop: 4 }}>
+      {/* ================= tekanan hari ini ================= */}
+      {logged.length > 0 && (
+        <>
+          <div style={{ ...S.sectionHead, marginTop: 4 }}><span>Tekanan hari ini</span></div>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginTop: 10 }}>
+            <div
+              style={{
+                fontFamily: MONO,
+                fontSize: 46,
+                fontWeight: 700,
+                lineHeight: 1,
+                letterSpacing: "-0.03em",
+                color: todayV == null ? "var(--faint)" : band(todayV),
+              }}
+            >
+              {todayV == null ? "—" : todayV}
+            </div>
+            <div style={{ fontFamily: MONO, fontSize: 11, color: "var(--muted)", lineHeight: 1.6 }}>
+              {todayV == null ? "belum diisi hari ini" : bandLabel(todayV)}
+              <br />
+              rata-rata {avg}
+            </div>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 64, marginTop: 20 }}>
+            {series.map((x, i) => (
+              <div key={x.date} style={{ flex: 1, display: "flex", alignItems: "flex-end", height: "100%" }}>
+                <div
+                  title={x.v == null ? `${x.date} · kosong` : `${x.date} · ${x.v}`}
+                  style={{
+                    width: "100%",
+                    borderRadius: 2,
+                    // hari kosong disisain garis tipis — biar keliatan bolongnya,
+                    // bukan dianggep nol
+                    height: x.v == null ? 2 : `${Math.max(6, x.v)}%`,
+                    background: x.v == null ? "var(--border)" : band(x.v),
+                    opacity: i === series.length - 1 ? 1 : 0.45,
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              fontFamily: MONO,
+              fontSize: 10,
+              color: "var(--faint)",
+              marginTop: 8,
+            }}
+          >
+            <span>{PERAN_DAYS} hari</span>
+            <span>hari ini</span>
+          </div>
+
+          {driver && (
+            <div style={{ fontSize: 13, lineHeight: 1.6, color: "var(--muted2)", marginTop: 18 }}>
+              {driver}
+            </div>
+          )}
+
+          <div style={{ marginTop: 34 }} />
+        </>
+      )}
+
+      {/* ================= jatah perhatian ================= */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, marginTop: logged.length ? 0 : 4 }}>
         <div style={{ ...S.sectionHead, color: "var(--accent)" }}>
           <span>🎯 Attention budget</span>
         </div>
@@ -5450,108 +5555,150 @@ function PeranSection({ session }) {
         </div>
       )}
 
-      {roles.length > 0 && (
-        <>
-          <div style={{ marginTop: 18 }}>
-            <Bar label="WANT" pctOf={targetPct} />
-            {totalLoad > 0 && <Bar label={`ACTUAL · ${PERAN_DAYS}D`} pctOf={nyataPct} />}
-            {totalTarget > 0 && totalTarget !== 100 && (
-              <div style={{ fontFamily: MONO, fontSize: 10, color: "var(--faint)" }}>
-                targets add up to {totalTarget}% — compared proportionally
+      {roles.map((r, i) => {
+        const actual = actualPct(r);
+        const target = targetPct(r);
+        const over = Math.round(actual - target);
+        const lvl = weightOn(r.id, today);
+        return (
+          <div key={r.id} style={{ marginTop: 26 }}>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <EditableText
+                  value={r.name}
+                  onSave={(v) => patchRole(r.id, { name: v })}
+                  style={{ fontSize: 16, letterSpacing: "-0.01em" }}
+                />
               </div>
-            )}
-          </div>
+              {totalLoad > 0 && (
+                <span
+                  style={{
+                    fontFamily: MONO,
+                    fontSize: 12,
+                    whiteSpace: "nowrap",
+                    color: over > 0 ? "var(--red)" : "var(--green)",
+                  }}
+                >
+                  {over > 0 ? `+${over} over target` : `${over} under target`}
+                </span>
+              )}
+              <button style={{ ...S.iconPlain, fontSize: 15 }} onClick={() => removeRole(r.id)}>✕</button>
+            </div>
 
-          {roles.map((r, i) => {
-            const nyata = nyataPct(r);
-            const target = targetPct(r);
-            const gap = totalLoad ? Math.round(nyata - target) : null;
-            return (
-              <div key={r.id} style={{ ...S.card, display: "block", marginBottom: 20 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-                  <span style={{ width: 9, height: 9, borderRadius: 3, background: colorOf(i), flexShrink: 0 }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <EditableText
-                      value={r.name}
-                      onSave={(v) => patchRole(r.id, { name: v })}
-                      style={{ fontSize: 15, fontWeight: 600 }}
-                    />
-                  </div>
-                  {gap != null && (
-                    <span
+            {/* satu track: isian = nyata, garis tegak = target */}
+            <div
+              style={{
+                position: "relative",
+                height: 6,
+                marginTop: 12,
+                background: "var(--badge)",
+                borderRadius: 3,
+              }}
+            >
+              <div
+                style={{
+                  position: "absolute",
+                  left: 0, top: 0, bottom: 0,
+                  borderRadius: 3,
+                  background: colorOf(i),
+                  width: `${(actual / barMax) * 100}%`,
+                }}
+              />
+              <div
+                title="target"
+                style={{
+                  position: "absolute",
+                  top: -4, bottom: -4,
+                  width: 1,
+                  background: "var(--muted)",
+                  left: `${(target / barMax) * 100}%`,
+                }}
+              />
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                marginTop: 9,
+                fontFamily: MONO,
+                fontSize: 11,
+                color: "var(--muted)",
+              }}
+            >
+              <span>actual {Math.round(actual)}%</span>
+              <span>
+                target{" "}
+                <EditableText
+                  value={String(r.target ?? 0)}
+                  onSave={(v) => {
+                    const n = parseInt(v.replace(/\D/g, ""), 10);
+                    if (!isNaN(n)) patchRole(r.id, { target: Math.max(0, Math.min(100, n)) });
+                  }}
+                  style={{ display: "inline-block", fontFamily: MONO, fontSize: 11 }}
+                />
+                %
+              </span>
+            </div>
+
+            <div style={{ marginTop: 16, padding: "12px 14px 13px", background: "var(--card)", borderRadius: 10 }}>
+              <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--muted)" }}>
+                How heavy did this feel today?
+              </div>
+              <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+                {[1, 2, 3, 4, 5].map((n) => {
+                  const on = lvl === n;
+                  return (
+                    <button
+                      key={n}
+                      onClick={() => setLevel(r.id, n)}
                       style={{
+                        flex: 1,
+                        height: 38,
+                        borderRadius: 7,
+                        cursor: "pointer",
                         fontFamily: MONO,
-                        fontSize: 12,
+                        fontSize: 13,
                         fontWeight: 700,
-                        whiteSpace: "nowrap",
-                        color: Math.abs(gap) <= 5 ? "var(--green)" : gap > 0 ? "var(--janji-ink)" : "var(--red)",
+                        background: on ? colorOf(i) : "var(--badge)",
+                        color: on ? "var(--bg)" : "var(--muted)",
+                        border: `1px solid ${on ? colorOf(i) : "var(--border)"}`,
                       }}
-                      title="Gap from target"
                     >
-                      {gap > 0 ? "+" : ""}{gap}
-                    </span>
-                  )}
-                  <button style={{ ...S.iconPlain, fontSize: 15 }} onClick={() => removeRole(r.id)}>✕</button>
-                </div>
-
-                <div style={{ display: "flex", gap: 7, alignItems: "baseline", marginTop: 5, flexWrap: "wrap" }}>
-                  <span style={{ ...S.chip, cursor: "default" }}>
-                    want{" "}
-                    <EditableText
-                      value={String(r.target ?? 0)}
-                      onSave={(v) => {
-                        const n = parseInt(v.replace(/\D/g, ""), 10);
-                        if (!isNaN(n)) patchRole(r.id, { target: Math.max(0, Math.min(100, n)) });
-                      }}
-                      style={{ display: "inline-block", fontFamily: MONO, fontSize: 11, fontWeight: 700 }}
-                    />
-                    %
-                  </span>
-                  {totalLoad > 0 && (
-                    <>
-                      <span style={{ color: "var(--faint)", fontSize: 11 }}>·</span>
-                      <span style={{ ...S.chip, cursor: "default", color: "var(--ink)" }}>
-                        actual {Math.round(nyata)}%
-                      </span>
-                    </>
-                  )}
-                </div>
-
-                {/* 7 hari terakhir — ketuk buat naikin bebannya hari itu */}
-                <div style={{ display: "flex", gap: 5, marginTop: 10 }}>
-                  {week.map((d) => {
-                    const w = weightOn(r.id, d);
-                    return (
-                      <button
-                        key={d}
-                        title={`${d} · ${w ? LOAD[w - 1].label : "empty"}`}
-                        onClick={() => cycleDay(r.id, d)}
-                        style={{
-                          flex: 1,
-                          height: 26,
-                          borderRadius: 7,
-                          cursor: "pointer",
-                          padding: 0,
-                          background: w ? colorOf(i) : "var(--badge)",
-                          opacity: w ? 0.3 + w * 0.234 : 1,
-                          border: `1px solid ${w ? colorOf(i) : "var(--border)"}`,
-                          boxShadow: d === today ? "inset 0 0 0 1px var(--accent)" : "none",
-                        }}
-                      />
-                    );
-                  })}
-                </div>
+                      {n}
+                    </button>
+                  );
+                })}
               </div>
-            );
-          })}
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  marginTop: 8,
+                  fontFamily: MONO,
+                  fontSize: 10,
+                  color: "var(--faint)",
+                }}
+              >
+                <span>1 ringan</span>
+                <span style={{ color: lvl ? "var(--muted2)" : "var(--faint)" }}>{LOAD_CAPS[lvl]}</span>
+                <span>5 nyekek</span>
+              </div>
+            </div>
+          </div>
+        );
+      })}
 
-        </>
+      {roles.length > 0 && totalTarget > 0 && totalTarget !== 100 && (
+        <div style={{ fontFamily: MONO, fontSize: 11, lineHeight: 1.7, color: "var(--faint)", marginTop: 24 }}>
+          targets add up to {totalTarget}% — compared proportionally
+        </div>
       )}
 
       {err && (
         <div style={{ color: "var(--red)", fontSize: 12, marginTop: 10 }}>
           {err}
-          {/relation|column|does not exist/i.test(err) && (
+          {/relation|column|does not exist|constraint/i.test(err) && (
             <> — run the <code>roles</code> section in supabase-setup.sql first.</>
           )}
         </div>

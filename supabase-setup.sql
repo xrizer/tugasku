@@ -82,8 +82,9 @@ create policy "public read recent moods" on public.moods
 -- Jatah perhatian: peran yang lu jalanin, plus berapa berat tiap harinya.
 --
 --   roles.target  -> persen perhatian yang LU MAU dikasih ke peran itu
---   role_days     -> satu baris per peran per hari, weight 1..3
---                    (1 dikit, 2 sedang, 3 penuh)
+--   role_days     -> satu baris per peran per hari, weight 1..5
+--                    (1 ringan … 5 nyekek) — dipake juga buat ngitung
+--                    skor tekanan harian: rata-rata weight hari itu × 20
 --
 -- Sengaja ngitung "berapa hari dan seberat apa", bukan jam. Nyatet jam itu
 -- ribet dan bakal ditinggalin; sekali ketuk per hari masih kekejar, dan yang
@@ -101,7 +102,7 @@ create table if not exists public.role_days (
   user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
   role_id uuid not null references public.roles(id) on delete cascade,
   date    date not null,
-  weight  int  not null default 1 check (weight between 1 and 3),
+  weight  int  not null default 1 check (weight between 1 and 5),
   unique (user_id, role_id, date)
 );
 
@@ -115,6 +116,13 @@ create policy "own roles" on public.roles
 drop policy if exists "own role days" on public.role_days;
 create policy "own role days" on public.role_days
   for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+-- Skalanya dilebarin dari 1..3 ke 1..5. Baris lama (1–3) tetep sah, jadi gak
+-- ada yang perlu dibackfill. Constraint lama dibuang dulu biar bisa dijalanin
+-- ulang tanpa error.
+alter table public.role_days drop constraint if exists role_days_weight_check;
+alter table public.role_days add constraint role_days_weight_check
+  check (weight between 1 and 5);
 
 -- ---------------------------------------------------------------------
 -- Nandain pengeluaran yang asalnya dari tagihan Rutin.
