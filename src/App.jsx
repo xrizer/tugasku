@@ -1671,6 +1671,9 @@ const localToday = () => {
 };
 
 const DEFAULT_SOURCES = ["cash", "bca", "danamon"];
+// kategori transaksi — dieditnya sama persis kayak sumber: satu baris teks
+// dipisah koma, kesimpen di user_prefs
+const DEFAULT_CATS = ["makan", "transport", "belanja", "tagihan", "hiburan", "lainnya"];
 
 const thisMonthStr = () => localToday().slice(0, 7); // 'YYYY-MM'
 
@@ -3293,6 +3296,10 @@ function DuitPage({ session }) {
   const [addedMsg, setAddedMsg] = useState("");
   const [sources, setSources] = useState(DEFAULT_SOURCES);
   const [source, setSource] = useState(DEFAULT_SOURCES[0]);
+  const [cats, setCats] = useState(DEFAULT_CATS);
+  const [cat, setCat] = useState(DEFAULT_CATS[0]);
+  const [editCat, setEditCat] = useState(false);
+  const [catDraft, setCatDraft] = useState("");
   const [note, setNote] = useState("");
   const [editSrc, setEditSrc] = useState(false);
   const [srcDraft, setSrcDraft] = useState("");
@@ -3348,13 +3355,17 @@ function DuitPage({ session }) {
   useEffect(() => {
     supabase
       .from("user_prefs")
-      .select("sources")
+      .select("sources,categories")
       .eq("user_id", session.user.id)
       .maybeSingle()
       .then(({ data }) => {
         if (data?.sources?.length) {
           setSources(data.sources);
           setSource(data.sources[0]);
+        }
+        if (data?.categories?.length) {
+          setCats(data.categories);
+          setCat(data.categories[0]);
         }
       });
   }, [session]);
@@ -3369,9 +3380,27 @@ function DuitPage({ session }) {
     setSources(list);
     setSource(list[0]);
     setEditSrc(false);
+    // dua-duanya dikirim biar gak ada yang ketimpa, apa pun perilaku upsert-nya
     await supabase
       .from("user_prefs")
-      .upsert({ user_id: session.user.id, sources: list });
+      .upsert({ user_id: session.user.id, sources: list, categories: cats });
+  };
+
+  const saveCats = async () => {
+    const list = catDraft
+      .split(",")
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean)
+      .slice(0, 16);
+    if (list.length === 0) return;
+    setCats(list);
+    if (!list.includes(cat)) setCat(list[0]);
+    setEditCat(false);
+    // upsert-nya bawa sources juga — kalau cuma kirim categories, kolom
+    // sources di baris itu ketimpa null
+    await supabase
+      .from("user_prefs")
+      .upsert({ user_id: session.user.id, sources, categories: list });
   };
 
   useEffect(() => {
@@ -3424,6 +3453,8 @@ function DuitPage({ session }) {
       kind,
       source,
       to_source: kind === "pindah" ? dest : null,
+      // pindah dana gak punya kategori — duitnya gak ke mana-mana
+      category: kind === "pindah" ? null : cat,
       note: note.trim() || null,
       spent_date: spentDate || localToday(),
     };
@@ -3460,6 +3491,13 @@ function DuitPage({ session }) {
 
   // sumber diketuk buat muter ke sumber berikutnya — bikin dropdown di tiap
   // baris log kebanyakan buat ngebenerin satu salah pilih
+  // kategori diputer sama kayak sumber — sekali ketuk pindah ke berikutnya
+  const cycleCat = (r) => {
+    const i = cats.indexOf(r.category || cats[0]);
+    const next = cats[(i + 1) % cats.length];
+    if (next) patchRow(r.id, { category: next });
+  };
+
   const cycleSrc = (r, field) => {
     const cur = r[field] || sources[0];
     const pool = field === "to_source" ? sources.filter((x) => x !== r.source) : sources;
@@ -3507,6 +3545,20 @@ function DuitPage({ session }) {
 
   const inWin = (ds) => ds >= win.from && ds <= win.to;
   const winRows = rows.filter((r) => inWin(r.spent_date));
+
+  // rincian per kategori buat rentang yang lagi diliat — ini yang bikin ngisi
+  // kategori ada gunanya. Pindah dana gak diitung, dia bukan pengeluaran.
+  const byCat = (() => {
+    const acc = {};
+    winRows.forEach((r) => {
+      if ((r.kind || "out") !== "out") return;
+      const k = r.category || "—";
+      acc[k] = (acc[k] || 0) + Number(r.amount);
+    });
+    const list = Object.entries(acc).sort((a, b) => b[1] - a[1]);
+    const total = list.reduce((s2, x) => s2 + x[1], 0);
+    return { list, total };
+  })();
 
   // log: transaksi dikelompokin per tanggal, terbaru di atas. Urutan di dalam
   // sehari ngikutin created_at dari query, jadi yang barusan dicatet paling atas.
@@ -3816,6 +3868,55 @@ function DuitPage({ session }) {
             <button style={{ ...S.addBtn, width: 60 }} onClick={saveSources}>OK</button>
           </div>
         )}
+
+        {/* kategori: cuma buat keluar/masuk, pindah dana gak butuh */}
+        {kind !== "pindah" &&
+          (!editCat ? (
+            <div style={{ display: "flex", gap: 6 }}>
+              <select
+                style={{
+                  ...S.input,
+                  flex: 1,
+                  minWidth: 0,
+                  textTransform: "uppercase",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: "var(--muted2)",
+                }}
+                value={cat}
+                onChange={(e) => setCat(e.target.value)}
+              >
+                {cats.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+              <button
+                style={{ ...S.btnGhost, padding: "7px 10px" }}
+                title="Edit daftar kategori"
+                onClick={() => {
+                  setCatDraft(cats.join(", "));
+                  setEditCat(true);
+                }}
+              >
+                ✎
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: "flex", gap: 6 }}>
+              <input
+                style={{ ...S.input, flex: 1, minWidth: 0, fontSize: 16 }}
+                placeholder="Pisahin pakai koma"
+                value={catDraft}
+                autoFocus
+                onChange={(e) => setCatDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") saveCats();
+                  if (e.key === "Escape") setEditCat(false);
+                }}
+              />
+              <button style={{ ...S.addBtn, width: 60 }} onClick={saveCats}>OK</button>
+            </div>
+          ))}
 
         <input
           style={{ ...S.input, width: "100%", boxSizing: "border-box", fontSize: 16 }}
@@ -4257,6 +4358,33 @@ function DuitPage({ session }) {
           </div>
         )}
 
+        {showTotal && byCat.list.length > 1 && (
+          <div style={{ marginTop: 26 }}>
+            {byCat.list.slice(0, 6).map(([name, v]) => (
+              <div key={name} style={{ marginBottom: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 13 }}>
+                  <span style={{ textTransform: "uppercase", fontFamily: MONO, fontSize: 11, letterSpacing: "0.08em", color: "var(--muted2)" }}>
+                    {name}
+                  </span>
+                  <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}>
+                    {rupiah(v)}
+                  </span>
+                </div>
+                <div style={{ height: 5, borderRadius: 99, background: "var(--badge)", overflow: "hidden", marginTop: 5 }}>
+                  <div
+                    style={{
+                      height: "100%",
+                      borderRadius: 99,
+                      width: `${Math.max(1.5, (v / byCat.total) * 100)}%`,
+                      background: "var(--accent)",
+                    }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         {rows.length === 0 && <div style={{ ...S.empty, marginTop: 20 }}>Belum ada catatan.</div>}
 
         {logDays.map(([date, list]) => {
@@ -4353,6 +4481,18 @@ function DuitPage({ session }) {
                               onClick={() => cycleSrc(r, "to_source")}
                             >
                               {r.to_source}
+                            </span>
+                          </>
+                        )}
+                        {!pindah && (
+                          <>
+                            <span style={{ color: "var(--faint)" }}> · </span>
+                            <span
+                              style={{ color: "var(--muted)", cursor: "pointer" }}
+                              title="Tap buat ganti kategori"
+                              onClick={() => cycleCat(r)}
+                            >
+                              {r.category || "—"}
                             </span>
                           </>
                         )}

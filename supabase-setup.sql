@@ -149,6 +149,19 @@ update public.expenses e
    );
 
 -- ---------------------------------------------------------------------
+-- Kategori transaksi (makan, transport, tagihan, …).
+--
+-- Daftarnya disimpen per user di user_prefs.categories, dieditnya sama persis
+-- kayak sumber: satu baris teks dipisah koma. Kolom di expenses sengaja text
+-- bebas, bukan enum — daftarnya boleh diubah kapan aja tanpa migrasi, dan
+-- baris lama yang kategorinya udah gak ada di daftar tetep kebaca apa adanya.
+alter table public.expenses
+  add column if not exists category text;
+
+alter table public.user_prefs
+  add column if not exists categories text[];
+
+-- ---------------------------------------------------------------------
 -- Pindah dana antar sumber (misal danamon -> cash).
 --
 -- Dicatet di tabel expenses juga, tapi kind-nya 'pindah' — bukan 'out' dan
