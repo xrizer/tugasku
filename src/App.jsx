@@ -4741,6 +4741,79 @@ const parseRange = (txt) => {
 
 const SNAP = 5; // menit — biar gampang pas ditarik pakai jari
 
+const KERJA_COLOR = "#3E7A46";
+const TIDUR_COLOR = "#B8860B";
+
+// satu kegiatan timed siap di-insert ke time_blocks
+const timedBlock = (name, start, end, color, wajib = true) => {
+  const start_min = toMin(start);
+  const end_min = toMin(end);
+  return {
+    name,
+    start_min,
+    end_min,
+    hours: Math.round((spanMin(start_min, end_min) / 60) * 100) / 100,
+    wajib,
+    color,
+  };
+};
+
+// jadwal siap-pakai: tap sekali, peta 24 jam keisi kerja + tidur.
+// sisanya jam bebas biar bisa ditambah sendiri. jamnya standar 8 jam
+// shift / jam kantor — setelah kepasang, ujung busurnya tetap bisa ditarik.
+const TIME_PRESETS = [
+  {
+    id: "shift1",
+    label: "Shift 1",
+    hint: "kerja 06:00–14:00 · tidur 21:30–05:00",
+    blocks: [
+      timedBlock("Kerja", "06:00", "14:00", KERJA_COLOR),
+      timedBlock("Tidur", "21:30", "05:00", TIDUR_COLOR),
+    ],
+  },
+  {
+    id: "shift2",
+    label: "Shift 2",
+    hint: "kerja 14:00–22:00 · tidur 23:30–07:30",
+    blocks: [
+      timedBlock("Kerja", "14:00", "22:00", KERJA_COLOR),
+      timedBlock("Tidur", "23:30", "07:30", TIDUR_COLOR),
+    ],
+  },
+  {
+    id: "shift3",
+    label: "Shift 3",
+    hint: "kerja 22:00–06:00 · tidur 07:00–15:00",
+    blocks: [
+      timedBlock("Kerja", "22:00", "06:00", KERJA_COLOR),
+      timedBlock("Tidur", "07:00", "15:00", TIDUR_COLOR),
+    ],
+  },
+  {
+    id: "kantor",
+    label: "Kantor",
+    hint: "kerja 08:00–17:00 · tidur 22:30–06:00",
+    blocks: [
+      timedBlock("Kerja", "08:00", "17:00", KERJA_COLOR),
+      timedBlock("Tidur", "22:30", "06:00", TIDUR_COLOR),
+    ],
+  },
+  {
+    id: "weekend",
+    label: "Weekend",
+    hint: "tidur 00:00–09:00",
+    blocks: [timedBlock("Tidur", "00:00", "09:00", TIDUR_COLOR)],
+  },
+];
+
+const presetKey = (b) => `${b.name}|${b.start_min}|${b.end_min}`;
+const matchingPresetId = (xs) =>
+  TIME_PRESETS.find((p) => {
+    if (!xs || xs.length !== p.blocks.length) return false;
+    const have = new Set(xs.map(presetKey));
+    return p.blocks.every((b) => have.has(presetKey(b)));
+  })?.id;
+
 // Jam analog 24 jam — tengah malam di atas, jalan searah jarum jam.
 // Ujung tiap busur bisa ditarik buat ganti jam mulai / selesai.
 function JamAnalog({ blocks, onCommit, readOnly }) {
@@ -4949,6 +5022,7 @@ function WaktuSection({ session }) {
   const [form, setForm] = useState({ name: "", hours: "", start: "", end: "", wajib: false });
   const [showForm, setShowForm] = useState(false);
   const [err, setErr] = useState("");
+  const [applying, setApplying] = useState(false);
 
   useEffect(() => {
     supabase
@@ -5016,6 +5090,38 @@ function WaktuSection({ session }) {
     patchBlock(b.id, { color: PALETTE[(i + 1) % PALETTE.length] });
   };
 
+  // ganti seluruh peta dengan jadwal preset. yang baru di-insert dulu,
+  // kegiatan lama dihapus sesudahnya — kalau insert gagal peta lamanya tetep ada.
+  const applyPreset = async (preset) => {
+    if (applying) return;
+    if (matchingPresetId(blocks) === preset.id) return;
+    if (
+      (blocks || []).length > 0 &&
+      !window.confirm(`Ganti peta dengan ${preset.label}? Kegiatan yang ada kehapus.`)
+    )
+      return;
+    setApplying(true);
+    setErr("");
+    setShowForm(false);
+    try {
+      const isPub = allPublic(blocks || []);
+      const rows = preset.blocks.map((b) => ({ ...b, is_public: isPub }));
+      const { data, error } = await supabase.from("time_blocks").insert(rows).select();
+      if (error) {
+        setErr(error.message);
+        return;
+      }
+      const oldIds = (blocks || []).map((b) => b.id);
+      if (oldIds.length) {
+        const { error: delErr } = await supabase.from("time_blocks").delete().in("id", oldIds);
+        if (delErr) setErr(delErr.message);
+      }
+      setBlocks((data || []).slice().sort((a, b) => b.hours - a.hours));
+    } finally {
+      setApplying(false);
+    }
+  };
+
   const toggleShare = async () => {
     const v = !allPublic(blocks || []);
     setBlocks((xs) => xs.map((x) => ({ ...x, is_public: v })));
@@ -5040,6 +5146,7 @@ function WaktuSection({ session }) {
   const wajibTotal = blocks
     .filter((b) => b.wajib)
     .reduce((s, b) => s + Number(b.hours), 0);
+  const activePreset = matchingPresetId(blocks);
 
   return (
     <>
@@ -5061,6 +5168,54 @@ function WaktuSection({ session }) {
           <button style={S.promAddLink} onClick={() => setShowForm((v) => !v)}>
             {showForm ? "batal" : "+ kegiatan"}
           </button>
+        </div>
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 6,
+          marginBottom: 10,
+          alignItems: "center",
+        }}
+      >
+        {TIME_PRESETS.map((p) => {
+          const on = activePreset === p.id;
+          return (
+            <button
+              key={p.id}
+              type="button"
+              disabled={applying}
+              title={p.hint}
+              onClick={() => applyPreset(p)}
+              style={{
+                ...S.btnGhost,
+                fontSize: 12,
+                padding: "5px 11px",
+                borderRadius: 999,
+                fontWeight: on ? 700 : 500,
+                ...(on
+                  ? { borderColor: "var(--accent)", color: "var(--accent)" }
+                  : {}),
+                ...(applying ? { opacity: 0.55, cursor: "default" } : {}),
+              }}
+            >
+              {p.label}
+            </button>
+          );
+        })}
+        <div
+          style={{
+            flexBasis: "100%",
+            fontFamily: MONO,
+            fontSize: 11,
+            color: "var(--faint)",
+            marginTop: 2,
+          }}
+        >
+          {TIME_PRESETS.find((p) => p.id === activePreset)?.hint
+            || "Tap buat ngisi peta sekaligus"}
         </div>
       </div>
 
@@ -5187,7 +5342,7 @@ function WaktuSection({ session }) {
       )}
 
       {blocks.length === 0 && !showForm && (
-        <div style={S.empty}>Kosong.</div>
+        <div style={S.empty}>Kosong. Pilih preset di atas, atau + kegiatan.</div>
       )}
 
       {blocks.map((b) => (
