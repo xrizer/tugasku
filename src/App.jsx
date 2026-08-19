@@ -5602,9 +5602,11 @@ function WaktuSection({ session }) {
           <button
             type="button"
             style={{
-              ...S.chip,
-              letterSpacing: 0,
-              color: editId ? "var(--janji-ink)" : "var(--faint)",
+              ...S.iconBtn,
+              width: 36,
+              height: 36,
+              fontSize: 16,
+              ...(editId ? { borderColor: "var(--janji-ink)", color: "var(--janji-ink)" } : {}),
             }}
             title={editId ? "Tutup" : "Edit preset"}
             onClick={() => {
