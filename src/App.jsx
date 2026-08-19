@@ -5240,9 +5240,7 @@ function WaktuSection({ session }) {
       .from("user_prefs")
       .upsert({ user_id: session.user.id, time_presets: next, time_maps: mapStore })
       .then(({ error }) => {
-        if (error && /column|time_presets/i.test(error.message))
-          setErr("Jam preset kesimpen di HP ini. Jalanin dulu bagian time_presets di supabase-setup.sql buat sync.");
-        else if (error) setErr(error.message);
+        if (error && !/column|time_presets/i.test(error.message)) setErr(error.message);
       });
   };
 
@@ -5256,9 +5254,7 @@ function WaktuSection({ session }) {
       .from("user_prefs")
       .upsert({ user_id: session.user.id, time_maps: store, time_presets: overrides })
       .then(({ error }) => {
-        if (error && /column|time_maps/i.test(error.message))
-          setErr("Peta kesimpen di HP ini. Jalanin dulu bagian time_maps di supabase-setup.sql buat sync.");
-        else if (error) setErr(error.message);
+        if (error && !/column|time_maps/i.test(error.message)) setErr(error.message);
       });
   };
 
@@ -5475,18 +5471,77 @@ function WaktuSection({ session }) {
   const used = blocks.reduce((s, b) => s + Number(b.hours), 0);
   const free = Math.max(0, 24 - used);
   const over = used > 24;
-  const wajibTotal = blocks
-    .filter((b) => b.wajib)
-    .reduce((s, b) => s + Number(b.hours), 0);
   const activePreset = matchingPresetId(blocks, presets);
-  const editing = presets.find((p) => p.id === editId);
   const currentMap = mapStore.maps.find((m) => m.id === mapStore.activeId);
 
   return (
     <>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 26, gap: 10 }}>
-        <div style={S.sectionHead}><span>🕒 {currentMap?.name || "Peta 24 jam"}</span></div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginTop: 26,
+          gap: 10,
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", flex: 1, minWidth: 0 }}>
+          {mapStore.maps.map((m) => {
+            const on = m.id === mapStore.activeId;
+            return (
+              <div
+                key={m.id}
+                style={{
+                  ...S.btnGhost,
+                  fontSize: 12,
+                  padding: on ? "4px 11px" : "5px 11px",
+                  borderRadius: 999,
+                  fontWeight: on ? 700 : 500,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  cursor: applying ? "default" : "pointer",
+                  ...(on
+                    ? { borderColor: "var(--accent)", color: "var(--accent)" }
+                    : {}),
+                  ...(applying ? { opacity: 0.55 } : {}),
+                }}
+                onClick={() => !on && !applying && switchMap(m.id)}
+              >
+                {on ? (
+                  <EditableText
+                    value={m.name}
+                    onSave={(v) => renameMap(m.id, v)}
+                    style={{ fontSize: 12, fontWeight: 700, color: "var(--accent)" }}
+                  />
+                ) : (
+                  m.name
+                )}
+              </div>
+            );
+          })}
+          <button
+            type="button"
+            disabled={applying}
+            style={{ ...S.btnGhost, fontSize: 12, padding: "5px 11px", borderRadius: 999 }}
+            title="Peta baru"
+            onClick={addPeta}
+          >
+            +
+          </button>
+          {mapStore.maps.length > 1 && (
+            <button
+              type="button"
+              disabled={applying}
+              style={{ ...S.btnGhost, fontSize: 12, padding: "5px 10px", borderRadius: 999, color: "var(--red)" }}
+              title="Hapus peta ini"
+              onClick={removeActivePeta}
+            >
+              ✕
+            </button>
+          )}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
           {blocks.length > 0 && (
             <button
               style={{
@@ -5500,7 +5555,7 @@ function WaktuSection({ session }) {
             </button>
           )}
           <button style={S.promAddLink} onClick={() => { setEditId(null); setShowForm((v) => !v); }}>
-            {showForm ? "batal" : "+ kegiatan"}
+            {showForm ? "batal" : "+"}
           </button>
         </div>
       </div>
@@ -5510,69 +5565,8 @@ function WaktuSection({ session }) {
           display: "flex",
           flexWrap: "wrap",
           gap: 6,
-          marginBottom: 8,
-          alignItems: "center",
-        }}
-      >
-        {mapStore.maps.map((m) => {
-          const on = m.id === mapStore.activeId;
-          return (
-            <div
-              key={m.id}
-              style={{
-                ...S.btnGhost,
-                fontSize: 12,
-                padding: on ? "4px 11px" : "5px 11px",
-                borderRadius: 999,
-                fontWeight: on ? 700 : 500,
-                display: "inline-flex",
-                alignItems: "center",
-                cursor: applying ? "default" : "pointer",
-                ...(on
-                  ? { borderColor: "var(--accent)", color: "var(--accent)" }
-                  : {}),
-                ...(applying ? { opacity: 0.55 } : {}),
-              }}
-              onClick={() => !on && !applying && switchMap(m.id)}
-            >
-              {on ? (
-                <EditableText
-                  value={m.name}
-                  onSave={(v) => renameMap(m.id, v)}
-                  style={{ fontSize: 12, fontWeight: 700, color: "var(--accent)" }}
-                />
-              ) : (
-                m.name
-              )}
-            </div>
-          );
-        })}
-        <button
-          type="button"
-          disabled={applying}
-          style={{ ...S.btnGhost, fontSize: 12, padding: "5px 11px", borderRadius: 999 }}
-          title="Peta baru"
-          onClick={addPeta}
-        >
-          +
-        </button>
-        <button
-          type="button"
-          disabled={applying}
-          style={{ ...S.btnGhost, fontSize: 12, padding: "5px 10px", borderRadius: 999, color: "var(--red)" }}
-          title={mapStore.maps.length > 1 ? "Hapus peta ini" : "Kosongin peta ini"}
-          onClick={removeActivePeta}
-        >
-          ✕
-        </button>
-      </div>
-
-      <div
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: 6,
-          marginBottom: 10,
+          marginTop: 10,
+          marginBottom: editId ? 8 : 14,
           alignItems: "center",
         }}
       >
@@ -5590,17 +5584,13 @@ function WaktuSection({ session }) {
                 else applyPreset(p);
               }}
               style={{
-                ...S.btnGhost,
+                ...S.chip,
+                letterSpacing: 0,
+                textTransform: "none",
                 fontSize: 12,
-                padding: "5px 11px",
-                borderRadius: 999,
+                padding: "6px 4px",
+                color: on ? (editId ? "var(--janji-ink)" : "var(--accent)") : "var(--muted)",
                 fontWeight: on ? 700 : 500,
-                ...(on
-                  ? {
-                      borderColor: editId ? "var(--janji-ink)" : "var(--accent)",
-                      color: editId ? "var(--janji-ink)" : "var(--accent)",
-                    }
-                  : {}),
                 ...(applying ? { opacity: 0.55, cursor: "default" } : {}),
               }}
             >
@@ -5609,44 +5599,27 @@ function WaktuSection({ session }) {
           );
         })}
         {presets.length > 0 && (
-        <button
-          type="button"
-          style={{
-            ...S.btnGhost,
-            padding: "5px 10px",
-            borderRadius: 999,
-            ...(editId ? { borderColor: "var(--janji-ink)", color: "var(--janji-ink)" } : {}),
-          }}
-          title={editId ? "Tutup editor" : "Edit jam preset"}
-          onClick={() => {
-            if (editId) setEditId(null);
-            else openEdit(activePreset || presets[0].id);
-          }}
-        >
-          ✎
-        </button>
-        )}
-        {presets.length === 0 && (
-          <button type="button" style={S.promAddLink} onClick={restorePresets}>
-            kembalikan preset
+          <button
+            type="button"
+            style={{
+              ...S.chip,
+              letterSpacing: 0,
+              color: editId ? "var(--janji-ink)" : "var(--faint)",
+            }}
+            title={editId ? "Tutup" : "Edit preset"}
+            onClick={() => {
+              if (editId) setEditId(null);
+              else openEdit(activePreset || presets[0].id);
+            }}
+          >
+            ✎
           </button>
         )}
-        <div
-          style={{
-            flexBasis: "100%",
-            fontFamily: MONO,
-            fontSize: 11,
-            color: "var(--faint)",
-            marginTop: 2,
-          }}
-        >
-          {editId
-            ? `Edit ${editing?.label || ""} — jamnya bisa diganti, terus simpan`
-            : presets.length === 0
-            ? "Preset dihapus. Kegiatan di peta tetep, atau kembalikan preset di atas."
-            : (presets.find((p) => p.id === activePreset)?.hint
-                || "Tap buat ngisi peta. Tap lagi, atau ✎, buat edit jamnya")}
-        </div>
+        {presets.length === 0 && (
+          <button type="button" style={S.chip} onClick={restorePresets}>
+            preset
+          </button>
+        )}
       </div>
 
       {editId && (
@@ -5704,13 +5677,13 @@ function WaktuSection({ session }) {
                 ])
               }
             >
-              + kegiatan
+              +
             </button>
             <button
               style={{ ...S.promAddLink, color: "var(--red)" }}
               onClick={() => removePreset(editId)}
             >
-              hapus preset
+              hapus
             </button>
             <div style={{ flex: 1 }} />
             <button style={S.btnGhost} onClick={() => setEditId(null)}>batal</button>
@@ -5719,13 +5692,13 @@ function WaktuSection({ session }) {
         </div>
       )}
 
+      {blocks.length > 0 && (
       <div style={{ ...S.card, display: "block", padding: 14, marginBottom: 8 }}>
-        {/* stacked bar */}
         <div
           style={{
             display: "flex",
-            height: 34,
-            borderRadius: 10,
+            height: 28,
+            borderRadius: 8,
             overflow: "hidden",
             border: "1px solid var(--border)",
           }}
@@ -5743,7 +5716,7 @@ function WaktuSection({ session }) {
           ))}
           {free > 0 && (
             <div
-              title={`belum keclaim — ${free.toFixed(1)} jam`}
+              title={`${free.toFixed(1)} jam bebas`}
               style={{
                 width: `${(free / 24) * 100}%`,
                 background:
@@ -5763,26 +5736,21 @@ function WaktuSection({ session }) {
           }}
         >
           {over ? (
-            <span style={{ color: "var(--red)" }}>
-              kepake {used.toFixed(1)} jam — lebih {(used - 24).toFixed(1)} jam dari 24
-            </span>
+            <span style={{ color: "var(--red)" }}>+{(used - 24).toFixed(1)} jam</span>
           ) : (
-            <>
-              kepake {used.toFixed(1)} · wajib {wajibTotal.toFixed(1)} ·{" "}
-              <b style={{ color: "var(--green)" }}>{free.toFixed(1)} jam bebas</b>
-            </>
+            <span style={{ color: "var(--green)" }}>{free.toFixed(1)} bebas</span>
           )}
         </div>
-      </div>
 
-      {/* jam analog — cuma kegiatan yang punya jam mulai & selesai */}
-      {blocks.some((b) => b.start_min != null && b.end_min != null) && (
-        <div style={{ ...S.card, display: "block", padding: 14, marginBottom: 8 }}>
-          <JamAnalog
-            blocks={blocks}
-            onCommit={(id, patch) => patchBlock(id, patch)}
-          />
-        </div>
+        {blocks.some((b) => b.start_min != null && b.end_min != null) && (
+          <div style={{ marginTop: 10 }}>
+            <JamAnalog
+              blocks={blocks}
+              onCommit={(id, patch) => patchBlock(id, patch)}
+            />
+          </div>
+        )}
+      </div>
       )}
 
       {showForm && (
@@ -5842,7 +5810,7 @@ function WaktuSection({ session }) {
       )}
 
       {blocks.length === 0 && !showForm && (
-        <div style={S.empty}>Kosong. Pilih preset, + kegiatan, atau + buat peta baru.</div>
+        <div style={S.empty}>Kosong.</div>
       )}
 
       {blocks.map((b) => (
@@ -5879,15 +5847,10 @@ function WaktuSection({ session }) {
                 else if (!v.trim())
                   patchBlock(b.id, { start_min: null, end_min: null });
               }}
-              placeholder="atur jam…"
+              placeholder="jam…"
               style={{ fontFamily: MONO, fontSize: 11, color: "var(--muted)", marginTop: 2 }}
             />
           </div>
-          {b.wajib && (
-            <span style={{ ...S.tag, color: "var(--janji-ink)" }}>
-              wajib
-            </span>
-          )}
           <EditableText
             value={`${b.hours}`}
             onSave={(v) => {
@@ -5902,7 +5865,6 @@ function WaktuSection({ session }) {
               textAlign: "right",
             }}
           />
-          <span style={{ fontSize: 12, color: "var(--faint)" }}>jam</span>
           <button
             style={S.iconBtn}
             title={b.wajib ? "Jadiin fleksibel" : "Tandain wajib"}
@@ -5917,9 +5879,6 @@ function WaktuSection({ session }) {
       {err && (
         <div style={{ color: "var(--red)", fontSize: 12, marginTop: 8 }}>
           {err}
-          {/[Cc]olumn|start_min/.test(err) && (
-            <> — jalanin dulu bagian <code>time_blocks</code> di supabase-setup.sql.</>
-          )}
         </div>
       )}
     </>
