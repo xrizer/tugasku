@@ -4869,6 +4869,60 @@ const toDraft = (blocks) =>
     color: b.color,
   }));
 
+const MAPS_KEY = "tugasku-time-maps";
+
+const defaultMapStore = () => ({
+  activeId: "utama",
+  maps: [{ id: "utama", name: "Utama", blocks: [] }],
+});
+
+const newMapId = () => "p" + Math.random().toString(36).slice(2, 10);
+
+const serializeBlock = (b) => ({
+  name: b.name,
+  hours: Number(b.hours),
+  wajib: !!b.wajib,
+  color: b.color,
+  is_public: !!b.is_public,
+  ...(b.start_min != null && b.end_min != null
+    ? { start: fromMin(b.start_min), end: fromMin(b.end_min) }
+    : {}),
+});
+
+const rowsFromStored = (stored, isPub) =>
+  (stored || [])
+    .map((b, i) => {
+      const h = hydrateStored(b, PALETTE[i % PALETTE.length]);
+      if (!h) return null;
+      return { ...h, is_public: b.is_public ?? !!isPub };
+    })
+    .filter(Boolean);
+
+const normalizeMapStore = (raw) => {
+  if (!raw || !Array.isArray(raw.maps) || raw.maps.length === 0)
+    return defaultMapStore();
+  const maps = raw.maps
+    .map((m) => ({
+      id: String(m?.id || ""),
+      name: String(m?.name || "").trim() || "Peta",
+      blocks: Array.isArray(m.blocks) ? m.blocks : [],
+    }))
+    .filter((m) => m.id);
+  if (!maps.length) return defaultMapStore();
+  const activeId = maps.some((m) => m.id === raw.activeId)
+    ? raw.activeId
+    : maps[0].id;
+  return { activeId, maps };
+};
+
+const loadMapStore = () => {
+  try {
+    return normalizeMapStore(JSON.parse(localStorage.getItem(MAPS_KEY)));
+  } catch {
+    return defaultMapStore();
+  }
+};
+
 // Jam analog 24 jam — tengah malam di atas, jalan searah jarum jam.
 // Ujung tiap busur bisa ditarik buat ganti jam mulai / selesai.
 function JamAnalog({ blocks, onCommit, readOnly }) {
@@ -5081,6 +5135,7 @@ function WaktuSection({ session }) {
   const [overrides, setOverrides] = useState(loadPresetOverrides);
   const [editId, setEditId] = useState(null);
   const [editDraft, setEditDraft] = useState([]);
+  const [mapStore, setMapStore] = useState(loadMapStore);
 
   useEffect(() => {
     supabase
@@ -5099,6 +5154,20 @@ function WaktuSection({ session }) {
           setOverrides(data.time_presets);
           try {
             localStorage.setItem(PRESET_KEY, JSON.stringify(data.time_presets));
+          } catch {}
+        }
+      });
+    supabase
+      .from("user_prefs")
+      .select("time_maps")
+      .eq("user_id", session.user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.time_maps && typeof data.time_maps === "object") {
+          const store = normalizeMapStore(data.time_maps);
+          setMapStore(store);
+          try {
+            localStorage.setItem(MAPS_KEY, JSON.stringify(store));
           } catch {}
         }
       });
@@ -5169,13 +5238,56 @@ function WaktuSection({ session }) {
     } catch {}
     supabase
       .from("user_prefs")
-      .upsert({ user_id: session.user.id, time_presets: next })
+      .upsert({ user_id: session.user.id, time_presets: next, time_maps: mapStore })
       .then(({ error }) => {
         if (error && /column|time_presets/i.test(error.message))
           setErr("Jam preset kesimpen di HP ini. Jalanin dulu bagian time_presets di supabase-setup.sql buat sync.");
         else if (error) setErr(error.message);
       });
   };
+
+  const persistMapStore = (next) => {
+    const store = normalizeMapStore(next);
+    setMapStore(store);
+    try {
+      localStorage.setItem(MAPS_KEY, JSON.stringify(store));
+    } catch {}
+    supabase
+      .from("user_prefs")
+      .upsert({ user_id: session.user.id, time_maps: store, time_presets: overrides })
+      .then(({ error }) => {
+        if (error && /column|time_maps/i.test(error.message))
+          setErr("Peta kesimpen di HP ini. Jalanin dulu bagian time_maps di supabase-setup.sql buat sync.");
+        else if (error) setErr(error.message);
+      });
+  };
+
+  const replaceLiveBlocks = async (rows) => {
+    const oldIds = (blocks || []).map((b) => b.id);
+    if (rows.length) {
+      const { data, error } = await supabase.from("time_blocks").insert(rows).select();
+      if (error) return { error };
+      if (oldIds.length) {
+        const { error: delErr } = await supabase.from("time_blocks").delete().in("id", oldIds);
+        if (delErr) return { error: delErr };
+      }
+      setBlocks((data || []).slice().sort((a, b) => b.hours - a.hours));
+      return {};
+    }
+    if (oldIds.length) {
+      const { error } = await supabase.from("time_blocks").delete().in("id", oldIds);
+      if (error) return { error };
+    }
+    setBlocks([]);
+    return {};
+  };
+
+  const snapshotMaps = () =>
+    mapStore.maps.map((m) =>
+      m.id === mapStore.activeId
+        ? { ...m, blocks: (blocks || []).map(serializeBlock) }
+        : m
+    );
 
   const openEdit = (id) => {
     const p = resolvePresets(overrides).find((x) => x.id === id);
@@ -5185,15 +5297,15 @@ function WaktuSection({ session }) {
     setShowForm(false);
   };
 
-  // ganti seluruh peta dengan jadwal preset. yang baru di-insert dulu,
-  // kegiatan lama dihapus sesudahnya — kalau insert gagal peta lamanya tetep ada.
+  // isi peta yang lagi dibuka. peta lain gak kenapa-kenapa.
   const applyPreset = async (preset, { force = false } = {}) => {
     if (applying) return;
     if (!force && matchingPresetId(blocks, presets) === preset.id) return;
+    const mapName = mapStore.maps.find((m) => m.id === mapStore.activeId)?.name || "peta ini";
     if (
       !force &&
       (blocks || []).length > 0 &&
-      !window.confirm(`Ganti peta dengan ${preset.label}? Kegiatan yang ada kehapus.`)
+      !window.confirm(`Isi "${mapName}" dengan ${preset.label}? Kegiatan di peta ini kehapus. Peta lain aman.`)
     )
       return;
     setApplying(true);
@@ -5202,17 +5314,8 @@ function WaktuSection({ session }) {
     try {
       const isPub = allPublic(blocks || []);
       const rows = preset.blocks.map((b) => ({ ...b, is_public: isPub }));
-      const { data, error } = await supabase.from("time_blocks").insert(rows).select();
-      if (error) {
-        setErr(error.message);
-        return;
-      }
-      const oldIds = (blocks || []).map((b) => b.id);
-      if (oldIds.length) {
-        const { error: delErr } = await supabase.from("time_blocks").delete().in("id", oldIds);
-        if (delErr) setErr(delErr.message);
-      }
-      setBlocks((data || []).slice().sort((a, b) => b.hours - a.hours));
+      const { error } = await replaceLiveBlocks(rows);
+      if (error) setErr(error.message);
     } finally {
       setApplying(false);
     }
@@ -5256,6 +5359,101 @@ function WaktuSection({ session }) {
     persistOverrides(next);
   };
 
+  const switchMap = async (id) => {
+    if (applying || id === mapStore.activeId) return;
+    setApplying(true);
+    setErr("");
+    setShowForm(false);
+    setEditId(null);
+    try {
+      const maps = snapshotMaps();
+      const target = maps.find((m) => m.id === id);
+      if (!target) return;
+      const { error } = await replaceLiveBlocks(rowsFromStored(target.blocks, false));
+      if (error) {
+        setErr(error.message);
+        return;
+      }
+      persistMapStore({
+        activeId: id,
+        maps: maps.map((m) => (m.id === id ? { ...m, blocks: [] } : m)),
+      });
+    } finally {
+      setApplying(false);
+    }
+  };
+
+  const addPeta = async () => {
+    if (applying) return;
+    setApplying(true);
+    setErr("");
+    setShowForm(false);
+    setEditId(null);
+    try {
+      const id = newMapId();
+      const maps = [
+        ...snapshotMaps(),
+        { id, name: `Peta ${mapStore.maps.length + 1}`, blocks: [] },
+      ];
+      const { error } = await replaceLiveBlocks([]);
+      if (error) {
+        setErr(error.message);
+        return;
+      }
+      persistMapStore({ activeId: id, maps });
+    } finally {
+      setApplying(false);
+    }
+  };
+
+  const renameMap = (id, name) => {
+    const n = name.trim();
+    if (!n) return;
+    persistMapStore({
+      ...mapStore,
+      maps: mapStore.maps.map((m) => (m.id === id ? { ...m, name: n } : m)),
+    });
+  };
+
+  const removeActivePeta = async () => {
+    if (applying) return;
+    const cur = mapStore.maps.find((m) => m.id === mapStore.activeId);
+    if (mapStore.maps.length <= 1) {
+      if (!window.confirm(`Kosongin "${cur?.name || "peta ini"}"? Semua kegiatan kehapus.`))
+        return;
+      setApplying(true);
+      setErr("");
+      try {
+        const { error } = await replaceLiveBlocks([]);
+        if (error) setErr(error.message);
+      } finally {
+        setApplying(false);
+      }
+      return;
+    }
+    if (!window.confirm(`Hapus peta "${cur?.name}"? Kegiatan di peta ini kehapus. Peta lain aman.`))
+      return;
+    setApplying(true);
+    setErr("");
+    setShowForm(false);
+    setEditId(null);
+    try {
+      const rest = mapStore.maps.filter((m) => m.id !== mapStore.activeId);
+      const next = rest[0];
+      const { error } = await replaceLiveBlocks(rowsFromStored(next.blocks, false));
+      if (error) {
+        setErr(error.message);
+        return;
+      }
+      persistMapStore({
+        activeId: next.id,
+        maps: rest.map((m) => (m.id === next.id ? { ...m, blocks: [] } : m)),
+      });
+    } finally {
+      setApplying(false);
+    }
+  };
+
   const toggleShare = async () => {
     const v = !allPublic(blocks || []);
     setBlocks((xs) => xs.map((x) => ({ ...x, is_public: v })));
@@ -5282,11 +5480,12 @@ function WaktuSection({ session }) {
     .reduce((s, b) => s + Number(b.hours), 0);
   const activePreset = matchingPresetId(blocks, presets);
   const editing = presets.find((p) => p.id === editId);
+  const currentMap = mapStore.maps.find((m) => m.id === mapStore.activeId);
 
   return (
     <>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 26, gap: 10 }}>
-        <div style={S.sectionHead}><span>🕒 Peta 24 jam</span></div>
+        <div style={S.sectionHead}><span>🕒 {currentMap?.name || "Peta 24 jam"}</span></div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {blocks.length > 0 && (
             <button
@@ -5304,6 +5503,68 @@ function WaktuSection({ session }) {
             {showForm ? "batal" : "+ kegiatan"}
           </button>
         </div>
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 6,
+          marginBottom: 8,
+          alignItems: "center",
+        }}
+      >
+        {mapStore.maps.map((m) => {
+          const on = m.id === mapStore.activeId;
+          return (
+            <div
+              key={m.id}
+              style={{
+                ...S.btnGhost,
+                fontSize: 12,
+                padding: on ? "4px 11px" : "5px 11px",
+                borderRadius: 999,
+                fontWeight: on ? 700 : 500,
+                display: "inline-flex",
+                alignItems: "center",
+                cursor: applying ? "default" : "pointer",
+                ...(on
+                  ? { borderColor: "var(--accent)", color: "var(--accent)" }
+                  : {}),
+                ...(applying ? { opacity: 0.55 } : {}),
+              }}
+              onClick={() => !on && !applying && switchMap(m.id)}
+            >
+              {on ? (
+                <EditableText
+                  value={m.name}
+                  onSave={(v) => renameMap(m.id, v)}
+                  style={{ fontSize: 12, fontWeight: 700, color: "var(--accent)" }}
+                />
+              ) : (
+                m.name
+              )}
+            </div>
+          );
+        })}
+        <button
+          type="button"
+          disabled={applying}
+          style={{ ...S.btnGhost, fontSize: 12, padding: "5px 11px", borderRadius: 999 }}
+          title="Peta baru"
+          onClick={addPeta}
+        >
+          +
+        </button>
+        <button
+          type="button"
+          disabled={applying}
+          style={{ ...S.btnGhost, fontSize: 12, padding: "5px 10px", borderRadius: 999, color: "var(--red)" }}
+          title={mapStore.maps.length > 1 ? "Hapus peta ini" : "Kosongin peta ini"}
+          onClick={removeActivePeta}
+        >
+          ✕
+        </button>
       </div>
 
       <div
@@ -5581,7 +5842,7 @@ function WaktuSection({ session }) {
       )}
 
       {blocks.length === 0 && !showForm && (
-        <div style={S.empty}>Kosong. Pilih preset di atas, atau + kegiatan.</div>
+        <div style={S.empty}>Kosong. Pilih preset, + kegiatan, atau + buat peta baru.</div>
       )}
 
       {blocks.map((b) => (

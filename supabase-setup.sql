@@ -168,6 +168,12 @@ alter table public.user_prefs
 alter table public.user_prefs
   add column if not exists time_presets jsonb;
 
+-- Beberapa peta 24 jam per user. Peta yang lagi dibuka tetep di time_blocks;
+-- yang lain (nama + kegiatannya) kesimpen di sini. Bentuknya
+-- { "activeId": "utama", "maps": [{ "id", "name", "blocks": [...] }] }.
+alter table public.user_prefs
+  add column if not exists time_maps jsonb;
+
 -- ---------------------------------------------------------------------
 -- Pindah dana antar sumber (misal danamon -> cash).
 --
