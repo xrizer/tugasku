@@ -161,6 +161,12 @@ alter table public.expenses
 alter table public.user_prefs
   add column if not exists categories text[];
 
+-- Jam tiap preset peta 24 jam (Shift 1, Kantor, Weekend, …). Defaultnya
+-- ada di app; yang di sini nimpah per user. Bentuknya objek
+-- { "shift1": [{ "name", "start", "end", "wajib", "color" }, …], … }.
+alter table public.user_prefs
+  add column if not exists time_presets jsonb;
+
 -- ---------------------------------------------------------------------
 -- Pindah dana antar sumber (misal danamon -> cash).
 --

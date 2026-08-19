@@ -4743,6 +4743,7 @@ const SNAP = 5; // menit — biar gampang pas ditarik pakai jari
 
 const KERJA_COLOR = "#3E7A46";
 const TIDUR_COLOR = "#B8860B";
+const PRESET_KEY = "tugasku-time-presets";
 
 // satu kegiatan timed siap di-insert ke time_blocks
 const timedBlock = (name, start, end, color, wajib = true) => {
@@ -4758,14 +4759,12 @@ const timedBlock = (name, start, end, color, wajib = true) => {
   };
 };
 
-// jadwal siap-pakai: tap sekali, peta 24 jam keisi kerja + tidur.
-// sisanya jam bebas biar bisa ditambah sendiri. jamnya standar 8 jam
-// shift / jam kantor — setelah kepasang, ujung busurnya tetap bisa ditarik.
+// jadwal default siap-pakai. jamnya bisa diedit per user — yang kesimpen
+// di user_prefs.time_presets (plus localStorage) nimpah yang di sini.
 const TIME_PRESETS = [
   {
     id: "shift1",
     label: "Shift 1",
-    hint: "kerja 06:00–14:00 · tidur 21:30–05:00",
     blocks: [
       timedBlock("Kerja", "06:00", "14:00", KERJA_COLOR),
       timedBlock("Tidur", "21:30", "05:00", TIDUR_COLOR),
@@ -4774,7 +4773,6 @@ const TIME_PRESETS = [
   {
     id: "shift2",
     label: "Shift 2",
-    hint: "kerja 14:00–22:00 · tidur 23:30–07:30",
     blocks: [
       timedBlock("Kerja", "14:00", "22:00", KERJA_COLOR),
       timedBlock("Tidur", "23:30", "07:30", TIDUR_COLOR),
@@ -4783,7 +4781,6 @@ const TIME_PRESETS = [
   {
     id: "shift3",
     label: "Shift 3",
-    hint: "kerja 22:00–06:00 · tidur 07:00–15:00",
     blocks: [
       timedBlock("Kerja", "22:00", "06:00", KERJA_COLOR),
       timedBlock("Tidur", "07:00", "15:00", TIDUR_COLOR),
@@ -4792,7 +4789,6 @@ const TIME_PRESETS = [
   {
     id: "kantor",
     label: "Kantor",
-    hint: "kerja 08:00–17:00 · tidur 22:30–06:00",
     blocks: [
       timedBlock("Kerja", "08:00", "17:00", KERJA_COLOR),
       timedBlock("Tidur", "22:30", "06:00", TIDUR_COLOR),
@@ -4801,18 +4797,69 @@ const TIME_PRESETS = [
   {
     id: "weekend",
     label: "Weekend",
-    hint: "tidur 00:00–09:00",
     blocks: [timedBlock("Tidur", "00:00", "09:00", TIDUR_COLOR)],
   },
 ];
 
+const hintOf = (blocks) =>
+  blocks
+    .map((b) =>
+      b.start_min != null && b.end_min != null
+        ? `${b.name.toLowerCase()} ${fromMin(b.start_min)}–${fromMin(b.end_min)}`
+        : `${b.name.toLowerCase()} ${b.hours}jam`
+    )
+    .join(" · ");
+
+const hydrateStored = (b, fallbackColor) => {
+  const name = String(b?.name || "").trim();
+  if (!name) return null;
+  const color = b.color || fallbackColor;
+  const wajib = b.wajib !== false;
+  if (b.start && b.end && toMin(b.start) != null && toMin(b.end) != null)
+    return timedBlock(name, b.start, b.end, color, wajib);
+  const hours = Number(b.hours);
+  if (!isNaN(hours) && hours > 0) return { name, hours, wajib, color };
+  return null;
+};
+
+const resolvePresets = (overrides) =>
+  TIME_PRESETS.map((p) => {
+    const raw = overrides?.[p.id];
+    const blocks = Array.isArray(raw)
+      ? raw
+          .map((b, i) =>
+            hydrateStored(b, p.blocks[i]?.color || PALETTE[i % PALETTE.length])
+          )
+          .filter(Boolean)
+      : null;
+    const next = blocks?.length ? blocks : p.blocks;
+    return { ...p, blocks: next, hint: hintOf(next) };
+  });
+
 const presetKey = (b) => `${b.name}|${b.start_min}|${b.end_min}`;
-const matchingPresetId = (xs) =>
-  TIME_PRESETS.find((p) => {
+const matchingPresetId = (xs, presets) =>
+  (presets || TIME_PRESETS).find((p) => {
     if (!xs || xs.length !== p.blocks.length) return false;
     const have = new Set(xs.map(presetKey));
     return p.blocks.every((b) => have.has(presetKey(b)));
   })?.id;
+
+const loadPresetOverrides = () => {
+  try {
+    return JSON.parse(localStorage.getItem(PRESET_KEY)) || {};
+  } catch {
+    return {};
+  }
+};
+
+const toDraft = (blocks) =>
+  blocks.map((b) => ({
+    name: b.name,
+    start: fromMin(b.start_min),
+    end: fromMin(b.end_min),
+    wajib: !!b.wajib,
+    color: b.color,
+  }));
 
 // Jam analog 24 jam — tengah malam di atas, jalan searah jarum jam.
 // Ujung tiap busur bisa ditarik buat ganti jam mulai / selesai.
@@ -5023,6 +5070,9 @@ function WaktuSection({ session }) {
   const [showForm, setShowForm] = useState(false);
   const [err, setErr] = useState("");
   const [applying, setApplying] = useState(false);
+  const [overrides, setOverrides] = useState(loadPresetOverrides);
+  const [editId, setEditId] = useState(null);
+  const [editDraft, setEditDraft] = useState([]);
 
   useEffect(() => {
     supabase
@@ -5031,6 +5081,19 @@ function WaktuSection({ session }) {
       .eq("user_id", session.user.id)
       .order("hours", { ascending: false })
       .then(({ data, error }) => setBlocks(error ? [] : data));
+    supabase
+      .from("user_prefs")
+      .select("time_presets")
+      .eq("user_id", session.user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.time_presets && typeof data.time_presets === "object") {
+          setOverrides(data.time_presets);
+          try {
+            localStorage.setItem(PRESET_KEY, JSON.stringify(data.time_presets));
+          } catch {}
+        }
+      });
   }, [session]);
 
   // jam mulai/selesai diisi dua-duanya = durasinya ngikut, gak usah ngetik lagi
@@ -5090,12 +5153,37 @@ function WaktuSection({ session }) {
     patchBlock(b.id, { color: PALETTE[(i + 1) % PALETTE.length] });
   };
 
+  const presets = resolvePresets(overrides);
+  const persistOverrides = (next) => {
+    setOverrides(next);
+    try {
+      localStorage.setItem(PRESET_KEY, JSON.stringify(next));
+    } catch {}
+    supabase
+      .from("user_prefs")
+      .upsert({ user_id: session.user.id, time_presets: next })
+      .then(({ error }) => {
+        if (error && /column|time_presets/i.test(error.message))
+          setErr("Jam preset kesimpen di HP ini. Jalanin dulu bagian time_presets di supabase-setup.sql buat sync.");
+        else if (error) setErr(error.message);
+      });
+  };
+
+  const openEdit = (id) => {
+    const p = resolvePresets(overrides).find((x) => x.id === id);
+    if (!p) return;
+    setEditId(id);
+    setEditDraft(toDraft(p.blocks));
+    setShowForm(false);
+  };
+
   // ganti seluruh peta dengan jadwal preset. yang baru di-insert dulu,
   // kegiatan lama dihapus sesudahnya — kalau insert gagal peta lamanya tetep ada.
-  const applyPreset = async (preset) => {
+  const applyPreset = async (preset, { force = false } = {}) => {
     if (applying) return;
-    if (matchingPresetId(blocks) === preset.id) return;
+    if (!force && matchingPresetId(blocks, presets) === preset.id) return;
     if (
+      !force &&
       (blocks || []).length > 0 &&
       !window.confirm(`Ganti peta dengan ${preset.label}? Kegiatan yang ada kehapus.`)
     )
@@ -5122,6 +5210,28 @@ function WaktuSection({ session }) {
     }
   };
 
+  const saveEdit = async () => {
+    const rows = editDraft
+      .map((b) => ({
+        name: b.name.trim(),
+        start: b.start,
+        end: b.end,
+        wajib: !!b.wajib,
+        color: b.color,
+      }))
+      .filter((b) => b.name && toMin(b.start) != null && toMin(b.end) != null);
+    if (!rows.length) return;
+    const wasActive = matchingPresetId(blocks, presets) === editId;
+    const next = { ...overrides, [editId]: rows };
+    persistOverrides(next);
+    const resolved = resolvePresets(next).find((p) => p.id === editId);
+    setEditId(null);
+    if (wasActive && resolved) await applyPreset(resolved, { force: true });
+  };
+
+  const patchDraft = (i, patch) =>
+    setEditDraft((xs) => xs.map((x, n) => (n === i ? { ...x, ...patch } : x)));
+
   const toggleShare = async () => {
     const v = !allPublic(blocks || []);
     setBlocks((xs) => xs.map((x) => ({ ...x, is_public: v })));
@@ -5146,7 +5256,8 @@ function WaktuSection({ session }) {
   const wajibTotal = blocks
     .filter((b) => b.wajib)
     .reduce((s, b) => s + Number(b.hours), 0);
-  const activePreset = matchingPresetId(blocks);
+  const activePreset = matchingPresetId(blocks, presets);
+  const editing = presets.find((p) => p.id === editId);
 
   return (
     <>
@@ -5165,7 +5276,7 @@ function WaktuSection({ session }) {
               <Eye off={!shared} />
             </button>
           )}
-          <button style={S.promAddLink} onClick={() => setShowForm((v) => !v)}>
+          <button style={S.promAddLink} onClick={() => { setEditId(null); setShowForm((v) => !v); }}>
             {showForm ? "batal" : "+ kegiatan"}
           </button>
         </div>
@@ -5180,15 +5291,19 @@ function WaktuSection({ session }) {
           alignItems: "center",
         }}
       >
-        {TIME_PRESETS.map((p) => {
-          const on = activePreset === p.id;
+        {presets.map((p) => {
+          const on = editId ? editId === p.id : activePreset === p.id;
           return (
             <button
               key={p.id}
               type="button"
               disabled={applying}
               title={p.hint}
-              onClick={() => applyPreset(p)}
+              onClick={() => {
+                if (editId) openEdit(p.id);
+                else if (activePreset === p.id) openEdit(p.id);
+                else applyPreset(p);
+              }}
               style={{
                 ...S.btnGhost,
                 fontSize: 12,
@@ -5196,7 +5311,10 @@ function WaktuSection({ session }) {
                 borderRadius: 999,
                 fontWeight: on ? 700 : 500,
                 ...(on
-                  ? { borderColor: "var(--accent)", color: "var(--accent)" }
+                  ? {
+                      borderColor: editId ? "var(--janji-ink)" : "var(--accent)",
+                      color: editId ? "var(--janji-ink)" : "var(--accent)",
+                    }
                   : {}),
                 ...(applying ? { opacity: 0.55, cursor: "default" } : {}),
               }}
@@ -5205,6 +5323,22 @@ function WaktuSection({ session }) {
             </button>
           );
         })}
+        <button
+          type="button"
+          style={{
+            ...S.btnGhost,
+            padding: "5px 10px",
+            borderRadius: 999,
+            ...(editId ? { borderColor: "var(--janji-ink)", color: "var(--janji-ink)" } : {}),
+          }}
+          title={editId ? "Tutup editor" : "Edit jam preset"}
+          onClick={() => {
+            if (editId) setEditId(null);
+            else openEdit(activePreset || "shift1");
+          }}
+        >
+          ✎
+        </button>
         <div
           style={{
             flexBasis: "100%",
@@ -5214,10 +5348,76 @@ function WaktuSection({ session }) {
             marginTop: 2,
           }}
         >
-          {TIME_PRESETS.find((p) => p.id === activePreset)?.hint
-            || "Tap buat ngisi peta sekaligus"}
+          {editId
+            ? `Edit ${editing?.label || ""} — jamnya bisa diganti, terus simpan`
+            : (presets.find((p) => p.id === activePreset)?.hint
+                || "Tap buat ngisi peta. Tap lagi, atau ✎, buat edit jamnya")}
         </div>
       </div>
+
+      {editId && (
+        <div style={{ ...S.card, display: "block", padding: 14, marginBottom: 8 }}>
+          {editDraft.map((b, i) => (
+            <div key={i} style={{ display: "flex", gap: 6, marginBottom: 6, alignItems: "center" }}>
+              <input
+                style={{ ...S.input, flex: 1.2, minWidth: 0, fontSize: 14 }}
+                placeholder="Kegiatan"
+                value={b.name}
+                onChange={(e) => patchDraft(i, { name: e.target.value })}
+              />
+              <input
+                type="time"
+                style={{ ...S.input, flex: 1, minWidth: 0, fontSize: 14 }}
+                value={b.start}
+                onChange={(e) => patchDraft(i, { start: e.target.value })}
+              />
+              <span style={{ color: "var(--faint)", fontSize: 13 }}>–</span>
+              <input
+                type="time"
+                style={{ ...S.input, flex: 1, minWidth: 0, fontSize: 14 }}
+                value={b.end}
+                onChange={(e) => patchDraft(i, { end: e.target.value })}
+              />
+              <button
+                style={S.iconBtn}
+                title={b.wajib ? "Wajib" : "Fleksibel"}
+                onClick={() => patchDraft(i, { wajib: !b.wajib })}
+              >
+                {b.wajib ? "☑" : "☐"}
+              </button>
+              <button
+                style={S.iconBtn}
+                title="Hapus dari preset"
+                onClick={() => setEditDraft((xs) => xs.filter((_, n) => n !== i))}
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+          <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 4 }}>
+            <button
+              style={S.promAddLink}
+              onClick={() =>
+                setEditDraft((xs) => [
+                  ...xs,
+                  {
+                    name: "",
+                    start: "08:00",
+                    end: "17:00",
+                    wajib: true,
+                    color: PALETTE[xs.length % PALETTE.length],
+                  },
+                ])
+              }
+            >
+              + kegiatan
+            </button>
+            <div style={{ flex: 1 }} />
+            <button style={S.btnGhost} onClick={() => setEditId(null)}>batal</button>
+            <button style={S.btn} onClick={saveEdit}>Simpan</button>
+          </div>
+        </div>
+      )}
 
       <div style={{ ...S.card, display: "block", padding: 14, marginBottom: 8 }}>
         {/* stacked bar */}
