@@ -4744,6 +4744,7 @@ const SNAP = 5; // menit — biar gampang pas ditarik pakai jari
 const KERJA_COLOR = "#3E7A46";
 const TIDUR_COLOR = "#B8860B";
 const PRESET_KEY = "tugasku-time-presets";
+const PRESET_REMOVED = "_removed"; // id preset yang disembunyiin, jangan dianggep jam
 
 // satu kegiatan timed siap di-insert ke time_blocks
 const timedBlock = (name, start, end, color, wajib = true) => {
@@ -4822,8 +4823,14 @@ const hydrateStored = (b, fallbackColor) => {
   return null;
 };
 
-const resolvePresets = (overrides) =>
-  TIME_PRESETS.map((p) => {
+const removedPresetIds = (overrides) =>
+  new Set(
+    Array.isArray(overrides?.[PRESET_REMOVED]) ? overrides[PRESET_REMOVED] : []
+  );
+
+const resolvePresets = (overrides) => {
+  const hidden = removedPresetIds(overrides);
+  return TIME_PRESETS.filter((p) => !hidden.has(p.id)).map((p) => {
     const raw = overrides?.[p.id];
     const blocks = Array.isArray(raw)
       ? raw
@@ -4835,6 +4842,7 @@ const resolvePresets = (overrides) =>
     const next = blocks?.length ? blocks : p.blocks;
     return { ...p, blocks: next, hint: hintOf(next) };
   });
+};
 
 const presetKey = (b) => `${b.name}|${b.start_min}|${b.end_min}`;
 const matchingPresetId = (xs, presets) =>
@@ -5232,6 +5240,22 @@ function WaktuSection({ session }) {
   const patchDraft = (i, patch) =>
     setEditDraft((xs) => xs.map((x, n) => (n === i ? { ...x, ...patch } : x)));
 
+  const removePreset = (id) => {
+    const p = presets.find((x) => x.id === id);
+    if (!p) return;
+    if (!window.confirm(`Hapus preset ${p.label}? Chip-nya ilang, peta yang lagi keisi tetep.`))
+      return;
+    const hidden = [...new Set([...removedPresetIds(overrides), id])];
+    persistOverrides({ ...overrides, [PRESET_REMOVED]: hidden });
+    if (editId === id) setEditId(null);
+  };
+
+  const restorePresets = () => {
+    const next = { ...overrides };
+    delete next[PRESET_REMOVED];
+    persistOverrides(next);
+  };
+
   const toggleShare = async () => {
     const v = !allPublic(blocks || []);
     setBlocks((xs) => xs.map((x) => ({ ...x, is_public: v })));
@@ -5323,6 +5347,7 @@ function WaktuSection({ session }) {
             </button>
           );
         })}
+        {presets.length > 0 && (
         <button
           type="button"
           style={{
@@ -5334,11 +5359,17 @@ function WaktuSection({ session }) {
           title={editId ? "Tutup editor" : "Edit jam preset"}
           onClick={() => {
             if (editId) setEditId(null);
-            else openEdit(activePreset || "shift1");
+            else openEdit(activePreset || presets[0].id);
           }}
         >
           ✎
         </button>
+        )}
+        {presets.length === 0 && (
+          <button type="button" style={S.promAddLink} onClick={restorePresets}>
+            kembalikan preset
+          </button>
+        )}
         <div
           style={{
             flexBasis: "100%",
@@ -5350,6 +5381,8 @@ function WaktuSection({ session }) {
         >
           {editId
             ? `Edit ${editing?.label || ""} — jamnya bisa diganti, terus simpan`
+            : presets.length === 0
+            ? "Preset dihapus. Kegiatan di peta tetep, atau kembalikan preset di atas."
             : (presets.find((p) => p.id === activePreset)?.hint
                 || "Tap buat ngisi peta. Tap lagi, atau ✎, buat edit jamnya")}
         </div>
@@ -5394,7 +5427,7 @@ function WaktuSection({ session }) {
               </button>
             </div>
           ))}
-          <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 4 }}>
+          <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 4, flexWrap: "wrap" }}>
             <button
               style={S.promAddLink}
               onClick={() =>
@@ -5411,6 +5444,12 @@ function WaktuSection({ session }) {
               }
             >
               + kegiatan
+            </button>
+            <button
+              style={{ ...S.promAddLink, color: "var(--red)" }}
+              onClick={() => removePreset(editId)}
+            >
+              hapus preset
             </button>
             <div style={{ flex: 1 }} />
             <button style={S.btnGhost} onClick={() => setEditId(null)}>batal</button>
