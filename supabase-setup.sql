@@ -236,6 +236,10 @@ alter table public.drains
 alter table public.habits
   add column if not exists kind text not null default 'bad';
 
+-- Catatan pas nyatet kejadian habit (bad slip / good done). Boleh kosong.
+alter table public.habit_events
+  add column if not exists note text;
+
 -- Seed tugas awal
 insert into tasks (title, priority, daily, status) values
   ('Masukkan baju kotor ke keranjang laundry', 1, true,  'todo'),

@@ -6848,6 +6848,8 @@ function DiriPage({ session, onPoints }) {
       <span style={{ ...S.cardTitle, letterSpacing: "0.15em", color: "var(--muted)" }}>••••••</span>
     );
   const [justLogged, setJustLogged] = useState(null); // habit_id yang baru dicatet
+  const [logHabitId, setLogHabitId] = useState("");
+  const [logNote, setLogNote] = useState("");
 
   useEffect(() => {
     const since = new Date();
@@ -6868,7 +6870,7 @@ function DiriPage({ session, onPoints }) {
       .from("habit_events").select("*")
       .eq("user_id", session.user.id)
       .order("created_at", { ascending: false })
-      .limit(200)
+      .limit(400)
       .then(({ data, error }) => setEvents(error ? [] : data));
   }, [session]);
 
@@ -7021,6 +7023,46 @@ function DiriPage({ session, onPoints }) {
     if (!error) setEvents((es) => [data, ...es]);
   };
 
+  const patchEvent = async (id, patch) => {
+    setEvents((es) => es.map((e) => (e.id === id ? { ...e, ...patch } : e)));
+    const { error } = await supabase.from("habit_events").update(patch).eq("id", id);
+    if (error && !/column|note/i.test(error.message)) setHabitErr(error.message);
+  };
+
+  const removeEvent = async (id) => {
+    setEvents((es) => es.filter((e) => e.id !== id));
+    await supabase.from("habit_events").delete().eq("id", id);
+  };
+
+  const logHabitEntry = async () => {
+    const h = (habits || []).find((x) => x.id === logHabitId);
+    if (!h) return;
+    const note = logNote.trim() || null;
+    setLogNote("");
+    setHabitErr("");
+    if (kindOf(h) === "good") {
+      const existing = events.find((e) => e.habit_id === h.id && e.date === today);
+      if (existing) {
+        if (note) await patchEvent(existing.id, { note });
+        return;
+      }
+    }
+    const row = { habit_id: h.id, date: today, mood: todayMood?.mood || null, note };
+    const { data, error } = await supabase.from("habit_events").insert(row).select().single();
+    if (error && /column|note/i.test(error.message)) {
+      const { data: d2, error: e2 } = await supabase
+        .from("habit_events")
+        .insert({ habit_id: h.id, date: today, mood: todayMood?.mood || null })
+        .select()
+        .single();
+      if (e2) setHabitErr(e2.message);
+      else if (d2) setEvents((es) => [{ ...d2, note }, ...es]);
+      return;
+    }
+    if (error) { setHabitErr(error.message); return; }
+    setEvents((es) => [data, ...es]);
+  };
+
   // good habit: sekali sehari, bisa dibatalin kalau kepencet
   const toggleGood = async (h) => {
     if (doneToday(h)) {
@@ -7038,6 +7080,11 @@ function DiriPage({ session, onPoints }) {
   const kindOf = (h) => h.kind || "bad";
   const badHabits = (habits || []).filter((h) => kindOf(h) === "bad");
   const goodHabits = (habits || []).filter((h) => kindOf(h) === "good");
+  const allHabits = [...badHabits, ...goodHabits];
+
+  useEffect(() => {
+    if (!logHabitId && allHabits.length) setLogHabitId(allHabits[0].id);
+  }, [logHabitId, habits]);
 
   const cleanDays = (h) => {
     const ev = events.filter((e) => e.habit_id === h.id);
@@ -7222,7 +7269,7 @@ function DiriPage({ session, onPoints }) {
       <>
         <GlassNav
           small
-          items={[["bad", "Bad habit"], ["good", "Good habit"], ["skor", "Skor"]]}
+          items={[["bad", "Bad habit"], ["good", "Good habit"], ["log", "Log"], ["skor", "Skor"]]}
           value={habitSub}
           onChange={setHabitSub}
           style={{ marginBottom: 14 }}
@@ -7418,6 +7465,135 @@ function DiriPage({ session, onPoints }) {
             </div>
           );
         })}
+        </>
+        )}
+
+        {/* ===== log habit ===== */}
+        {habitSub === "log" && (
+        <>
+        <div style={{ display: "flex", gap: 6, marginTop: 4, marginBottom: 8, alignItems: "center" }}>
+          {badHabits.length > 0 && (
+            <button
+              style={{ ...S.iconBtn, ...(showBad ? {} : { borderColor: "var(--janji-border)", color: "var(--janji-ink)" }) }}
+              title={showBad ? "Sembunyiin nama" : "Liat nama"}
+              onClick={toggleBad}
+            >
+              <Eye off={showBad} />
+            </button>
+          )}
+          <select
+            style={{
+              ...S.input,
+              flex: 1,
+              minWidth: 0,
+              fontSize: 14,
+              fontWeight: 600,
+            }}
+            value={logHabitId}
+            onChange={(e) => setLogHabitId(e.target.value)}
+          >
+            {allHabits.length === 0 && <option value="">Belum ada habit</option>}
+            {allHabits.map((h) => (
+              <option key={h.id} value={h.id}>
+                {kindOf(h) === "good" ? "good · " : "bad · "}
+                {kindOf(h) === "bad" && !showBad ? "••••••" : h.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div style={{ display: "flex", gap: 6, marginBottom: 18 }}>
+          <input
+            style={{ ...S.input, flex: 1, minWidth: 0 }}
+            placeholder="Catatan"
+            value={logNote}
+            onChange={(e) => setLogNote(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && logHabitEntry()}
+          />
+          <button
+            style={{ ...S.addBtn, width: 60 }}
+            disabled={!logHabitId}
+            onClick={logHabitEntry}
+          >
+            OK
+          </button>
+        </div>
+
+        {habits === null && <div style={S.empty}>Memuat…</div>}
+        {habits !== null && events.length === 0 && (
+          <div style={S.empty}>Kosong.</div>
+        )}
+
+        {(() => {
+          const byDay = new Map();
+          for (const e of events) {
+            if (!byDay.has(e.date)) byDay.set(e.date, []);
+            byDay.get(e.date).push(e);
+          }
+          const yest = new Date();
+          yest.setDate(yest.getDate() - 1);
+          const ystr = `${yest.getFullYear()}-${String(yest.getMonth() + 1).padStart(2, "0")}-${String(yest.getDate()).padStart(2, "0")}`;
+          const label = (ds) =>
+            ds === today
+              ? "hari ini"
+              : ds === ystr
+              ? "kemarin"
+              : new Date(ds + "T00:00:00").toLocaleDateString("id-ID", {
+                  weekday: "short",
+                  day: "numeric",
+                  month: "short",
+                });
+          const clock = (iso) => {
+            if (!iso) return "";
+            const d = new Date(iso);
+            if (Number.isNaN(d.getTime())) return "";
+            return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+          };
+          return [...byDay.entries()].map(([date, list]) => (
+            <div key={date} style={{ marginTop: 22 }}>
+              <div style={{ ...S.eyebrow, marginBottom: 10, color: date === today ? "var(--accent)" : "var(--muted2)" }}>
+                {label(date)}
+              </div>
+              {list.map((e) => {
+                const h = (habits || []).find((x) => x.id === e.habit_id);
+                const good = h ? kindOf(h) === "good" : false;
+                const name = !h
+                  ? "habit"
+                  : !good && !showBad
+                  ? "••••••"
+                  : h.name;
+                return (
+                  <div key={e.id} style={{ ...S.card, padding: "10px 14px" }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                        <span style={{ fontSize: 15, fontWeight: 600 }}>{name}</span>
+                        <span
+                          style={{
+                            fontFamily: MONO,
+                            fontSize: 10,
+                            letterSpacing: "0.08em",
+                            color: good ? "var(--green)" : "var(--janji-ink)",
+                          }}
+                        >
+                          {good ? "good" : "bad"}
+                        </span>
+                      </div>
+                      <EditableText
+                        value={e.note || ""}
+                        onSave={(v) => patchEvent(e.id, { note: v.trim() || null })}
+                        placeholder="catatan…"
+                        style={{ fontSize: 13, color: "var(--muted2)", marginTop: 3 }}
+                      />
+                    </div>
+                    <span style={{ fontFamily: MONO, fontSize: 11, color: "var(--faint)", flexShrink: 0 }}>
+                      {clock(e.created_at)}
+                    </span>
+                    <button style={S.iconBtn} onClick={() => removeEvent(e.id)}>✕</button>
+                  </div>
+                );
+              })}
+            </div>
+          ));
+        })()}
         </>
         )}
 
