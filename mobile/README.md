@@ -29,11 +29,13 @@ flutter test
 
 GitHub Actions builds a release APK after every push to `main` that changes `mobile/`, and can also be run manually from the **Actions** tab. Each APK is retained as a GitHub Actions artifact and uploaded to Google Drive.
 
-Before the first run, create these GitHub repository secrets:
+Before the first run, create these GitHub repository secrets from a Google OAuth client configured for the Google Drive API:
 
-- `GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON`: the full JSON key for a Google Cloud service account with the Google Drive API enabled.
+- `GOOGLE_DRIVE_CLIENT_ID`
+- `GOOGLE_DRIVE_CLIENT_SECRET`
+- `GOOGLE_DRIVE_REFRESH_TOKEN`
 
-Share the destination Google Drive folder with the service account's `client_email` as an **Editor**. The workflow creates a file named `lifehack-<run-number>.apk` in that folder.
+Authorize the OAuth client with the `https://www.googleapis.com/auth/drive.file` scope for the Google account that owns the destination folder. The workflow creates a file named `lifehack-<run-number>.apk` in that folder.
 
 ## iOS release
 

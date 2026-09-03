@@ -48,24 +48,36 @@ jobs:
           path: mobile/build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
 
-      - id: google-auth
-        name: Authenticate with Google Drive
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON }}
-          token_format: access_token
-          access_token_scopes: https://www.googleapis.com/auth/drive.file
-
       - name: Upload APK to Google Drive
         env:
-          ACCESS_TOKEN: ${{ steps.google-auth.outputs.access_token }}
+          GOOGLE_DRIVE_CLIENT_ID: ${{ secrets.GOOGLE_DRIVE_CLIENT_ID }}
+          GOOGLE_DRIVE_CLIENT_SECRET: ${{ secrets.GOOGLE_DRIVE_CLIENT_SECRET }}
+          GOOGLE_DRIVE_REFRESH_TOKEN: ${{ secrets.GOOGLE_DRIVE_REFRESH_TOKEN }}
           GOOGLE_DRIVE_FOLDER_ID: '13naZpSUJQ37D3n429NxZWLDrvELPfzBk'
           RUN_NUMBER: ${{ github.run_number }}
         run: |
-          metadata=$(printf '{"name":"lifehack-%s.apk","parents":["%s"]}' "$RUN_NUMBER" "$GOOGLE_DRIVE_FOLDER_ID")
-          curl --fail --silent --show-error \
+          if [[ -z "$GOOGLE_DRIVE_CLIENT_ID" || -z "$GOOGLE_DRIVE_CLIENT_SECRET" || -z "$GOOGLE_DRIVE_REFRESH_TOKEN" ]]; then
+            echo 'Missing Google Drive OAuth repository secrets.' >&2
+            exit 1
+          fi
+
+          token_response=$(curl --fail --silent --show-error \
             --request POST \
-            --header "Authorization: Bearer $ACCESS_TOKEN" \
+            --data-urlencode "client_id=$GOOGLE_DRIVE_CLIENT_ID" \
+            --data-urlencode "client_secret=$GOOGLE_DRIVE_CLIENT_SECRET" \
+            --data-urlencode "refresh_token=$GOOGLE_DRIVE_REFRESH_TOKEN" \
+            --data-urlencode 'grant_type=refresh_token' \
+            'https://oauth2.googleapis.com/token')
+          access_token=$(jq -r '.access_token // empty' <<< "$token_response")
+          if [[ -z "$access_token" ]]; then
+            echo 'Google OAuth did not return an access token.' >&2
+            exit 1
+          fi
+
+          metadata=$(printf '{"name":"lifehack-%s.apk","parents":["%s"]}' "$RUN_NUMBER" "$GOOGLE_DRIVE_FOLDER_ID")
+          curl --fail-with-body --silent --show-error \
+            --request POST \
+            --header "Authorization: Bearer $access_token" \
             --form "metadata=$metadata;type=application/json;charset=UTF-8" \
             --form "file=@build/app/outputs/flutter-apk/app-release.apk;type=application/vnd.android.package-archive" \
             'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink'
