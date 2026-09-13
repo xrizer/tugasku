@@ -75,9 +75,23 @@ jobs:
           fi
 
           metadata=$(printf '{"name":"lifehack-%s.apk","parents":["%s"]}' "$RUN_NUMBER" "$GOOGLE_DRIVE_FOLDER_ID")
+          apk_path='build/app/outputs/flutter-apk/app-release.apk'
+          boundary="boundary_$(date +%s%N)"
+          request_body=$(mktemp)
+          {
+            printf -- '--%s\r\n' "$boundary"
+            printf 'Content-Type: application/json; charset=UTF-8\r\n\r\n'
+            printf '%s\r\n' "$metadata"
+            printf -- '--%s\r\n' "$boundary"
+            printf 'Content-Type: application/vnd.android.package-archive\r\n\r\n'
+            cat "$apk_path"
+            printf '\r\n--%s--\r\n' "$boundary"
+          } > "$request_body"
+
           curl --fail-with-body --silent --show-error \
             --request POST \
             --header "Authorization: Bearer $access_token" \
-            --form "metadata=$metadata;type=application/json;charset=UTF-8" \
-            --form "file=@build/app/outputs/flutter-apk/app-release.apk;type=application/vnd.android.package-archive" \
+            --header "Content-Type: multipart/related; boundary=$boundary" \
+            --data-binary "@$request_body" \
             'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink'
+          rm -f "$request_body"
