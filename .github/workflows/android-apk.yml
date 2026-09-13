@@ -88,10 +88,23 @@ jobs:
             printf '\r\n--%s--\r\n' "$boundary"
           } > "$request_body"
 
-          curl --fail-with-body --silent --show-error \
+          response_body=$(mktemp)
+          http_code=$(curl --silent --show-error \
             --request POST \
             --header "Authorization: Bearer $access_token" \
             --header "Content-Type: multipart/related; boundary=$boundary" \
             --data-binary "@$request_body" \
-            'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink'
+            --output "$response_body" \
+            --write-out '%{http_code}' \
+            'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink')
           rm -f "$request_body"
+
+          echo "Google Drive API responded with HTTP $http_code"
+          cat "$response_body"
+          echo
+
+          if [[ "$http_code" -lt 200 || "$http_code" -ge 300 ]]; then
+            rm -f "$response_body"
+            exit 1
+          fi
+          rm -f "$response_body"
