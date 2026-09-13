@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_android/webview_flutter_android.dart';
 
 const lifeHackWebUrl = 'https://lifehack-secret.vercel.app/';
 
@@ -59,8 +60,16 @@ class _LifeHackWebPageState extends State<LifeHackWebPage> {
             }
           },
         ),
-      )
-      ..loadRequest(Uri.parse(lifeHackWebUrl));
+      );
+    _clearAndroidCacheThenLoad();
+  }
+
+  Future<void> _clearAndroidCacheThenLoad() async {
+    if (_controller.platform is AndroidWebViewController) {
+      await (_controller.platform as AndroidWebViewController)
+          .clearCache();
+    }
+    await _controller.loadRequest(Uri.parse(lifeHackWebUrl));
   }
 
   @override
