@@ -4759,6 +4759,7 @@ const KERJA_COLOR = "#3E7A46";
 const TIDUR_COLOR = "#B8860B";
 const PRESET_KEY = "tugasku-time-presets";
 const PRESET_REMOVED = "_removed"; // id preset yang disembunyiin, jangan dianggep jam
+const PRESET_LABELS = "_labels"; // { [presetId]: namaKustom } — buat preset yang nama-nya diganti
 
 // satu kegiatan timed siap di-insert ke time_blocks
 const timedBlock = (name, start, end, color, wajib = true) => {
@@ -4844,6 +4845,7 @@ const removedPresetIds = (overrides) =>
 
 const resolvePresets = (overrides) => {
   const hidden = removedPresetIds(overrides);
+  const labels = overrides?.[PRESET_LABELS];
   return TIME_PRESETS.filter((p) => !hidden.has(p.id)).map((p) => {
     const raw = overrides?.[p.id];
     const blocks = Array.isArray(raw)
@@ -4854,7 +4856,8 @@ const resolvePresets = (overrides) => {
           .filter(Boolean)
       : null;
     const next = blocks?.length ? blocks : p.blocks;
-    return { ...p, blocks: next, hint: hintOf(next) };
+    const label = (labels?.[p.id] || "").trim() || p.label;
+    return { ...p, label, blocks: next, hint: hintOf(next) };
   });
 };
 
@@ -5363,6 +5366,15 @@ function WaktuSection({ session }) {
     if (editId === id) setEditId(null);
   };
 
+  const renamePreset = (id, name) => {
+    const n = name.trim();
+    if (!n) return;
+    persistOverrides({
+      ...overrides,
+      [PRESET_LABELS]: { ...(overrides?.[PRESET_LABELS] || {}), [id]: n },
+    });
+  };
+
   const restorePresets = () => {
     const next = { ...overrides };
     delete next[PRESET_REMOVED];
@@ -5586,6 +5598,28 @@ function WaktuSection({ session }) {
       >
         {presets.map((p) => {
           const on = editId ? editId === p.id : activePreset === p.id;
+          const chipStyle = {
+            ...S.chip,
+            letterSpacing: 0,
+            textTransform: "none",
+            fontSize: 12,
+            padding: "6px 4px",
+            color: on ? (editId ? "var(--janji-ink)" : "var(--accent)") : "var(--muted)",
+            fontWeight: on ? 700 : 500,
+            ...(applying ? { opacity: 0.55, cursor: "default" } : {}),
+          };
+          // preset yang lagi dibuka di editor boleh diganti namanya — tap
+          // labelnya buat rename, kayak ganti nama Peta
+          if (editId === p.id)
+            return (
+              <div key={p.id} title={p.hint} style={chipStyle}>
+                <EditableText
+                  value={p.label}
+                  onSave={(v) => renamePreset(p.id, v)}
+                  style={{ fontSize: 12, fontWeight: 700, color: "var(--janji-ink)" }}
+                />
+              </div>
+            );
           return (
             <button
               key={p.id}
@@ -5597,16 +5631,7 @@ function WaktuSection({ session }) {
                 else if (activePreset === p.id) openEdit(p.id);
                 else applyPreset(p);
               }}
-              style={{
-                ...S.chip,
-                letterSpacing: 0,
-                textTransform: "none",
-                fontSize: 12,
-                padding: "6px 4px",
-                color: on ? (editId ? "var(--janji-ink)" : "var(--accent)") : "var(--muted)",
-                fontWeight: on ? 700 : 500,
-                ...(applying ? { opacity: 0.55, cursor: "default" } : {}),
-              }}
+              style={chipStyle}
             >
               {p.label}
             </button>
@@ -5628,7 +5653,7 @@ function WaktuSection({ session }) {
               else openEdit(activePreset || presets[0].id);
             }}
           >
-            ✎
+            {editId ? "✕" : "✎"}
           </button>
         )}
         {presets.length === 0 && (
