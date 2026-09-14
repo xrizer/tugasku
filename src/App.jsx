@@ -3289,6 +3289,7 @@ function AsetView({ session, sources }) {
 
 function DuitPage({ session }) {
   const [rows, setRows] = useState(null);
+  const dateInputRefs = useRef({});
   const [amount, setAmount] = useState("");
   const [kind, setKind] = useState("out"); // out | in | pindah
   const [toSource, setToSource] = useState(null);
@@ -4523,24 +4524,37 @@ function DuitPage({ session }) {
                         "••••"
                       )}
                     </span>
-                    {/* pindah tanggal: input date asli biar hp-nya ngasih
-                        picker bawaan, tapi yang keliatan cuma tombol kecil */}
-                    <label style={{ ...S.iconPlain, position: "relative" }} title="Pindahin ke tanggal lain">
+                    {/* pindah tanggal: input date asli biar hp-nya ngasih picker
+                        bawaan, tapi disembunyiin di luar layout (bukan ditumpuk
+                        transparan di atas tombolnya) — ditumpuk bikin area sentuh
+                        HP-nya nyerempet tombol ✕ di sebelahnya */}
+                    <button
+                      type="button"
+                      style={{ ...S.iconPlain, position: "relative" }}
+                      title="Pindahin ke tanggal lain"
+                      onClick={() => {
+                        const el = dateInputRefs.current[r.id];
+                        if (el?.showPicker) el.showPicker();
+                        else el?.click();
+                      }}
+                    >
                       <Cal />
                       <input
+                        ref={(el) => { if (el) dateInputRefs.current[r.id] = el; }}
                         type="date"
                         value={r.spent_date}
                         onChange={(e) => e.target.value && patchRow(r.id, { spent_date: e.target.value })}
+                        tabIndex={-1}
+                        aria-hidden="true"
                         style={{
                           position: "absolute",
-                          inset: 0,
+                          width: 1,
+                          height: 1,
                           opacity: 0,
-                          width: "100%",
-                          height: "100%",
-                          cursor: "pointer",
+                          pointerEvents: "none",
                         }}
                       />
-                    </label>
+                    </button>
                     <button style={{ ...S.iconPlain, fontSize: 15 }} onClick={() => remove(r.id)}>✕</button>
                   </div>
                 );
