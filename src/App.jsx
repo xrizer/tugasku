@@ -5153,6 +5153,7 @@ function WaktuSection({ session }) {
   const [editId, setEditId] = useState(null);
   const [editDraft, setEditDraft] = useState([]);
   const [mapStore, setMapStore] = useState(loadMapStore);
+  const [waktuSub, setWaktuSub] = useState("peta"); // peta | rutinitas
 
   useEffect(() => {
     supabase
@@ -5502,6 +5503,21 @@ function WaktuSection({ session }) {
 
   return (
     <>
+      <GlassNav
+        small
+        items={[
+          ["peta", "Peta"],
+          ["rutinitas", "Rutinitas"],
+        ]}
+        value={waktuSub}
+        onChange={setWaktuSub}
+        style={{ marginTop: 22, marginBottom: 4 }}
+      />
+
+      {waktuSub === "rutinitas" && <RutinitasSection session={session} />}
+
+      {waktuSub === "peta" && (
+      <>
       <div
         style={{
           display: "flex",
@@ -5922,8 +5938,8 @@ function WaktuSection({ session }) {
           {err}
         </div>
       )}
-
-      <RutinitasSection session={session} />
+      </>
+      )}
     </>
   );
 }
