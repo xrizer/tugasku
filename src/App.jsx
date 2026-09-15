@@ -5922,7 +5922,218 @@ function WaktuSection({ session }) {
           {err}
         </div>
       )}
+
+      <RutinitasSection session={session} />
     </>
+  );
+}
+
+// Rutinitas: kegiatan singkat yang punya target waktu — mandi max 30 menit,
+// jalan kaki parkiran ke lantai 6, dst. Beda dari blok 24 jam di atas: itu
+// jadwal (satu kali per hari, jamnya tetep), ini nyatet TIAP KALI dikerjain
+// berapa lama makannya, biar keliatan trennya makin ngirit apa makin molor.
+function RutinitasSection({ session }) {
+  const [tasks, setTasks] = useState(null);
+  const [logs, setLogs] = useState([]);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ name: "", target: "" });
+  const [logDraft, setLogDraft] = useState({}); // { [taskId]: "12" }
+  const [err, setErr] = useState("");
+
+  useEffect(() => {
+    supabase
+      .from("time_tasks")
+      .select("*")
+      .eq("user_id", session.user.id)
+      .order("created_at", { ascending: true })
+      .then(({ data, error }) => setTasks(error ? [] : data));
+    // 14 hari terakhir cukup buat rata-rata & tren — riwayat lebih tua gak
+    // kepake di kartu ini.
+    const since = new Date();
+    since.setDate(since.getDate() - 14);
+    supabase
+      .from("time_task_logs")
+      .select("*")
+      .eq("user_id", session.user.id)
+      .gte("logged_at", since.toISOString().slice(0, 10))
+      .order("created_at", { ascending: false })
+      .then(({ data, error }) => setLogs(error ? [] : data));
+  }, [session]);
+
+  const addTask = async () => {
+    const name = form.name.trim();
+    const target = parseInt(form.target, 10);
+    if (!name || isNaN(target) || target <= 0) return;
+    setErr("");
+    setForm({ name: "", target: "" });
+    setShowForm(false);
+    const { data, error } = await supabase
+      .from("time_tasks")
+      .insert({ name, target_minutes: target })
+      .select()
+      .single();
+    if (error) { setErr(error.message); return; }
+    setTasks((xs) => [...(xs || []), data]);
+  };
+
+  const patchTask = async (id, patch) => {
+    setTasks((xs) => xs.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+    const { error } = await supabase.from("time_tasks").update(patch).eq("id", id);
+    if (error) setErr(error.message);
+  };
+
+  const removeTask = async (id) => {
+    setTasks((xs) => xs.filter((x) => x.id !== id));
+    setLogs((xs) => xs.filter((x) => x.task_id !== id));
+    await supabase.from("time_tasks").delete().eq("id", id);
+  };
+
+  const logTask = async (task) => {
+    const minutes = parseFloat(String(logDraft[task.id] || "").replace(",", "."));
+    if (isNaN(minutes) || minutes <= 0) return;
+    setLogDraft((d) => ({ ...d, [task.id]: "" }));
+    const row = { task_id: task.id, minutes, logged_at: localToday() };
+    const { data, error } = await supabase
+      .from("time_task_logs")
+      .insert(row)
+      .select()
+      .single();
+    if (error) { setErr(error.message); return; }
+    setLogs((xs) => [data, ...xs]);
+  };
+
+  const removeLog = async (id) => {
+    setLogs((xs) => xs.filter((x) => x.id !== id));
+    await supabase.from("time_task_logs").delete().eq("id", id);
+  };
+
+  if (tasks === null) return null;
+
+  return (
+    <div style={{ marginTop: 30 }}>
+      <div style={S.sectionHead}>
+        <span>Rutinitas</span>
+        <button style={S.promAddLink} onClick={() => setShowForm((v) => !v)}>
+          {showForm ? "batal" : "+"}
+        </button>
+      </div>
+      <div style={{ fontSize: 12, color: "var(--muted)", marginTop: -2, marginBottom: 14 }}>
+        Kegiatan singkat yang ada targetnya — mandi, jalan dari parkiran ke
+        lantai 6, perjalanan ke kantor. Tiap kali dikerjain, catet lamanya.
+      </div>
+
+      {showForm && (
+        <div style={{ display: "flex", gap: 6, marginBottom: 14, alignItems: "center" }}>
+          <input
+            style={{ ...S.input, flex: 1.4, minWidth: 0 }}
+            placeholder="Kegiatan (mis. mandi)"
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            onKeyDown={(e) => e.key === "Enter" && addTask()}
+          />
+          <input
+            style={{ ...S.input, width: 70, flexShrink: 0, fontFamily: MONO }}
+            placeholder="target menit"
+            inputMode="numeric"
+            value={form.target}
+            onChange={(e) => setForm({ ...form, target: e.target.value })}
+            onKeyDown={(e) => e.key === "Enter" && addTask()}
+          />
+          <button style={{ ...S.addBtn, width: 46 }} onClick={addTask}>OK</button>
+        </div>
+      )}
+
+      {tasks.length === 0 && !showForm && (
+        <div style={S.empty}>Belum ada rutinitas yang dicatet.</div>
+      )}
+
+      {tasks.map((t) => {
+        const taskLogs = logs.filter((l) => l.task_id === t.id);
+        const last = taskLogs[0];
+        const avg = taskLogs.length
+          ? taskLogs.reduce((s, l) => s + Number(l.minutes), 0) / taskLogs.length
+          : null;
+        const over = last && Number(last.minutes) > Number(t.target_minutes);
+        return (
+          <div key={t.id} style={{ marginBottom: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <EditableText
+                  value={t.name}
+                  onSave={(v) => patchTask(t.id, { name: v })}
+                  style={{ fontSize: 15, fontWeight: 600 }}
+                />
+                <div style={{ fontFamily: MONO, fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
+                  target{" "}
+                  <EditableText
+                    value={`${t.target_minutes}`}
+                    onSave={(v) => {
+                      const n = parseInt(v, 10);
+                      if (!isNaN(n) && n > 0) patchTask(t.id, { target_minutes: n });
+                    }}
+                    style={{ display: "inline", fontFamily: MONO, fontSize: 11, color: "var(--muted)" }}
+                  />
+                  m
+                  {last != null && (
+                    <>
+                      {" · "}
+                      <span style={{ color: over ? "var(--red)" : "var(--green)" }}>
+                        terakhir {last.minutes}m
+                      </span>
+                    </>
+                  )}
+                  {avg != null && ` · rata-rata ${Math.round(avg)}m (${taskLogs.length}x)`}
+                </div>
+              </div>
+              <input
+                style={{
+                  ...S.input,
+                  width: 52,
+                  flexShrink: 0,
+                  fontFamily: MONO,
+                  fontSize: 14,
+                  textAlign: "right",
+                  padding: "6px 2px",
+                }}
+                placeholder="menit"
+                inputMode="numeric"
+                value={logDraft[t.id] || ""}
+                onChange={(e) => setLogDraft((d) => ({ ...d, [t.id]: e.target.value }))}
+                onKeyDown={(e) => e.key === "Enter" && logTask(t)}
+              />
+              <button style={S.iconBtn} title="Catet durasi" onClick={() => logTask(t)}>✓</button>
+              <button style={S.iconBtn} title="Hapus rutinitas" onClick={() => removeTask(t.id)}>✕</button>
+            </div>
+            {taskLogs.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
+                {taskLogs.slice(0, 8).map((l) => (
+                  <button
+                    key={l.id}
+                    type="button"
+                    title={`${l.logged_at} — tap buat hapus`}
+                    onClick={() => removeLog(l.id)}
+                    style={{
+                      ...S.chip,
+                      background: "var(--badge)",
+                      borderRadius: 999,
+                      padding: "3px 9px",
+                      fontSize: 10,
+                      color: Number(l.minutes) > Number(t.target_minutes) ? "var(--red)" : "var(--muted)",
+                    }}
+                  >
+                    {l.minutes}m
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {err && (
+        <div style={{ color: "var(--red)", fontSize: 12, marginTop: 8 }}>{err}</div>
+      )}
+    </div>
   );
 }
 
