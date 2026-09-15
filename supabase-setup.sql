@@ -241,12 +241,10 @@ alter table public.habit_events
   add column if not exists note text;
 
 -- ---------------------------------------------------------------------
--- Rutinitas: kegiatan singkat yang punya target waktu (mandi max 30 menit,
--- jalan kaki parkiran ke lantai 6, perjalanan ke kantor, dst).
---
--- Beda dari time_blocks (jadwal 24 jam, satu slot tetep per hari): ini
--- nyatet TIAP KALI kegiatannya dikerjain berapa lama, jadi kekumpul riwayat
--- buat liat tren makin ngirit apa makin molor dibanding targetnya.
+-- Rutinitas: kegiatan singkat yang didaftarin sama batas waktunya (mandi
+-- max 30 menit, jalan kaki parkiran ke lantai 6, perjalanan ke kantor 45
+-- menit). Cuma patokan yang dideklarasiin — bukan dicatet tiap kejadian,
+-- jadi gak ada tabel riwayat.
 create table if not exists public.time_tasks (
   id             uuid primary key default gen_random_uuid(),
   user_id        uuid not null default auth.uid() references auth.users(id) on delete cascade,
@@ -255,24 +253,10 @@ create table if not exists public.time_tasks (
   created_at     timestamptz not null default now()
 );
 
-create table if not exists public.time_task_logs (
-  id         uuid primary key default gen_random_uuid(),
-  user_id    uuid not null default auth.uid() references auth.users(id) on delete cascade,
-  task_id    uuid not null references public.time_tasks(id) on delete cascade,
-  minutes    numeric not null check (minutes > 0),
-  logged_at  date not null default current_date,
-  created_at timestamptz not null default now()
-);
-
-alter table public.time_tasks     enable row level security;
-alter table public.time_task_logs enable row level security;
+alter table public.time_tasks enable row level security;
 
 drop policy if exists "own time tasks" on public.time_tasks;
 create policy "own time tasks" on public.time_tasks
-  for all using (user_id = auth.uid()) with check (user_id = auth.uid());
-
-drop policy if exists "own time task logs" on public.time_task_logs;
-create policy "own time task logs" on public.time_task_logs
   for all using (user_id = auth.uid()) with check (user_id = auth.uid());
 
 -- Seed tugas awal
