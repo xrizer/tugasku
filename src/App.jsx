@@ -3689,6 +3689,19 @@ function DuitPage({ session }) {
   });
   const breakdown = Object.entries(bySource).sort((a, b) => b[1] - a[1]);
 
+  // rincian per kategori buat hari yang diliat — satu bar ketumpuk warna-warni,
+  // ketimbang deretan angka. Sekali liat langsung keliatan abis ke mana.
+  const byCatToday = (() => {
+    const acc = {};
+    todayRows.filter(isOut).forEach((r) => {
+      const k = r.category || "—";
+      acc[k] = (acc[k] || 0) + Number(r.amount);
+    });
+    const list = Object.entries(acc).sort((a, b) => b[1] - a[1]);
+    const total = list.reduce((s, x) => s + x[1], 0);
+    return { list, total };
+  })();
+
   const amountNum = parseInt(amount.replace(/\D/g, ""), 10) || 0;
   const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "000", "0", "⌫"];
   const tapKey = (k) =>
@@ -4020,6 +4033,58 @@ function DuitPage({ session }) {
           </div>
         )}
       </div>
+
+      {/* ===== kategori hari ini: satu bar ketumpuk, biar sekali liat langsung
+          keliatan abis ke mana — bukan deretan angka yang mesti dibaca satu-satu ===== */}
+      {showTotal && byCatToday.list.length > 0 && (
+        <div style={{ ...S.receipt, marginTop: 14 }}>
+          <div style={S.receiptEyebrow}>Kategori {dayLabel}</div>
+          <div
+            style={{
+              display: "flex",
+              height: 14,
+              borderRadius: 8,
+              overflow: "hidden",
+              marginTop: 10,
+              gap: 2,
+            }}
+          >
+            {byCatToday.list.map(([name, v], i) => (
+              <div
+                key={name}
+                title={`${name} · ${rupiah(v)}`}
+                style={{
+                  width: `${(v / byCatToday.total) * 100}%`,
+                  minWidth: 3,
+                  background: PALETTE[i % PALETTE.length],
+                }}
+              />
+            ))}
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px 16px", marginTop: 12 }}>
+            {byCatToday.list.map(([name, v], i) => (
+              <div key={name} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+                <span
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: 999,
+                    background: PALETTE[i % PALETTE.length],
+                    flexShrink: 0,
+                  }}
+                />
+                <span style={{ color: "var(--muted2)" }}>{name}</span>
+                <span style={{ fontFamily: MONO, fontWeight: 700 }}>
+                  {rupiah(v)}
+                </span>
+                <span style={{ fontFamily: MONO, fontSize: 10, color: "var(--faint)" }}>
+                  {Math.round((v / byCatToday.total) * 100)}%
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ===== struk hari ini ===== */}
       <div style={S.receiptList}>
