@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -48,64 +48,13 @@ jobs:
           path: mobile/build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
 
-      - name: Upload APK to Google Drive
-        env:
-          GOOGLE_DRIVE_CLIENT_ID: ${{ secrets.GOOGLE_DRIVE_CLIENT_ID }}
-          GOOGLE_DRIVE_CLIENT_SECRET: ${{ secrets.GOOGLE_DRIVE_CLIENT_SECRET }}
-          GOOGLE_DRIVE_REFRESH_TOKEN: ${{ secrets.GOOGLE_DRIVE_REFRESH_TOKEN }}
-          GOOGLE_DRIVE_FOLDER_ID: '13naZpSUJQ37D3n429NxZWLDrvELPfzBk'
-          RUN_NUMBER: ${{ github.run_number }}
-        run: |
-          if [[ -z "$GOOGLE_DRIVE_CLIENT_ID" || -z "$GOOGLE_DRIVE_CLIENT_SECRET" || -z "$GOOGLE_DRIVE_REFRESH_TOKEN" ]]; then
-            echo 'Missing Google Drive OAuth repository secrets.' >&2
-            exit 1
-          fi
+      - name: Rename APK for release
+        run: cp build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/lifehack-${{ github.run_number }}.apk
 
-          token_response=$(curl --silent --show-error \
-            --request POST \
-            --data-urlencode "client_id=$GOOGLE_DRIVE_CLIENT_ID" \
-            --data-urlencode "client_secret=$GOOGLE_DRIVE_CLIENT_SECRET" \
-            --data-urlencode "refresh_token=$GOOGLE_DRIVE_REFRESH_TOKEN" \
-            --data-urlencode 'grant_type=refresh_token' \
-            'https://oauth2.googleapis.com/token')
-          ACCESS_TOKEN=$(jq -r '.access_token // empty' <<< "$token_response")
-          if [[ -z "$ACCESS_TOKEN" ]]; then
-            echo 'Google OAuth did not return an access token. Response:' >&2
-            echo "$token_response" >&2
-            exit 1
-          fi
-
-          metadata=$(printf '{"name":"lifehack-%s.apk","parents":["%s"]}' "$RUN_NUMBER" "$GOOGLE_DRIVE_FOLDER_ID")
-          apk_path='build/app/outputs/flutter-apk/app-release.apk'
-          boundary="boundary_$(date +%s%N)"
-          request_body=$(mktemp)
-          {
-            printf -- '--%s\r\n' "$boundary"
-            printf 'Content-Type: application/json; charset=UTF-8\r\n\r\n'
-            printf '%s\r\n' "$metadata"
-            printf -- '--%s\r\n' "$boundary"
-            printf 'Content-Type: application/vnd.android.package-archive\r\n\r\n'
-            cat "$apk_path"
-            printf '\r\n--%s--\r\n' "$boundary"
-          } > "$request_body"
-
-          response_body=$(mktemp)
-          http_code=$(curl --silent --show-error \
-            --request POST \
-            --header "Authorization: Bearer $ACCESS_TOKEN" \
-            --header "Content-Type: multipart/related; boundary=$boundary" \
-            --data-binary "@$request_body" \
-            --output "$response_body" \
-            --write-out '%{http_code}' \
-            'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink')
-          rm -f "$request_body"
-
-          echo "Google Drive API responded with HTTP $http_code"
-          cat "$response_body"
-          echo
-
-          if [[ "$http_code" -lt 200 || "$http_code" -ge 300 ]]; then
-            rm -f "$response_body"
-            exit 1
-          fi
-          rm -f "$response_body"
+      - name: Publish APK to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-build
+          name: Android build ${{ github.run_number }}
+          body: Automated Android build from commit ${{ github.sha }}.
+          files: mobile/build/app/outputs/flutter-apk/lifehack-${{ github.run_number }}.apk
