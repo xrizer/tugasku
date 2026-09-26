@@ -2970,10 +2970,9 @@ function AsetView({ session, sources }) {
 
   // ---- komposisi: saldo dulu, terus tiap aset jadi irisannya sendiri ----
   const comp = [
-    { name: "Likuid", note: `saldo di ${sources.length} sumber`, v: saldoTotal, color: "var(--accent)" },
+    { name: "Likuid", v: saldoTotal, color: "var(--accent)" },
     ...assets.map((a, i) => ({
       name: a.name,
-      note: `update ${ago(a.updated_at)}`,
       v: Number(a.value),
       color: `var(--src-${i % 8})`,
     })),
@@ -2987,10 +2986,6 @@ function AsetView({ session, sources }) {
       ? Number(balanceOf(b)?.amount || 0) - Number(balanceOf(a)?.amount || 0)
       : a.localeCompare(b)
   );
-  const stale = sources.filter((s) => {
-    const b = balanceOf(s);
-    return !b || daysAgo(b.updated_at) >= STALE_DAYS;
-  });
 
   return (
     <>
@@ -3050,10 +3045,7 @@ function AsetView({ session, sources }) {
             {comp.map((c) => (
               <div key={c.name} style={{ ...S.card, marginBottom: 14 }}>
                 <span style={{ width: 10, height: 10, borderRadius: 3, background: c.color, flexShrink: 0 }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 15, fontWeight: 600 }}>{c.name}</div>
-                  <div style={{ ...S.dumpHint, marginBottom: 0, marginTop: 2 }}>{c.note}</div>
-                </div>
+                <div style={{ flex: 1, minWidth: 0, fontSize: 15, fontWeight: 600 }}>{c.name}</div>
                 <div style={{ textAlign: "right", flexShrink: 0 }}>
                   <div style={{ fontFamily: MONO, fontSize: 14, fontWeight: 700 }}>{short(c.v)}</div>
                   <div style={{ fontFamily: MONO, fontSize: 11, color: "var(--muted)" }}>
@@ -3062,50 +3054,6 @@ function AsetView({ session, sources }) {
                 </div>
               </div>
             ))}
-          </div>
-          {/* satu-satunya angka yang beneran ngasih tau kondisi hari ini */}
-          <div style={{ ...S.dumpHint, marginBottom: 0, lineHeight: 1.5 }}>
-            Cuma <b style={{ color: "var(--accent)" }}>{pct(saldoTotal).toFixed(1)}%</b> yang bisa dipake hari ini
-            — sisanya nyangkut di aset.
-          </div>
-        </div>
-      )}
-
-      {/* ===== perlu diupdate ===== */}
-      {stale.length > 0 && (
-        <div style={{ marginTop: 34 }}>
-          <div style={S.sectionHead}><span>Perlu diupdate</span></div>
-          <div
-            style={{
-              background: "var(--card)",
-              border: "1px solid var(--border)",
-              borderRadius: 14,
-              padding: "16px 16px 14px",
-              marginTop: 14,
-            }}
-          >
-            <div style={{ fontSize: 14, lineHeight: 1.5 }}>
-              {stale.length} sumber saldo belum diupdate {STALE_DAYS}+ hari.
-            </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
-              {stale.map((s) => (
-                <span
-                  key={s}
-                  style={{
-                    fontFamily: MONO,
-                    fontSize: 11,
-                    letterSpacing: "0.06em",
-                    textTransform: "uppercase",
-                    color: "var(--janji-ink)",
-                    border: "1px solid var(--janji-border)",
-                    borderRadius: 999,
-                    padding: "4px 10px",
-                  }}
-                >
-                  {s}
-                </span>
-              ))}
-            </div>
           </div>
         </div>
       )}
@@ -3119,7 +3067,7 @@ function AsetView({ session, sources }) {
           </button>
         </div>
         <div style={{ ...S.dumpHint, marginTop: -4, marginBottom: 16 }}>
-          {sources.length} sumber · {money(saldoTotal)}
+          {money(saldoTotal)}
         </div>
 
         {sorted.map((s) => {
@@ -3170,7 +3118,7 @@ function AsetView({ session, sources }) {
                     <b style={{ color: drift < 0 ? "var(--red)" : "var(--green)" }}>
                       {drift < 0 ? "−" : "+"}{rupiah(Math.abs(drift))}
                     </b>{" "}
-                    di Catet · jadi {rupiah(amt + drift)}
+                    → {rupiah(amt + drift)}
                   </span>
                   <button
                     style={{ ...S.promAddLink, fontSize: 11 }}
@@ -3199,9 +3147,6 @@ function AsetView({ session, sources }) {
             </div>
           );
         })}
-        <div style={{ ...S.dumpHint, marginBottom: 0 }}>
-          Nama sumber ngikutin chip di tab Catet.
-        </div>
       </div>
 
       {/* ===== aset lainnya ===== */}
@@ -3213,7 +3158,7 @@ function AsetView({ session, sources }) {
           </button>
         </div>
         <div style={{ ...S.dumpHint, marginTop: -4, marginBottom: 16 }}>
-          {assets.length} aset · {money(otherTotal)}
+          {money(otherTotal)}
         </div>
 
         {showForm && (
@@ -3268,7 +3213,6 @@ function AsetView({ session, sources }) {
               />
               <div style={{ ...S.dumpHint, marginBottom: 0, marginTop: 2 }}>
                 {ago(a.updated_at)}
-                {total > 0 && ` · ${pct(Number(a.value)).toFixed(0)}% dari total`}
               </div>
             </div>
             <EditableText
