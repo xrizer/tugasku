@@ -3321,6 +3321,7 @@ function DuitPage({ session }) {
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
   const [showBreakdown, setShowBreakdown] = useState(false);
+  const [catFilter, setCatFilter] = useState(null);
   const [totalKey, setTotalKey] = useState(0); // ganti = total-nya ngedenyut
   const toastRef = useRef(null);
 
@@ -3564,10 +3565,12 @@ function DuitPage({ session }) {
   // log: transaksi dikelompokin per tanggal, terbaru di atas. Urutan di dalam
   // sehari ngikutin created_at dari query, jadi yang barusan dicatet paling atas.
   const logDays = Object.entries(
-    winRows.reduce((acc, r) => {
-      (acc[r.spent_date] ||= []).push(r);
-      return acc;
-    }, {})
+    winRows
+      .filter((r) => !catFilter || (r.category || "—") === catFilter)
+      .reduce((acc, r) => {
+        (acc[r.spent_date] ||= []).push(r);
+        return acc;
+      }, {})
   ).sort((a, b) => b[0].localeCompare(a[0]));
 
   // Tren belanja harian buat grafik di tab Log. Tagihan rutin dikecualiin —
@@ -4300,7 +4303,10 @@ function DuitPage({ session }) {
           {RANGES.map(([k, label]) => (
             <button
               key={k}
-              onClick={() => setRange(k)}
+              onClick={() => {
+                setRange(k);
+                setCatFilter(null);
+              }}
               style={{
                 fontFamily: MONO,
                 fontSize: 11,
@@ -4344,7 +4350,9 @@ function DuitPage({ session }) {
 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={S.dumpHint}>
-            {winRows.length} catatan · {win.label}
+            {catFilter
+              ? `${logDays.reduce((s, [, list]) => s + list.length, 0)} catatan · ${catFilter}`
+              : `${winRows.length} catatan · ${win.label}`}
           </span>
           <button
             style={{ ...S.iconBtn, ...(showTotal ? {} : { borderColor: "var(--janji-border)", color: "var(--janji-ink)" }) }}
@@ -4426,28 +4434,67 @@ function DuitPage({ session }) {
 
         {showTotal && byCat.list.length > 1 && (
           <div style={{ marginTop: 26 }}>
-            {byCat.list.slice(0, 6).map(([name, v]) => (
-              <div key={name} style={{ marginBottom: 12 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 13 }}>
-                  <span style={{ textTransform: "uppercase", fontFamily: MONO, fontSize: 11, letterSpacing: "0.08em", color: "var(--muted2)" }}>
-                    {name}
-                  </span>
-                  <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}>
-                    {rupiah(v)}
-                  </span>
+            {byCat.list.slice(0, 6).map(([name, v]) => {
+              const active = catFilter === name;
+              return (
+                <div
+                  key={name}
+                  onClick={() => setCatFilter(active ? null : name)}
+                  style={{
+                    marginBottom: 12,
+                    cursor: "pointer",
+                    opacity: catFilter && !active ? 0.45 : 1,
+                    transition: "opacity 0.15s",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 13 }}>
+                    <span
+                      style={{
+                        textTransform: "uppercase",
+                        fontFamily: MONO,
+                        fontSize: 11,
+                        letterSpacing: "0.08em",
+                        color: active ? "var(--accent)" : "var(--muted2)",
+                        fontWeight: active ? 700 : 400,
+                      }}
+                    >
+                      {name}
+                    </span>
+                    <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}>
+                      {rupiah(v)}
+                    </span>
+                  </div>
+                  <div style={{ height: 5, borderRadius: 99, background: "var(--badge)", overflow: "hidden", marginTop: 5 }}>
+                    <div
+                      style={{
+                        height: "100%",
+                        borderRadius: 99,
+                        width: `${Math.max(1.5, (v / byCat.total) * 100)}%`,
+                        background: "var(--accent)",
+                      }}
+                    />
+                  </div>
                 </div>
-                <div style={{ height: 5, borderRadius: 99, background: "var(--badge)", overflow: "hidden", marginTop: 5 }}>
-                  <div
-                    style={{
-                      height: "100%",
-                      borderRadius: 99,
-                      width: `${Math.max(1.5, (v / byCat.total) * 100)}%`,
-                      background: "var(--accent)",
-                    }}
-                  />
-                </div>
-              </div>
-            ))}
+              );
+            })}
+            {catFilter && (
+              <button
+                onClick={() => setCatFilter(null)}
+                style={{
+                  ...S.dumpHint,
+                  marginTop: 4,
+                  marginBottom: 0,
+                  cursor: "pointer",
+                  background: "none",
+                  border: "none",
+                  padding: 0,
+                  color: "var(--accent)",
+                  textDecoration: "underline",
+                }}
+              >
+                × liat semua kategori
+              </button>
+            )}
           </div>
         )}
 
