@@ -8021,14 +8021,6 @@ function HomePage({ session, go }) {
     const badIds = new Set(hbs.filter((h) => (h.kind || "bad") === "bad").map((h) => h.id));
     const goodDates = new Set(hev.filter((e) => goodIds.has(e.habit_id)).map((e) => e.date));
     const slipDates = new Set(hev.filter((e) => badIds.has(e.habit_id)).map((e) => e.date));
-    const bad = hbs
-      .filter((h) => badIds.has(h.id))
-      .map((h) => {
-        const ev = hev.filter((e) => e.habit_id === h.id);
-        const last = ev.length ? ev[0].created_at : h.created_at;
-        return { name: h.name, days: Math.floor((Date.now() - new Date(last)) / 86400000) };
-      })
-      .sort((a, b) => b.days - a.days);
 
     const db = debts.data || [];
     const owed = (dir) =>
@@ -8057,11 +8049,6 @@ function HomePage({ session, go }) {
       showMoney: (() => {
         try { return localStorage.getItem("tugasku-show-total") === "1"; } catch { return false; }
       })(),
-      // Home ikut nutup nama bad habit — percuma ada mata di tab Diri kalau
-      // namanya tetep kecetak di halaman pertama
-      showBad: (() => {
-        try { return localStorage.getItem("tugasku-show-bad") === "1"; } catch { return false; }
-      })(),
 
       moodToday: moodDates.has(today),
       moodDates, touchDates, goodDates, slipDates,
@@ -8072,8 +8059,6 @@ function HomePage({ session, go }) {
 
       dreamTotal: drs.length,
       dreamToday: drs.filter((x) => touchedToday.has(x.id)).length,
-      nextStep: drs.find((x) => !touchedToday.has(x.id))?.next_step || null,
-      bestStreak: bad[0] || null,
 
       jamWajib: bl.filter((b) => b.wajib).reduce((s, b) => s + Number(b.hours), 0),
       jamKepake: bl.reduce((s, b) => s + Number(b.hours), 0),
@@ -8104,16 +8089,6 @@ function HomePage({ session, go }) {
     await supabase.from("tasks").update({ status: "inprogress" }).eq("id", next.id);
     setFocusTimer(0);
     load();
-  };
-
-  // ---- langkah mimpi jadi tugas beneran di board Tugas ----
-  const jadwalkan = async () => {
-    if (!d.nextStep) return;
-    const { error } = await supabase
-      .from("tasks")
-      .insert({ title: d.nextStep, status: "todo", priority: 0, daily: false });
-    setMsg(error ? error.message : "Masuk antrian Tugas ✓");
-    if (!error) load();
   };
 
   const todayChecks = [
@@ -8147,17 +8122,6 @@ function HomePage({ session, go }) {
   const DAYS = ["SEN", "SEL", "RAB", "KAM", "JUM", "SAB", "MIN"];
   const weekDone = rows.reduce((total, row) => total + hits(row), 0);
   const weekPossible = rows.length * (d.todayIdx + 1);
-
-  // ---- insight: urutkan yang butuh keputusan dulu, jangan cuma satu sinyal ----
-  const insights = [
-    d.overdue.length > 0 && { t: `${d.overdue.length} janji udah lewat jatuh tempo.`, s: d.overdue[0].text, c: "var(--red)", p: "tugas" },
-    d.unpaid > 0 && { t: `${d.unpaid} biaya rutin belum dibayar.`, s: money(d.unpaidAmount), c: "var(--red)", p: "duit" },
-    d.dailyTotal > d.dailyDone && { t: `${d.dailyTotal - d.dailyDone} wajib harian masih tersisa.`, s: `${d.dailyDone}/${d.dailyTotal} selesai`, c: "var(--janji-ink)", p: "tugas" },
-    todayDone < todayChecks.length && { t: `${todayChecks.length - todayDone} check-in diri belum kelar hari ini.`, s: `${todayDone}/${todayChecks.length} selesai`, c: "var(--src-3)", p: "diri" },
-    d.sisa > 0 && d.outMonth > d.sisa && { t: "Pengeluaran bulan ini udah lewat sisa bebas.", s: `${money(d.outMonth)} dari ${money(d.sisa)}`, c: "var(--red)", p: "duit" },
-    d.jamKepake > 24 && { t: "Peta sehari lu kelebihan waktu.", s: `kepake ${d.jamKepake.toFixed(1)} dari 24 jam`, c: "var(--red)", p: "diri" },
-    d.bestStreak && d.bestStreak.days >= 3 && { t: `${d.showBad ? d.bestStreak.name : "Streak terpanjang"} udah ${d.bestStreak.days} hari bersih.`, s: "jangan diputus", c: "var(--green)", p: "diri" },
-  ].filter(Boolean).slice(0, 3);
 
   const Panel = ({ children, style }) => (
     <div
@@ -8483,50 +8447,6 @@ function HomePage({ session, go }) {
           </div>
         </Panel>
       )}
-
-      {/* ================= insight + langkah ================= */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12 }}>
-        {insights.length > 0 && (
-          <Panel style={{ background: "linear-gradient(135deg, var(--green-bg), var(--card))", borderColor: "var(--green-border)" }}>
-            <Label right={`${insights.length} sinyal`}>Yang perlu dilihat</Label>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {insights.map((item) => (
-                <button
-                  key={item.t}
-                  type="button"
-                  onClick={() => go(item.p)}
-                  style={{
-                    appearance: "none",
-                    width: "100%",
-                    textAlign: "left",
-                    cursor: "pointer",
-                    background: "var(--card2)",
-                    border: "1px solid var(--border)",
-                    borderLeft: `3px solid ${item.c}`,
-                    borderRadius: 10,
-                    color: "var(--ink)",
-                    padding: "10px 12px",
-                  }}
-                >
-                  <div style={{ fontSize: 14, fontWeight: 700, lineHeight: 1.3 }}>{item.t}</div>
-                  <div style={{ fontFamily: MONO, fontSize: 10, color: "var(--muted)", marginTop: 5 }}>{item.s} · buka ›</div>
-                </button>
-              ))}
-            </div>
-          </Panel>
-        )}
-        {d.nextStep && (
-          <Panel style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <Label>Langkah berikutnya</Label>
-            <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-0.02em", lineHeight: 1.25 }}>
-              {d.nextStep}
-            </div>
-            <button style={{ ...S.btnGhost, alignSelf: "flex-start", padding: "10px 16px", fontSize: 14, color: "var(--accent)", borderColor: "var(--accent-border)" }} onClick={jadwalkan}>
-              Jadwalkan
-            </button>
-          </Panel>
-        )}
-      </div>
 
       {msg && <div style={{ ...S.dumpHint, marginBottom: 0, textAlign: "center" }}>{msg}</div>}
     </div>
